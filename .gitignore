@@ -44,8 +44,13 @@ assets/fonts/*.woff
 # 외부에서 받는 것 (용량 / 플랫폼 의존)
 # ─────────────────────────────────────────────
 templates/official/
-nuclei
-nuclei.exe
+
+# 앞의 / 가 없으면 이 패턴은 이름이 nuclei 인 모든 경로에 걸린다.
+# app/adapters/nuclei/ (소스 디렉터리)가 통째로 무시되므로 루트로 고정한다.
+/nuclei
+/nuclei.exe
+/bin/nuclei
+/bin/nuclei.exe
 
 
 # ─────────────────────────────────────────────
