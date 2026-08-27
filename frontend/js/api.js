@@ -1,0 +1,99 @@
+/* 백엔드 호출 래퍼.
+ *
+ * GUI 는 SQLite 직접 조회 없음. 모든 요청이 이 파일 경유 (docs/01 §2.1).
+ * 오류는 전부 docs/00 §0.2 형식이므로 한 곳에서 해석
+ */
+
+const BASE = "/api/v1";
+
+export class ApiError extends Error {
+  constructor(status, code, message, details) {
+    super(message || `요청 실패 (${status})`);
+    this.status = status;
+    this.code = code || "INTERNAL_ERROR";
+    this.details = details || [];
+  }
+}
+
+async function request(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(BASE + path, {
+      headers: options.body ? { "Content-Type": "application/json" } : {},
+      ...options,
+    });
+  } catch (cause) {
+    throw new ApiError(0, "OFFLINE", "백엔드에 연결할 수 없습니다.");
+  }
+
+  if (response.status === 204) return null;
+
+  const text = await response.text();
+  const body = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const error = (body && body.error) || {};
+    throw new ApiError(response.status, error.code, error.message, error.details);
+  }
+  return body;
+}
+
+const query = (params) => {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") search.set(key, value);
+  }
+  const text = search.toString();
+  return text ? `?${text}` : "";
+};
+
+export const api = {
+  health: () => request("/health"),
+  guideStatus: () => request("/guide/status"),
+
+  settings: () => request("/settings"),
+  saveSettings: (patch) =>
+    request("/settings", { method: "PUT", body: JSON.stringify(patch) }),
+
+  listScans: (params = {}) => request("/scans" + query(params)),
+  getScan: (id) => request(`/scans/${encodeURIComponent(id)}`),
+  createScan: (payload) =>
+    request("/scans", { method: "POST", body: JSON.stringify(payload) }),
+  cancelScan: (id) => request(`/scans/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
+  deleteScan: (id) => request(`/scans/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  listFindings: (scanId, params = {}) =>
+    request(`/scans/${encodeURIComponent(scanId)}/findings` + query(params)),
+  getFinding: (id) => request(`/findings/${encodeURIComponent(id)}`),
+  patchFinding: (id, payload) =>
+    request(`/findings/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  importTargets: (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/targets/import", { method: "POST", body: form });
+  },
+};
+
+/* 스캔 진행률 구독. progress / finding / done 이벤트를 넘긴다 */
+export function subscribeScan(scanId, handlers) {
+  const source = new EventSource(`${BASE}/scans/${encodeURIComponent(scanId)}/stream`);
+  for (const name of ["progress", "finding", "done"]) {
+    source.addEventListener(name, (event) => {
+      let payload = {};
+      try {
+        payload = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      handlers[name]?.(payload);
+      // done 이후 서버가 스트림 종료. 재연결 시도 차단
+      if (name === "done") source.close();
+    });
+  }
+  source.onerror = () => source.close();
+  return () => source.close();
+}

@@ -10,6 +10,8 @@ import sqlite3
 from pathlib import Path
 
 from app.config import settings
+from app.domain.enums import ScanStatus
+from app.domain.ids import new_id
 from app.repository.db import session
 
 # (CSV 파일명, 테이블, ON CONFLICT 대상, 키 컬럼)
@@ -105,13 +107,64 @@ def init_db(db_path: Path | None = None) -> None:
     print(f"init-db done: {target}")
 
 
+def import_scan(
+    jsonl_path: Path, targets: list[str], db_path: Path | None = None
+) -> str:
+    """외부에서 실행한 nuclei JSONL 을 스캔으로 적재. 스캔 ID 반환.
+
+    REDAR 가 직접 돌리지 못한 환경(원격 랩 등)의 결과를 가져오는 경로.
+    파서·저장 경로는 실제 스캔과 동일하므로 결과 화면·보고서가 그대로 동작
+    """
+    from app.adapters.nuclei.parser import parse_stream
+    from app.repository import scans as scan_repo
+    from app.repository.findings import FindingBatchWriter
+    from app.repository.rules import load_vuln_type_rules
+
+    scan_id = new_id("scn")
+    with session(db_path or settings.DB_PATH) as conn:
+        scan_repo.insert_scan(
+            conn,
+            scan_id=scan_id,
+            selection_mode="explicit",
+            selection_detail={"imported_from": jsonl_path.name},
+            collect_environment=False,
+            threads=0,
+            timeout_sec=0,
+            retries=0,
+            rate_limit=None,
+            targets=targets,
+            tool_version="import",
+            nuclei_version=None,
+        )
+        rules = load_vuln_type_rules(conn)
+        lines = jsonl_path.read_text(encoding="utf-8").splitlines()
+        with FindingBatchWriter(conn) as writer:
+            for finding in parse_stream(lines, scan_id=scan_id, rules=rules):
+                writer.add(finding)
+        scan_repo.set_status(conn, scan_id, ScanStatus.COMPLETED)
+        print(f"  적재 {writer.inserted}건 / 중복 제외 {writer.skipped}건")
+    print(f"import-scan done: {scan_id}")
+    return scan_id
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init-db", help="스키마 생성 + 번들 CSV 적재")
+
+    importer = sub.add_parser(
+        "import-scan", help="외부에서 실행한 nuclei JSONL 을 스캔으로 적재"
+    )
+    importer.add_argument("jsonl", type=Path, help="nuclei -jsonl 출력 파일")
+    importer.add_argument(
+        "--target", action="append", required=True, help="대상. 여러 번 지정 가능"
+    )
+
     args = parser.parse_args()
     if args.command == "init-db":
         init_db()
+    elif args.command == "import-scan":
+        import_scan(args.jsonl, args.target)
 
 
 if __name__ == "__main__":
