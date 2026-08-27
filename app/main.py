@@ -20,7 +20,6 @@ def health() -> dict[str, str | None]:
             conn.execute("SELECT 1 FROM schema_version LIMIT 1").fetchone()
         db = "connected"
     except sqlite3.Error:
-        # DB 가 없어도 200 으로 응답한다. GUI 가 init-db 안내를 띄우려면
-        # 헬스체크 자체는 성공해야 한다.
+        # DB 부재에도 200. GUI 의 init-db 안내를 위해 헬스체크 자체는 성공 필요
         db = "error"
     return {"status": "ok", "db": db, "nuclei": nuclei.version()}

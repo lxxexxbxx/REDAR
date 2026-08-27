@@ -1,0 +1,12 @@
+# CVSS -> Severity -> SeverityGuide 환산표
+# 정본: docs/00_API_SPEC.md §6.1
+#
+# 보고서 부록에 그대로 첨부되는 표. 값 변경 시 부록도 변경됨
+# 주의: Part A 전용. Part B(점검항목 중요도)에 사용 금지 - 가이드 원문에 없는 값 유입
+bands:
+  - { min: 9.0, max: 10.0, severity: critical, severity_guide: 상 }
+  - { min: 7.0, max: 8.9,  severity: high,     severity_guide: 상 }
+  - { min: 4.0, max: 6.9,  severity: medium,   severity_guide: 중 }
+  - { min: 0.1, max: 3.9,  severity: low,      severity_guide: 하 }
+  # 0.0 또는 미산정(null)
+  - { min: 0.0, max: 0.0,  severity: info,     severity_guide: 하 }

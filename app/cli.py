@@ -14,10 +14,10 @@ from app.repository.db import session
 
 # (CSV 파일명, 테이블, ON CONFLICT 대상, 키 컬럼)
 #
-# component_advisories 의 충돌 대상이 식(COALESCE)인 이유: 스키마의 uq_advisory 가
-# 식 인덱스라 컬럼 목록으로는 매칭되지 않는다 (db/schema.sql §4).
+# component_advisories 충돌 대상이 식(COALESCE)인 이유: uq_advisory 가 식 인덱스이므로
+# 컬럼 목록으로는 매칭 불가 (db/schema.sql §4)
 #
-# guide_mappings 는 파일 2개가 같은 테이블에 들어간다 (docs/05 §1.2).
+# guide_mappings 는 CSV 2개가 동일 테이블 적재 (docs/05 §1.2)
 _CSV_LOADS: list[tuple[str, str, str, tuple[str, ...]]] = [
     (
         "vuln_type_rules.csv",
@@ -45,8 +45,7 @@ _CSV_LOADS: list[tuple[str, str, str, tuple[str, ...]]] = [
     ),
 ]
 
-# guide_items(가이드 본문)는 적재하지 않는다. 저작권 대상이며 사용자 임포트다
-# (CLAUDE.md 절대규칙 8).
+# guide_items(가이드 본문) 미적재. 저작권 대상, 사용자 임포트 (절대규칙 8)
 
 
 def _upsert_csv(
@@ -68,8 +67,7 @@ def _upsert_csv(
         f"ON CONFLICT ({conflict}) DO UPDATE SET "
         + ", ".join(f"{c} = excluded.{c}" for c in updates)
     )
-    # 빈 문자열은 NULL 로 넣는다. '' 를 그대로 넣으면 nullable 컬럼에
-    # 빈 문자열과 NULL 두 가지 "없음"이 섞인다.
+    # 빈 문자열 -> NULL. 미변환 시 nullable 컬럼에 '없음'이 두 종류로 혼재
     conn.executemany(sql, [[row[c] or None for c in cols] for row in rows])
     return len(rows)
 
@@ -89,7 +87,7 @@ def _apply_migrations(conn: sqlite3.Connection) -> list[int]:
 
 
 def init_db(db_path: Path | None = None) -> None:
-    """스키마 적용 → 미적용 마이그레이션 → 번들 CSV upsert. 재실행 안전."""
+    """스키마 적용 -> 미적용 마이그레이션 -> 번들 CSV upsert. 재실행 안전"""
     target = db_path or settings.DB_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     with session(target) as conn:

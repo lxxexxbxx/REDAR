@@ -1,8 +1,7 @@
 """파일·환경 수준 설정.
 
-런타임 플래그(offline_mode / llm_enabled / target_allowlist ...)는 여기가 아니라
-DB 의 settings 테이블이 원본이다 (db/schema.sql §8). 두 곳에 두면 어긋난다.
-여기에는 DB 를 열기 전에 알아야 하는 값만 둔다.
+런타임 플래그(offline_mode / llm_enabled / target_allowlist)의 원본은
+DB settings 테이블 (db/schema.sql §8). 여기에는 DB 접속 전 필요한 값만.
 """
 from __future__ import annotations
 
@@ -26,5 +25,5 @@ FONTS_DIR = ROOT / "assets" / "fonts"
 
 
 def nuclei_bin() -> str | None:
-    """nuclei 실행 파일 경로. 없으면 None (docs/01 §5.5)."""
+    """nuclei 실행 파일 경로. 미설치 시 None (docs/01 §5.5)."""
     return os.environ.get("REDAR_NUCLEI") or shutil.which("nuclei")
