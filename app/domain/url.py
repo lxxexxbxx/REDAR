@@ -6,11 +6,29 @@ fingerprint 가 host·port 를 분리해 받으므로 분해 실패를 조용히
 """
 from __future__ import annotations
 
+import ipaddress
+import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 # 스킴 기본 포트. 'http://h/x' 와 'http://h:80/x' 의 fingerprint 를 일치시키기 위해 보충
 DEFAULT_PORTS = {"http": 80, "https": 443}
+
+# 호스트명 형식 검사. 검사 없이 통과시키면 '!!!bad' 같은 문자열이 호스트가 되고
+# allowlist 판정 대상으로 흘러들어감. 밑줄은 사내 호스트명에서 실제로 쓰여 허용
+_HOSTNAME_RE = re.compile(
+    r"^[a-z0-9_]([a-z0-9_\-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_\-]*[a-z0-9_])?)*$"
+)
+
+
+def _valid_host(host: str) -> bool:
+    if ":" in host:                       # IPv6. urlsplit 이 대괄호를 벗겨서 전달
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            return False
+        return True
+    return bool(_HOSTNAME_RE.match(host))
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +60,9 @@ def parse(raw: str | None) -> UrlParts:
     host = split.hostname  # 소문자화됨. 호스트는 대소문자 구분 없음
     if not host:
         raise ValueError(f"호스트 없음: {raw!r}")
+    host = host.rstrip(".")                # 'example.com.' 정규화
+    if not _valid_host(host):
+        raise ValueError(f"호스트 형식 오류: {raw!r}")
 
     scheme = split.scheme or None
     if port is None and scheme in DEFAULT_PORTS:
