@@ -32,15 +32,18 @@ EVIDENCE_TRUNCATED_MARKER = "\n...[REDAR] 응답 본문이 32KB 를 초과해 �
 # 자동 점검 커버리지 고지. 누락 시 '점검하지 않은 것'이 '양호'로 오독
 # (절대규칙 10, docs/04 B-1). 숫자는 실제 guide_coverage 값 사용
 COVERAGE_NOTICE_TEMPLATE = (
-    "본 점검은 원격 스캔 기반이며, 가이드 전체 {items_total}개 점검항목 중 "
-    "{items_covered}개만 자동 점검 대상입니다. 탐지되지 않음이 양호를 의미하지 않습니다."
+    "본 점검은 원격 스캔 기반이며, {scope}만 자동 점검 대상입니다. "
+    "탐지되지 않음이 양호를 의미하지 않습니다."
 )
+_SCOPE_WITH_GUIDE = "가이드 전체 {items_total}개 점검항목 중 {items_covered}개"
+# 본문 미탑재 시 전체 항목 수를 알 수 없다. 0개로 표기하면 커버리지가 완전한 것처럼 읽힘
+_SCOPE_WITHOUT_GUIDE = "자동 점검 가능 항목 {items_covered}개(가이드 본문 미탑재)"
 
 
 def format_coverage_notice(items_total: int, items_covered: int) -> str:
-    return COVERAGE_NOTICE_TEMPLATE.format(
-        items_total=items_total, items_covered=items_covered
-    )
+    template = _SCOPE_WITH_GUIDE if items_total else _SCOPE_WITHOUT_GUIDE
+    scope = template.format(items_total=items_total, items_covered=items_covered)
+    return COVERAGE_NOTICE_TEMPLATE.format(scope=scope)
 
 
 class Strict(BaseModel):

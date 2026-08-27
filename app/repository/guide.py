@@ -7,6 +7,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from app.domain.models import format_coverage_notice
+
 
 def status(conn: sqlite3.Connection) -> dict[str, Any]:
     coverage = conn.execute("SELECT * FROM v_guide_coverage").fetchone()
@@ -24,4 +26,8 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         ).fetchone()[0],
         # 자동 점검 가능 항목 수. 커버리지 고지의 근거값 (절대규칙 10)
         "items_covered": coverage["items_covered"],
+        # 고지 문장을 서버가 내려준다. GUI 와 보고서가 같은 문장을 쓰도록 단일화
+        "coverage_notice": format_coverage_notice(
+            item_count, coverage["items_covered"]
+        ),
     }

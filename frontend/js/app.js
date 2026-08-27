@@ -5,7 +5,8 @@ import {
   FINDING_STATUS_LABEL, SCAN_STATUS_LABEL, SEVERITY_ORDER, SEVERITY_LABEL,
   VULN_TYPE_LABEL, VULN_TYPE_ORDER,
   coverageNotice, dash, emptyState, esc, fmtDuration, fmtTime,
-  severityAxis, severityTag, target, toast, vulnTypeAxis,
+  runEnvironment, severityAxis, severityTag, target, targetEnvironment,
+  toast, vulnTypeAxis,
 } from "./ui.js";
 
 const NAV = [
@@ -96,8 +97,12 @@ async function viewDashboard() {
   const latest = items[0] || null;
 
   let aggregations = null;
+  let detail = null;
   if (latest) {
-    aggregations = (await api.listFindings(latest.scan_id, { size: 1 })).aggregations;
+    [aggregations, detail] = await Promise.all([
+      api.listFindings(latest.scan_id, { size: 1 }).then((r) => r.aggregations),
+      api.getScan(latest.scan_id),
+    ]);
   }
 
   view().innerHTML = `
@@ -140,6 +145,27 @@ async function viewDashboard() {
           <div class="row" style="margin-top:16px">
             <button class="primary" data-go="scan">스캔 실행</button>
           </div>`}
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="eyebrow">재현성</div>
+          <h2>실행 환경</h2>
+        </div>
+        ${detail ? runEnvironment(detail) : `
+          <p style="color:var(--muted);margin:0">스캔 기록이 없습니다.</p>`}
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="eyebrow">진단 대상</div>
+          <h2>대상 환경</h2>
+        </div>
+        ${targetEnvironment(null)}
+        <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
+          제품·버전·구성요소 식별은 환경 수집기가 담당합니다. M4 에서 구현됩니다.
+        </p>
       </div>
     </div>
 
@@ -216,7 +242,7 @@ function viewScan() {
         </div>
         <label class="field">
           <span>대상 목록 (줄바꿈 구분)</span>
-          <textarea id="targets" placeholder="http://localhost:7860"></textarea>
+          <textarea id="targets" placeholder="http://192.168.1.50&#10;http://target.local:8080"></textarea>
           <small>허용 목록: ${allowlist.length
             ? allowlist.map((h) => `<span class="chip">${esc(h)}</span>`).join(" ")
             : "없음"}</small>
@@ -510,6 +536,23 @@ async function viewResults(params) {
       </div>
     </div>
 
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="eyebrow">재현성</div>
+          <h2>실행 환경</h2>
+        </div>
+        ${runEnvironment(scan)}
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="eyebrow">진단 대상</div>
+          <h2>대상 환경</h2>
+        </div>
+        ${targetEnvironment(null)}
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-head">
         <div class="eyebrow">유형 · 14종 고정</div>
@@ -782,7 +825,7 @@ function viewSettings() {
     <div class="panel">
       <div class="panel-head">
         <div class="eyebrow">선택</div>
-        <h2>LLM 서술 생성</h2>
+        <h2>LLM 설정</h2>
       </div>
       <div class="toggle">
         <input type="checkbox" id="llm-enabled" ${s.llm?.enabled ? "checked" : ""}>

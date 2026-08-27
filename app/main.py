@@ -6,6 +6,7 @@ import sqlite3
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app import __version__
 from app.adapters.nuclei import version as nuclei_version
 from app.api import errors, guide, scans, settings_api
 from app.config import settings
@@ -13,7 +14,7 @@ from app.repository.db import session
 
 API_PREFIX = "/api/v1"
 
-app = FastAPI(title="REDAR", version="0.3.0", docs_url=f"{API_PREFIX}/docs")
+app = FastAPI(title="REDAR", version=__version__, docs_url=f"{API_PREFIX}/docs")
 
 errors.register(app)
 app.include_router(scans.router, prefix=API_PREFIX)

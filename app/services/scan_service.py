@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app import __version__
 from app.adapters.nuclei import parser, progress, runner
 from app.adapters.nuclei import version as nuclei_version
 from app.domain import url as urlmod
@@ -24,7 +25,7 @@ from app.repository.rules import load_vuln_type_rules
 
 logger = logging.getLogger(__name__)
 
-TOOL_VERSION = "0.3.0"
+TOOL_VERSION = __version__
 
 # SSE finding 이벤트 상한. 초과분은 이벤트만 생략되며 DB 저장은 그대로 (docs/00 §2)
 _FINDING_EVENTS_PER_SEC = 10

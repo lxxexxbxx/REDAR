@@ -170,6 +170,10 @@ def get_scan(conn: sqlite3.Connection, scan_id: str) -> dict[str, Any] | None:
     }
     view["templates_total"] = row["templates_total"]
     view["templates_done"] = row["templates_done"]
+    # 재현성 기록. 보고서 meta 와 동일 값 (docs/00 §1.3)
+    view["tool_version"] = row["tool_version"]
+    view["nuclei_version"] = row["nuclei_version"]
+    view["template_revision"] = row["template_revision"]
     profile = conn.execute(
         "SELECT profile_id FROM environment_profiles WHERE scan_id = ? LIMIT 1",
         (scan_id,),

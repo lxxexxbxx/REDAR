@@ -115,18 +115,67 @@ export function vulnTypeAxis(counts) {
   }).join("")}</div>`;
 }
 
-/* 커버리지 고지. 접기 불가 (절대규칙 10) */
+/* 커버리지 고지. 접기 불가 (절대규칙 10)
+ * 문장은 GET /guide/status 가 내려준 것을 그대로 쓴다. 사본을 두면 보고서와 갈라진다
+ */
 export function coverageNotice(guide) {
-  const covered = guide?.items_covered ?? 0;
-  const total = guide?.item_count ?? 0;
-  const scope = guide?.imported
-    ? `가이드 전체 <span class="mono">${total}</span>개 점검항목 중 <span class="mono">${covered}</span>개`
-    : `자동 점검 가능 항목 <span class="mono">${covered}</span>개 (가이드 본문 미탑재)`;
+  const notice = guide?.coverage_notice;
+  if (!notice) return "";
   return `<div class="coverage">
-    본 점검은 원격 스캔 기반이며, ${scope}만 자동 점검 대상입니다.
-    <strong>탐지되지 않음이 양호를 의미하지 않습니다.</strong>
-    계정 관리·파일 권한·서비스 데몬 설정은 원격 스캐너로 점검할 수 없습니다.
+    ${esc(notice)}
+    <div style="margin-top:6px;color:var(--faint)">
+      계정 관리·파일 권한·서비스 데몬 설정은 원격 스캐너가 접근할 수 없는 영역입니다.
+    </div>
   </div>`;
+}
+
+/* 실행 환경. 결과를 어떤 도구·버전이 만들었는지 (재현성 근거)
+ * 다른 기기에서 임포트한 결과와 직접 실행한 결과 구분 필요
+ */
+export function runEnvironment(scan) {
+  const importedFrom = scan?.template_selection?.imported_from;
+  const MODE_LABEL = {
+    explicit: "직접 지정",
+    filter: "조건 필터",
+    environment_driven: "환경 기반 자동 선별",
+  };
+  const rows = [
+    ["결과 출처", importedFrom
+      ? `외부 임포트 · <span class="mono">${esc(importedFrom)}</span>`
+      : "이 PC 에서 직접 실행"],
+    ["REDAR 버전", esc(dash(scan?.tool_version))],
+    ["nuclei 버전", scan?.nuclei_version ? `v${esc(scan.nuclei_version)}` : "기록 없음"],
+    ["템플릿 리비전", esc(dash(scan?.template_revision))],
+    ["선별 방식", esc(MODE_LABEL[scan?.template_selection?.mode] ||
+      dash(scan?.template_selection?.mode))],
+    ["환경 조사", scan?.collect_environment ? "수행" : "미수행"],
+  ];
+  return `<dl class="kv">${rows.map(([key, value]) =>
+    `<dt>${esc(key)}</dt><dd>${value}</dd>`).join("")}</dl>`;
+}
+
+/* 진단 대상 환경. 수집기는 M4. 수집 예정 축을 미리 고정해 빈 상태로 보여준다 */
+export const TARGET_ENV_FIELDS = [
+  ["웹 서버", "제품 · 버전"],
+  ["언어 런타임", "제품 · 버전"],
+  ["애플리케이션", "제품 · 버전"],
+  ["구성요소", "플러그인 · 테마 · 모듈"],
+  ["노출 항목", "11종 점검"],
+];
+
+export function targetEnvironment(profile) {
+  if (!profile) {
+    return `<dl class="kv">${TARGET_ENV_FIELDS.map(([key, hint]) =>
+      `<dt>${esc(key)}</dt><dd style="color:var(--faint)">미수집 — ${esc(hint)}</dd>`
+    ).join("")}</dl>`;
+  }
+  return `<dl class="kv">
+    <dt>웹 서버</dt><dd>${esc(dash(profile.web_server?.product))} ${esc(dash(profile.web_server?.version))}</dd>
+    <dt>언어 런타임</dt><dd>${esc(dash(profile.language?.product))} ${esc(dash(profile.language?.version))}</dd>
+    <dt>애플리케이션</dt><dd>${esc(dash(profile.application?.product))} ${esc(dash(profile.application?.version))}</dd>
+    <dt>구성요소</dt><dd>${profile.components?.length ?? 0}개</dd>
+    <dt>노출 항목</dt><dd>${(profile.exposures || []).filter((e) => e.value).length}건 확인</dd>
+  </dl>`;
 }
 
 export function emptyState({ eyebrow, title, body, cta }) {

@@ -75,6 +75,19 @@ def test_frontend_loads_no_external_resources():
     assert not offenders, offenders
 
 
+def test_coverage_notice_has_single_source(client):
+    """고지 문장 사본이 프론트에 생기면 보고서와 갈라짐 (절대규칙 10)."""
+    served = client.get("/api/v1/guide/status").json()["coverage_notice"]
+    assert "탐지되지 않음이 양호를 의미하지 않습니다" in served
+
+    frontend_text = "".join(
+        f.read_text(encoding="utf-8")
+        for f in FRONTEND.rglob("*")
+        if f.suffix in (".js", ".html")
+    )
+    assert "탐지되지 않음이 양호를" not in frontend_text
+
+
 def test_gui_labels_match_backend_enums():
     """GUI 표시 문자열과 백엔드 Enum 라벨 불일치 시 화면·보고서 괴리 발생"""
     from app.domain.enums import (

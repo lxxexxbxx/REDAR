@@ -9,6 +9,7 @@ import csv
 import sqlite3
 from pathlib import Path
 
+from app import __version__
 from app.config import settings
 from app.domain.enums import ScanStatus
 from app.domain.ids import new_id
@@ -108,7 +109,10 @@ def init_db(db_path: Path | None = None) -> None:
 
 
 def import_scan(
-    jsonl_path: Path, targets: list[str], db_path: Path | None = None
+    jsonl_path: Path,
+    targets: list[str],
+    nuclei_version: str | None = None,
+    db_path: Path | None = None,
 ) -> str:
     """외부에서 실행한 nuclei JSONL 을 스캔으로 적재. 스캔 ID 반환.
 
@@ -133,8 +137,8 @@ def import_scan(
             retries=0,
             rate_limit=None,
             targets=targets,
-            tool_version="import",
-            nuclei_version=None,
+            tool_version=__version__,
+            nuclei_version=nuclei_version,
         )
         rules = load_vuln_type_rules(conn)
         lines = jsonl_path.read_text(encoding="utf-8").splitlines()
@@ -159,12 +163,15 @@ def main() -> None:
     importer.add_argument(
         "--target", action="append", required=True, help="대상. 여러 번 지정 가능"
     )
+    importer.add_argument(
+        "--nuclei-version", help="결과를 만든 nuclei 버전. 재현성 기록용"
+    )
 
     args = parser.parse_args()
     if args.command == "init-db":
         init_db()
     elif args.command == "import-scan":
-        import_scan(args.jsonl, args.target)
+        import_scan(args.jsonl, args.target, args.nuclei_version)
 
 
 if __name__ == "__main__":
