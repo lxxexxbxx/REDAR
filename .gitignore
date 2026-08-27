@@ -1,0 +1,92 @@
+# ─────────────────────────────────────────────
+# 설계 문서::로컬 보관 (되돌리려면 이 블록만 삭제)
+# ─────────────────────────────────────────────
+docs/
+CLAUDE.md
+CHANGELOG.md
+HANDOFF.md
+IMPLEMENTATION_BRIEF.md
+KICKOFF_PROMPT.txt
+# README.md 는 커밋한다
+
+
+# ─────────────────────────────────────────────
+# 사용자 데이터 / 런타임 생성물
+# ─────────────────────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+output/
+reports/
+logs/
+*.log
+
+
+# ─────────────────────────────────────────────
+# 저작권 대상::절대 커밋 금지
+# ─────────────────────────────────────────────
+# 주의: git 은 줄 끝 주석을 지원하지 않는다.
+#       패턴과 같은 줄에 주석을 쓰면 패턴이 깨진다.
+
+# KISA 가이드 본문/캡처/원문 PDF
+data/guide_items*.csv
+data/guide_images/
+*.pdf
+
+# 폰트 원본 (전체 패밀리 304MB). 서브셋 woff2 만 커밋한다
+assets/fonts/*.ttf
+assets/fonts/*.otf
+assets/fonts/*.ttc
+assets/fonts/*.woff
+
+
+# ─────────────────────────────────────────────
+# 외부에서 받는 것 (용량 / 플랫폼 의존)
+# ─────────────────────────────────────────────
+templates/official/
+nuclei
+nuclei.exe
+
+
+# ─────────────────────────────────────────────
+# 빌드 산출물
+# ─────────────────────────────────────────────
+build/
+dist/
+*.spec.bak
+
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+
+# ─────────────────────────────────────────────
+# Python
+# ─────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+
+# ─────────────────────────────────────────────
+# 로컬 설정 / 에디터 / OS
+# ─────────────────────────────────────────────
+.env
+.env.local
+settings.local.json
+.claude/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

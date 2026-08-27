@@ -1,0 +1,47 @@
+SIL OPEN FONT LICENSE 1.1
+=========================
+
+이 디렉터리의 폰트는 SIL Open Font License 1.1 로 배포된다.
+
+    NanumGothic.woff2         나눔고딕      (c) NAVER Corp.
+    NanumGothicBold.woff2     나눔고딕 Bold (c) NAVER Corp.
+    D2Coding.woff2            D2Coding      (c) NAVER Corp.
+
+원본 폰트를 서브셋(subset)하고 woff2 로 변환한 파생물이다.
+OFL 은 파생물의 재배포를 허용하되 아래를 요구한다.
+
+  - 라이선스 원문을 함께 배포할 것
+  - 저작권 고지를 유지할 것
+  - Reserved Font Name 을 파생물의 이름에 사용하지 말 것
+  - 폰트 자체를 판매하지 말 것 (소프트웨어에 포함해 배포하는 것은 허용)
+
+
+!! 조치 필요 !!
+---------------
+
+**이 파일은 안내문이며 OFL 원문이 아니다.**
+배포 전에 아래 원문을 받아 이 파일을 대체하거나 같은 디렉터리에 추가해야 한다.
+
+  OFL 1.1 원문
+      https://openfontlicense.org/open-font-license-official-text/
+
+  나눔글꼴 라이선스
+      https://hangeul.naver.com/font
+      (배포 패키지에 LICENSE.txt 포함)
+
+  D2Coding 라이선스
+      https://github.com/naver/d2codingfont
+      (저장소 루트의 LICENSE 파일)
+
+전달받은 나눔 폰트 패키지(nanum-all)에는 라이선스 파일이 포함되어 있지 않았다.
+위 출처에서 별도로 받아야 한다.
+
+
+서브셋 파생물에 대한 고지
+-------------------------
+
+서브셋은 원본에서 문자 일부만 남긴 것이며 자형(glyph outline)을 수정하지 않았다.
+서브셋 범위와 재생성 방법은 이 디렉터리의 README.md 및 build_fonts.py 참조.
+
+Reserved Font Name 을 침해하지 않도록 파일명에 원 폰트명을 그대로 유지했다.
+CSS 의 font-family 값도 원 폰트명을 사용한다.

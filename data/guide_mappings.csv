@@ -1,0 +1,136 @@
+match_type,match_value,item_code,confidence,mapping_basis
+cwe_id,CWE-94,WA-01,high,코드 인젝션. 외부 입력이 코드로 실행되는 경로에 직접 대응
+cwe_id,CWE-95,WA-01,high,eval 계열 인젝션. 상동
+cwe_id,CWE-77,WA-01,high,명령어 삽입. 코드 인젝션 항목의 운영체제 명령 실행 유형
+cwe_id,CWE-78,WA-01,high,OS 명령 실행. 상동
+cwe_id,CWE-917,WA-01,high,표현식 언어 인젝션. 상동
+cwe_id,CWE-1336,WA-01,high,서버사이드 템플릿 인젝션. 상동
+cwe_id,CWE-90,WA-01,high,LDAP 인젝션. 항목 개요에 LDAP 인젝션이 명시됨
+cwe_id,CWE-91,WA-01,high,XML 인젝션. 상동
+cwe_id,CWE-502,WA-01,medium,역직렬화를 통한 코드 실행. 인젝션 유형은 아니나 결과가 동일
+cwe_id,CWE-611,WA-01,medium,XXE. 항목 개요의 XML 인젝션 범위
+cwe_id,CWE-89,WA-02,high,SQL 인젝션 항목에 직접 대응
+cwe_id,CWE-564,WA-02,high,ORM 쿼리 인젝션. 상동
+cwe_id,CWE-548,WA-03,high,디렉터리 인덱싱 항목에 직접 대응
+cwe_id,CWE-548,WEB-04,high,웹 서비스 디렉터리 리스팅 방지 설정. 서버 설정 측면
+cwe_id,CWE-209,WA-04,high,오류 메시지 노출. 에러 페이지 적용 미흡 항목
+cwe_id,CWE-209,WEB-22,medium,에러 페이지 관리. 서버 설정 측면
+cwe_id,CWE-200,WA-05,high,정보 누출 항목에 직접 대응
+cwe_id,CWE-215,WA-05,high,디버그 정보 노출. 정보 누출 항목
+cwe_id,CWE-497,WA-05,high,시스템 정보 노출. 상동
+cwe_id,CWE-538,WA-05,high,파일·디렉터리 정보 노출. 상동
+cwe_id,CWE-213,WA-05,medium,의도된 정보 노출. 상동
+cwe_id,CWE-540,WA-05,high,소스 코드 노출
+cwe_id,CWE-540,WEB-13,high,웹 서비스 설정 파일 노출 제한
+cwe_id,CWE-532,WA-05,high,로그 파일을 통한 정보 노출
+cwe_id,CWE-532,WEB-26,medium,로그 디렉터리 및 파일 권한 설정
+cwe_id,CWE-79,WA-06,high,크로스사이트 스크립트 항목에 직접 대응
+cwe_id,CWE-80,WA-06,high,상동
+cwe_id,CWE-83,WA-06,high,상동
+cwe_id,CWE-116,WA-06,medium,출력값 인코딩 미흡. XSS 항목의 조치 방법에 해당
+cwe_id,CWE-352,WA-07,high,크로스사이트 요청 위조 항목에 직접 대응
+cwe_id,CWE-918,WA-08,high,서버사이드 요청 위조 항목에 직접 대응
+cwe_id,CWE-521,WA-09,high,약한 비밀번호 정책 항목에 직접 대응
+cwe_id,CWE-521,WEB-02,medium,취약한 비밀번호 사용 제한. 서버 계정 측면
+cwe_id,CWE-798,WA-09,high,하드코딩된 자격증명
+cwe_id,CWE-798,WEB-01,medium,Default 관리자 계정명 변경
+cwe_id,CWE-1391,WA-09,high,추측 가능한 자격증명. 상동
+cwe_id,CWE-287,WA-10,high,불충분한 인증 절차 항목에 직접 대응
+cwe_id,CWE-306,WA-10,high,필수 인증 누락. 상동
+cwe_id,CWE-288,WA-10,high,대체 경로를 통한 인증 우회. 상동
+cwe_id,CWE-290,WA-10,high,스푸핑을 통한 인증 우회. 상동
+cwe_id,CWE-294,WA-10,medium,캡처·재전송 인증 우회. 상동
+cwe_id,CWE-1390,WA-10,high,취약한 인증. 상동
+cwe_id,CWE-862,WA-11,high,인가 누락. 불충분한 권한 검증 항목에 직접 대응
+cwe_id,CWE-863,WA-11,high,잘못된 인가. 상동
+cwe_id,CWE-285,WA-11,high,부적절한 인가. 상동
+cwe_id,CWE-284,WA-11,high,부적절한 접근 통제. 상동
+cwe_id,CWE-639,WA-11,high,IDOR. 상동
+cwe_id,CWE-566,WA-11,high,키 기반 접근 통제 우회. 상동
+cwe_id,CWE-269,WA-11,high,권한 관리 미흡으로 인한 권한 상승. 상동
+cwe_id,CWE-266,WA-11,high,부적절한 권한 부여. 상동
+cwe_id,CWE-264,WA-11,medium,권한·접근제어 상위 분류. 상동
+cwe_id,CWE-425,WA-11,medium,강제 브라우징
+cwe_id,CWE-425,WEB-14,medium,웹 서비스 경로 내 파일의 접근 통제
+cwe_id,CWE-640,WA-12,high,취약한 비밀번호 복구 절차 항목에 직접 대응
+cwe_id,CWE-620,WA-12,high,비밀번호 변경 시 검증 누락. 상동
+cwe_id,CWE-841,WA-13,high,워크플로 순서 위반. 프로세스 검증 누락 항목
+cwe_id,CWE-472,WA-13,medium,웹 파라미터 변조. 상동
+cwe_id,CWE-807,WA-13,medium,신뢰할 수 없는 입력에 의존한 판단. 상동
+cwe_id,CWE-434,WA-14,high,악성 파일 업로드 항목에 직접 대응
+cwe_id,CWE-434,WEB-24,medium,별도의 업로드 경로 사용 및 권한 설정
+cwe_id,CWE-22,WA-15,high,경로 조작을 통한 파일 다운로드 항목에 직접 대응
+cwe_id,CWE-22,WEB-06,medium,웹 서비스 상위 디렉터리 접근 제한 설정
+cwe_id,CWE-23,WA-15,high,상대 경로 조작. 상동
+cwe_id,CWE-23,WEB-06,medium,상동
+cwe_id,CWE-24,WA-15,high,상위 디렉터리 조작. 상동
+cwe_id,CWE-35,WA-15,high,상동
+cwe_id,CWE-36,WA-15,high,절대 경로 조작. 상동
+cwe_id,CWE-73,WA-15,high,파일명 외부 제어. 상동
+cwe_id,CWE-98,WA-15,high,PHP 파일 포함(LFI/RFI)
+cwe_id,CWE-98,WA-01,medium,RFI 는 원격 코드 실행으로 이어짐
+cwe_id,CWE-99,WA-15,medium,리소스 식별자 제어. 상동
+cwe_id,CWE-552,WA-15,high,외부 접근 가능 파일
+cwe_id,CWE-552,WEB-14,medium,웹 서비스 경로 내 파일의 접근 통제
+cwe_id,CWE-384,WA-16,high,세션 고정. 불충분한 세션 관리 항목
+cwe_id,CWE-613,WA-16,high,세션 만료 미흡. 상동
+cwe_id,CWE-488,WA-16,medium,세션 데이터 노출. 상동
+cwe_id,CWE-319,WA-17,high,평문 전송. 데이터 평문 전송 항목에 직접 대응
+cwe_id,CWE-319,WEB-20,high,SSL/TLS 활성화
+cwe_id,CWE-311,WA-17,high,암호화 미적용. 상동
+cwe_id,CWE-311,WEB-20,high,상동
+cwe_id,CWE-326,WA-17,medium,취약한 암호 강도
+cwe_id,CWE-326,WEB-20,medium,SSL/TLS 설정
+cwe_id,CWE-327,WA-17,medium,위험한 암호 알고리즘. 상동
+cwe_id,CWE-327,WEB-20,medium,상동
+cwe_id,CWE-565,WA-18,high,검증 없는 쿠키 의존. 쿠키 변조 항목
+cwe_id,CWE-1004,WA-18,medium,HttpOnly 미설정. 상동
+cwe_id,CWE-614,WA-18,medium,Secure 플래그 미설정. 상동
+cwe_id,CWE-1275,WA-18,medium,SameSite 미설정. 상동
+cwe_id,CWE-419,WA-19,high,보호되지 않은 대체 채널. 관리자페이지 노출 항목
+cwe_id,CWE-307,WA-20,high,인증 시도 제한 미흡. 자동화 공격 항목
+cwe_id,CWE-307,WA-09,medium,약한 비밀번호 정책과 결합 시 위험 증가
+cwe_id,CWE-799,WA-20,high,상호작용 빈도 제어 미흡. 상동
+cwe_id,CWE-770,WA-20,medium,자원 할당 제한 없음. 상동
+cwe_id,CWE-650,WA-21,high,신뢰된 HTTP Method. 불필요한 Method 악용 항목
+cwe_id,CWE-601,WEB-21,high,오픈 리다이렉트. HTTP 리디렉션 항목
+cwe_id,CWE-1021,WEB-16,medium,클릭재킹. 보안 헤더 설정 항목
+cwe_id,CWE-693,WEB-16,medium,보호 기법 미적용. 상동
+cwe_id,CWE-16,WEB-16,low,설정 미흡. 범위가 넓어 검토 필요
+cwe_id,CWE-276,WEB-14,medium,기본 권한 부적절. 파일 접근 통제 항목
+cwe_id,CWE-1188,WEB-16,low,안전하지 않은 기본 설정. 검토 필요
+cwe_id,CWE-937,WEB-25,high,취약 버전 구성요소 사용. 보안 패치 적용 항목
+cwe_id,CWE-1035,WEB-25,high,상동
+cwe_id,CWE-1104,WEB-25,high,미유지보수 서드파티 구성요소. 상동
+exposure_key,xmlrpc_enabled,WA-20,high,xmlrpc.php 는 system.multicall 로 인증 시도를 증폭할 수 있어 자동화 공격 항목에 해당
+exposure_key,xmlrpc_enabled,WEB-15,medium,운영에 불필요한 스크립트. 불필요한 스크립트 매핑 제거 항목
+exposure_key,rest_user_enum,WA-05,high,REST API 를 통한 사용자 계정 열거. 정보 누출 항목
+exposure_key,readme_accessible,WEB-07,high,설치 기본 파일 노출. 웹 서비스 경로 내 불필요한 파일 제거 항목
+exposure_key,readme_accessible,WA-05,medium,readme 에서 제품 버전 확인 가능. 정보 누출
+exposure_key,directory_listing,WA-03,high,디렉터리 인덱싱 항목에 직접 대응
+exposure_key,directory_listing,WEB-04,high,웹 서비스 디렉터리 리스팅 방지 설정
+exposure_key,wp_version_exposed,WA-05,high,제품 버전 노출. 공격자의 취약점 선별을 용이하게 함
+exposure_key,wp_version_exposed,WEB-16,medium,헤더·메타 정보 노출 제한 항목
+exposure_key,wp_login_accessible,WA-19,high,관리자 로그인 페이지가 외부에 노출. 관리자페이지 노출 항목
+exposure_key,wp_login_no_ratelimit,WA-20,high,로그인 시도 제한 없음. 자동화 공격 항목
+exposure_key,wp_login_no_ratelimit,WA-09,medium,약한 비밀번호 정책과 결합 시 계정 탈취 위험
+exposure_key,admin_page_public,WA-19,high,관리자페이지 노출 항목에 직접 대응
+exposure_key,dir_backup_files,WEB-07,high,백업·임시 파일 노출. 불필요한 파일 제거 항목
+exposure_key,dir_backup_files,WEB-13,high,설정 파일 노출 제한 항목
+exposure_key,tls_weak_config,WEB-20,high,SSL/TLS 활성화 및 설정 항목
+exposure_key,tls_weak_config,WA-17,high,데이터 평문 전송 항목
+exposure_key,server_header_verbose,WEB-16,high,웹 서비스 헤더 정보 노출 제한 항목
+vuln_type,rce,WA-01,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,deserialization,WA-01,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,sqli,WA-02,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,xss,WA-06,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,csrf,WA-07,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,ssrf,WA-08,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,auth_bypass,WA-10,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,path_traversal,WA-15,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,file_upload,WA-14,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,open_redirect,WEB-21,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,info_disclosure,WA-05,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,access_control,WA-11,low,상위 매핑 미적용 시 fallback. 유형 기준 최근접 항목
+vuln_type,misconfig,WA-05,low,WordPress misconfiguration 템플릿은 대부분 경로·설정 노출이므로 정보 누출로 회수. 검토 필요
+cve_present,*,WEB-25,high,CVE 를 가진 탐지에 항상 추가. 유형별 근본 대책과 별도로 패치 적용을 남긴다 (2트랙)
