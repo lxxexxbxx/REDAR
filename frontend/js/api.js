@@ -62,6 +62,9 @@ export const api = {
   cancelScan: (id) => request(`/scans/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
   deleteScan: (id) => request(`/scans/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
+  scanEnvironment: (id) => request(`/scans/${encodeURIComponent(id)}/environment`),
+  collectors: () => request("/collectors"),
+
   listFindings: (scanId, params = {}) =>
     request(`/scans/${encodeURIComponent(scanId)}/findings` + query(params)),
   getFinding: (id) => request(`/findings/${encodeURIComponent(id)}`),

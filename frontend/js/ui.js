@@ -198,3 +198,24 @@ export function toast(message, kind = "ok") {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => node.remove(), 3600);
 }
+
+/* environment_driven 선별 근거. 보고서 부록의 "N개 중 M개" 와 같은 값을 쓴다.
+ * 인벤토리 미탑재(총 0개) 상태를 감추지 않는다 - 감추면 수치가 거짓이 된다 */
+export function selectionBasis(basis) {
+  if (!basis) return "";
+  const total = basis.total_available ?? 0;
+  const selected = basis.total_selected ?? 0;
+  const line = total
+    ? `보유 템플릿 ${total.toLocaleString()}개 중 <strong>${selected.toLocaleString()}개</strong>를 환경 기반으로 선별`
+    : `환경 기반 후보 <strong>${(basis.candidate_templates ?? 0).toLocaleString()}개</strong> 확인.
+       로컬 템플릿 목록이 비어 있어 태그 선별로 실행됨`;
+  const tags = basis.selection_tags || [];
+  return `<div class="coverage" style="border-left-color:var(--sev-low)">
+    ${line}
+    <div style="margin-top:6px;color:var(--faint)">
+      구성요소 ${(basis.matched_components || []).length}건 ·
+      스택 ${(basis.matched_stack || []).length}건 매칭${
+        tags.length ? ` · 태그 ${esc(tags.join(", "))}` : ""}
+    </div>
+  </div>`;
+}

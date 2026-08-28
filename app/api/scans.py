@@ -9,11 +9,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.errors import not_found
+from app.collectors import base as collector_base
 from app.domain.enums import FindingStatus, ScanStatus
+from app.repository import environment as env_repo
 from app.repository import scans as scan_repo
 from app.repository.db import session
 from app.services import scan_service
-from app.services.scan_service import ScanRequest
+from app.services.scan_service import ScanError, ScanRequest
 
 router = APIRouter()
 
@@ -184,6 +186,21 @@ def patch_finding(finding_id: str, body: PatchFindingRequest) -> Any:
         if not updated:
             return not_found("탐지 결과")
         return scan_repo.get_finding(conn, finding_id)
+
+
+@router.get("/scans/{scan_id}/environment")
+def scan_environment(scan_id: str) -> dict[str, Any]:
+    """환경 조사 결과 (docs/00 §4). 미수집이면 빈 목록. 조건부 생략하지 않는다"""
+    with session() as conn:
+        if scan_repo.get_scan(conn, scan_id) is None:
+            raise ScanError("NOT_FOUND", "스캔을 찾을 수 없습니다.", status_code=404)
+        return {"items": env_repo.profiles(conn, scan_id)}
+
+
+@router.get("/collectors")
+def collectors() -> dict[str, Any]:
+    """수집기 목록 (docs/00 §4). 확장 가능성을 드러내는 메타 엔드포인트"""
+    return {"items": collector_base.describe()}
 
 
 @router.post("/targets/import")

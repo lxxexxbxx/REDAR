@@ -23,6 +23,8 @@ _TERMINATE_GRACE_SEC = 5
 class RunOptions:
     targets: Sequence[str]
     template_ids: Sequence[str] = field(default_factory=tuple)
+    # 템플릿 파일·디렉터리 경로. custom 템플릿은 로드되어야 -id 로 걸릴 수 있다
+    template_paths: Sequence[str] = field(default_factory=tuple)
     tags: Sequence[str] = field(default_factory=tuple)
     severities: Sequence[str] = field(default_factory=tuple)
     threads: int = 20
@@ -53,8 +55,11 @@ def build_command(opts: RunOptions, exe: str | None = None) -> list[str]:
     ]
     for target in opts.targets:
         cmd += ["-target", target]
-    for template_id in opts.template_ids:
-        cmd += ["-t", template_id]
+    # -t 는 경로, -id 는 템플릿 id 필터다. id 를 -t 로 넘기면 경로로 해석되어 실패
+    for path in opts.template_paths:
+        cmd += ["-t", path]
+    if opts.template_ids:
+        cmd += ["-id", ",".join(opts.template_ids)]
     if opts.tags:
         cmd += ["-tags", ",".join(opts.tags)]
     if opts.severities:

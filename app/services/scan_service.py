@@ -22,6 +22,7 @@ from app.repository import settings_repo
 from app.repository.db import session
 from app.repository.findings import FindingBatchWriter
 from app.repository.rules import load_vuln_type_rules
+from app.services import environment_service
 
 logger = logging.getLogger(__name__)
 
@@ -91,12 +92,15 @@ class ScanService:
     def create(self, req: ScanRequest) -> dict[str, Any]:
         if not req.targets:
             raise ScanError("INVALID_REQUEST", "스캔 대상이 비어 있습니다.")
-        if req.mode == "environment_driven":
-            # M4 에서 구현. 지금은 명시적으로 거부 (조용히 filter 로 대체하면 근거가 사라짐)
+        if req.mode == "environment_driven" and not req.collect_environment:
+            # 환경 조사 없이 환경 기반 선별은 성립하지 않는다. 조용히 filter 로
+            # 대체하면 보고서의 선별 근거가 사라진다
             raise ScanError(
-                "INVALID_REQUEST", "environment_driven 모드는 아직 지원하지 않습니다."
+                "INVALID_REQUEST",
+                "environment_driven 모드는 환경 조사(collect_environment)가 필요합니다.",
+                details=[{"field": "collect_environment", "reason": "required"}],
             )
-        if req.mode not in ("explicit", "filter"):
+        if req.mode not in ("explicit", "filter", "environment_driven"):
             raise ScanError("INVALID_REQUEST", f"알 수 없는 모드: {req.mode}")
 
         with session(self._db_path) as conn:
@@ -164,11 +168,17 @@ class ScanService:
                     "templates_done": 0, "templates_total": None, "findings_so_far": 0,
                 })
 
+                template_ids, tags = list(req.template_ids), list(req.tags)
+                if req.collect_environment:
+                    selection = self._collect_environment(run, req, conn)
+                    if selection is not None:
+                        template_ids, tags = selection.template_ids, selection.tags
+
                 command = self._command_builder(
                     runner.RunOptions(
                         targets=list(req.targets),
-                        template_ids=list(req.template_ids),
-                        tags=list(req.tags),
+                        template_ids=template_ids,
+                        tags=tags,
                         severities=list(req.severities),
                         threads=req.threads,
                         timeout_sec=req.timeout_sec,
@@ -206,6 +216,32 @@ class ScanService:
         })
         # 스트림 종료 신호
         self._emit(run, None, None)
+
+    def _collect_environment(self, run: _Run, req: ScanRequest, conn):
+        """수집 -> 선별. 실패해도 스캔을 중단하지 않는다 (M4 규칙 2).
+
+        environment_driven 이 아니면 선별 결과를 쓰지 않고 조사 기록만 남긴다
+        """
+        self._emit(run, "progress", {
+            "scan_id": run.scan_id, "percent": 0, "phase": "collecting_environment",
+            "templates_done": 0, "templates_total": None,
+            "findings_so_far": run.findings_so_far,
+        })
+        results = []
+        for target in req.targets:
+            try:
+                results.append(environment_service.collect_target(
+                    conn, run.scan_id, target, timeout_sec=req.timeout_sec
+                ))
+            except Exception:  # noqa: BLE001 - 조사 실패가 스캔 실패는 아니다
+                logger.warning("환경 조사 실패: %s", target, exc_info=True)
+
+        if req.mode != "environment_driven":
+            return None
+
+        selection = environment_service.select_templates(conn, results)
+        scan_repo.set_selection_basis(conn, run.scan_id, selection.basis)
+        return selection
 
     def _stream(self, run: _Run, command, rules, writer, conn) -> None:
         last_event = 0.0

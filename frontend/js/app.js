@@ -5,7 +5,7 @@ import {
   FINDING_STATUS_LABEL, SCAN_STATUS_LABEL, SEVERITY_ORDER, SEVERITY_LABEL,
   VULN_TYPE_LABEL, VULN_TYPE_ORDER,
   coverageNotice, dash, emptyState, esc, fmtDuration, fmtTime,
-  runEnvironment, severityAxis, severityTag, target, targetEnvironment,
+  runEnvironment, selectionBasis, severityAxis, severityTag, target, targetEnvironment,
   toast, vulnTypeAxis,
 } from "./ui.js";
 
@@ -98,10 +98,13 @@ async function viewDashboard() {
 
   let aggregations = null;
   let detail = null;
+  let environment = null;
   if (latest) {
-    [aggregations, detail] = await Promise.all([
+    [aggregations, detail, environment] = await Promise.all([
       api.listFindings(latest.scan_id, { size: 1 }).then((r) => r.aggregations),
       api.getScan(latest.scan_id),
+      // 환경 조사는 스캔마다 있을 수도 없을 수도 있다. 실패해도 대시보드는 뜬다
+      api.scanEnvironment(latest.scan_id).then((r) => r.items[0] || null, () => null),
     ]);
   }
 
@@ -136,13 +139,13 @@ async function viewDashboard() {
               ? Object.values(latest.finding_counts).reduce((a, b) => a + b, 0) : 0}건</dd>
             <dt>스캔 ID</dt><dd>${esc(latest.scan_id)}</dd>
           </dl>
-          <div class="row" style="margin-top:16px">
+          <div class="actions">
             <button class="primary" data-open="${esc(latest.scan_id)}">결과 보기</button>
           </div>` : `
           <p style="color:var(--muted);margin:0">
             아직 실행한 스캔이 없습니다. 스캔 실행 화면에서 대상을 지정하세요.
           </p>
-          <div class="row" style="margin-top:16px">
+          <div class="actions">
             <button class="primary" data-go="scan">스캔 실행</button>
           </div>`}
       </div>
@@ -162,10 +165,16 @@ async function viewDashboard() {
           <div class="eyebrow">진단 대상</div>
           <h2>대상 환경</h2>
         </div>
-        ${targetEnvironment(null)}
-        <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-          제품·버전·구성요소 식별은 환경 수집기가 담당합니다. M4 에서 구현됩니다.
-        </p>
+        ${targetEnvironment(environment)}
+        ${environment ? `
+          <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
+            수집기 ${esc((environment.collectors_run || []).join(" · ") || "없음")}
+            ${environment.collectors_failed?.length
+              ? ` · 실패 ${esc(environment.collectors_failed.join(", "))}` : ""}
+          </p>` : `
+          <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
+            환경 조사를 수행한 스캔이 없습니다. 스캔 실행 시 환경 조사를 켜세요.
+          </p>`}
       </div>
     </div>
 
@@ -229,12 +238,12 @@ function viewScan() {
     ${blocked ? `<div class="coverage" style="border-left-color:var(--brand)">
       <strong>허용된 스캔 대상이 없습니다.</strong>
       기본값은 전부 차단이며, 설정에서 대상을 등록해야 스캔을 시작할 수 있습니다.
-      <div class="cta" style="margin-top:10px">
+      <div class="cta">
         <button class="sm" data-go="settings">설정으로 이동</button>
       </div>
     </div>` : ""}
 
-    <div class="grid-2" style="margin-top:16px">
+    <div class="grid-2">
       <div class="panel">
         <div class="panel-head">
           <div class="eyebrow">1 · 대상</div>
@@ -300,7 +309,7 @@ function viewScan() {
           <small>제품·버전·플러그인을 먼저 식별합니다. 수집기는 M4에서 구현됩니다.</small>
         </span>
       </div>
-      <div class="row" style="margin-top:6px">
+      <div class="actions">
         <button class="primary" id="start"${blocked ? " disabled" : ""}>스캔 시작</button>
         <span id="start-note" style="color:var(--faint);font-size:12px"></span>
       </div>
@@ -316,11 +325,11 @@ function viewScan() {
         <button class="sm danger" id="cancel">중단</button>
       </div>
       <div class="progress sweeping" id="progress"><div class="bar"></div></div>
-      <div class="row mono" style="margin-top:10px;font-size:12px;color:var(--muted)">
+      <div class="row mono" style="margin-top:var(--gap);font-size:12px;color:var(--muted)">
         <span id="live-phase">준비</span>
         <span id="live-count">탐지 0건</span>
       </div>
-      <div class="livefeed" style="margin-top:14px">
+      <div class="livefeed" style="margin-top:var(--gap)">
         <table>
           <thead><tr><th>심각도</th><th>탐지 항목</th><th>유형</th><th>대상</th></tr></thead>
           <tbody id="live-rows"></tbody>
@@ -491,6 +500,9 @@ async function viewResults(params) {
 
   state.scanId = scanId;
   const scan = await api.getScan(scanId);
+  const environment = await api
+    .scanEnvironment(scanId)
+    .then((r) => r.items[0] || null, () => null);
   const data = await api.listFindings(scanId, {
     severity: resultFilters.severity,
     vuln_type: resultFilters.vuln_type,
@@ -549,7 +561,8 @@ async function viewResults(params) {
           <div class="eyebrow">진단 대상</div>
           <h2>대상 환경</h2>
         </div>
-        ${targetEnvironment(null)}
+        ${targetEnvironment(environment)}
+        ${selectionBasis(scan.selection_basis)}
       </div>
     </div>
 
@@ -638,7 +651,7 @@ async function openFinding(findingId) {
     <div class="drawer-head">
       <div>
         ${severityTag(f.severity)}
-        <h2 style="margin-top:8px">${esc(f.name)}</h2>
+        <h2 style="margin-top:4px">${esc(f.name)}</h2>
         <div class="mono" style="color:var(--faint);font-size:11.5px;margin-top:4px">
           ${esc(f.template_id)}${f.matcher_name ? `:${esc(f.matcher_name)}` : ""}
         </div>
@@ -693,7 +706,7 @@ async function openFinding(findingId) {
       ${f.evidence.curl_command ? `<section>
         <h3>재현 명령 — 사용자가 직접 실행</h3>
         <pre class="evidence">${esc(f.evidence.curl_command)}</pre>
-        <div class="row" style="margin-top:8px">
+        <div class="actions">
           <button class="sm" data-copy>명령 복사</button>
         </div>
       </section>` : ""}
@@ -770,7 +783,9 @@ function viewSettings() {
           처럼 CIDR 로 등록하세요.
         </small>
       </label>
-      <button class="primary" data-save="allowlist">허용 대상 저장</button>
+      <div class="actions">
+        <button class="primary" data-save="allowlist">허용 대상 저장</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -801,7 +816,7 @@ function viewSettings() {
         이 세 곳이 REDAR 의 아웃바운드 통신 전부입니다. 템플릿 갱신은 이 항목을 켜고
         직접 실행할 때만 일어나며, 스캔 중 자동 갱신은 하지 않습니다.
       </p>
-      <div class="row" style="margin-top:14px">
+      <div class="actions">
         <button class="primary" data-save="network">통신 설정 저장</button>
       </div>
     </div>
@@ -819,7 +834,9 @@ function viewSettings() {
         <label class="field" style="flex:1"><span>재시도</span>
           <input type="number" id="d-retries" value="${s.scan_defaults?.retries ?? 1}" min="0" max="10"></label>
       </div>
-      <button class="primary" data-save="defaults">기본값 저장</button>
+      <div class="actions">
+        <button class="primary" data-save="defaults">기본값 저장</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -844,7 +861,9 @@ function viewSettings() {
       <p style="color:var(--faint);font-size:12px;margin:10px 0 14px">
         요청·응답 원문과 추출값은 어떤 경우에도 전송하지 않습니다. 서술 레이어는 M9 에서 구현됩니다.
       </p>
-      <button class="primary" data-save="llm">LLM 설정 저장</button>
+      <div class="actions">
+        <button class="primary" data-save="llm">LLM 설정 저장</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -912,8 +931,11 @@ function viewTemplates() {
          실행하지 않습니다.</p>
     </div>
     <div class="panel">
+      <div class="panel-head">
+        <div class="eyebrow">예정</div>
+        <h2>M5 에서 구현</h2>
+      </div>
       <div class="pending">
-        <h3>M5 에서 구현</h3>
         <p style="margin:0">이 화면은 아래 세 가지를 담습니다.</p>
         <ul>
           <li>공식 템플릿 목록 조회 — <span class="mono">templates/official/</span> 폴더에 직접 넣거나,
@@ -941,12 +963,15 @@ function viewReport() {
     <div class="view-head">
       <div class="eyebrow">산출물</div>
       <h1>보고서</h1>
-      <p>보고서는 대상과 무관하게 항상 같은 목차로 생성됩니다. 탐지 0건인 절도
+      <p>보고서는 대상과 무관하게 항상 같은 목차로 생성됩니다. 탐지 0건인 항목도
          사라지지 않고 "해당 없음" 으로 남습니다.</p>
     </div>
     <div class="panel">
+      <div class="panel-head">
+        <div class="eyebrow">예정</div>
+        <h2>M7 에서 구현</h2>
+      </div>
       <div class="pending">
-        <h3>M7 에서 구현</h3>
         <ul>
           <li>Part A — 진단 결과 (요약 · 심각도별 · 유형별 · 조치 사항 · 오탐 내역)</li>
           <li>Part B — 주요정보통신기반시설 상세가이드 매핑 (가이드 본문 탑재 시)</li>

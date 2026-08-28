@@ -73,6 +73,17 @@ def insert_scan(
     conn.commit()
 
 
+def set_selection_basis(
+    conn: sqlite3.Connection, scan_id: str, basis: dict[str, Any]
+) -> None:
+    """environment_driven 선별 근거. 보고서 부록의 '몇 개 중 몇 개' 근거값 (docs/02 §3.1)"""
+    conn.execute(
+        "UPDATE scans SET selection_basis = ? WHERE scan_id = ?",
+        (json.dumps(basis, ensure_ascii=False), scan_id),
+    )
+    conn.commit()
+
+
 def set_status(
     conn: sqlite3.Connection,
     scan_id: str,
@@ -168,6 +179,10 @@ def get_scan(conn: sqlite3.Connection, scan_id: str) -> dict[str, Any] | None:
         "mode": row["selection_mode"],
         **(json.loads(row["selection_detail"]) if row["selection_detail"] else {}),
     }
+    # 선별 근거. environment_driven 이 아니면 None. 조건부 생략 없이 항상 키를 둔다
+    view["selection_basis"] = (
+        json.loads(row["selection_basis"]) if row["selection_basis"] else None
+    )
     view["templates_total"] = row["templates_total"]
     view["templates_done"] = row["templates_done"]
     # 재현성 기록. 보고서 meta 와 동일 값 (docs/00 §1.3)

@@ -165,8 +165,25 @@ def test_validation_error_uses_common_error_shape(client):
     assert error["details"]
 
 
-def test_environment_driven_mode_rejected(client, allowlisted):
-    """M4 까지 미지원. filter 로 조용히 대체하면 선별 근거가 사라짐."""
+def test_environment_driven_requires_environment_collection(client, allowlisted):
+    """환경 조사 없이 환경 기반 선별은 성립하지 않는다.
+
+    filter 로 조용히 대체하면 보고서의 선별 근거가 사라진다 (M4)
+    """
+    response = client.post(
+        f"{API}/scans",
+        json={
+            "targets": ["http://localhost:7860"],
+            "template_selection": {"mode": "environment_driven"},
+            "collect_environment": False,
+        },
+    )
+    assert response.status_code == 400
+    assert "collect_environment" in response.json()["error"]["message"]
+
+
+def test_environment_driven_mode_accepted(client, allowlisted):
+    """M4 부터 지원. 수집기가 대상에 닿지 못해도 스캔은 생성된다"""
     response = client.post(
         f"{API}/scans",
         json={
@@ -174,8 +191,7 @@ def test_environment_driven_mode_rejected(client, allowlisted):
             "template_selection": {"mode": "environment_driven"},
         },
     )
-    assert response.status_code == 400
-    assert "environment_driven" in response.json()["error"]["message"]
+    assert response.status_code == 202
 
 
 # ------------------------------------------------------------- 스캔 실행
