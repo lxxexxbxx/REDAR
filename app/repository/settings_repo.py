@@ -10,11 +10,11 @@ import sqlite3
 from typing import Any
 
 # 외부 통신 지점 3개. 이 목록이 전부 (절대규칙 5, docs/01 §7.1)
-EXTERNAL_ENDPOINTS = (
-    ("template_sync", "https://github.com/projectdiscovery/nuclei-templates"),
-    ("llm_api", ""),
-    ("cve_lookup", ""),
-)
+#
+# 키 목록만 코드에 둔다. CSV 로 내리면 네 번째 지점을 데이터로 추가할 수 있게 되어
+# 통제가 무너진다. URL 기본값은 데이터이므로 data/settings_defaults.csv 의
+# ext_<key>_url 이 출처
+EXTERNAL_ENDPOINT_KEYS = ("template_sync", "llm_api", "cve_lookup")
 
 _TRUE = {"true", "1", "yes", "on"}
 

@@ -58,14 +58,15 @@ class UpdateSettingsRequest(BaseModel):
 def _view(raw: dict[str, str]) -> dict[str, Any]:
     offline = settings_repo.as_bool(raw.get("offline_mode"), default=True)
     endpoints = []
-    for key, url in settings_repo.EXTERNAL_ENDPOINTS:
+    for key in settings_repo.EXTERNAL_ENDPOINT_KEYS:
         enabled = settings_repo.as_bool(raw.get(f"ext_{key}_enabled"))
         endpoints.append({
             "key": key,
             # 오프라인 모드가 켜져 있으면 개별 설정과 무관하게 강제 비활성 (docs/00 §7)
             "enabled": enabled and not offline,
             "configured": enabled,
-            "url": raw.get(f"ext_{key}_url") or url,
+            # 기본 URL 은 settings_defaults.csv 가 넣어준 ext_<key>_url
+            "url": raw.get(f"ext_{key}_url") or "",
         })
     return {
         "offline_mode": offline,
@@ -123,7 +124,7 @@ def update_settings(body: UpdateSettingsRequest) -> dict[str, Any]:
         ).items():
             values[mapping[field_name]] = value
     if body.external_endpoints is not None:
-        known = {key for key, _ in settings_repo.EXTERNAL_ENDPOINTS}
+        known = set(settings_repo.EXTERNAL_ENDPOINT_KEYS)
         for endpoint in body.external_endpoints:
             if endpoint.key not in known:
                 # 목록 밖의 통신 지점을 설정으로 추가할 수 없음 (절대규칙 5)

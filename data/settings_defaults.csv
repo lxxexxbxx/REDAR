@@ -1,0 +1,11 @@
+key,value,note
+offline_mode,true,켜져 있으면 외부 통신 3곳 전부 차단
+llm_enabled,false,기본 Provider 는 NullProvider (절대규칙 2)
+llm_provider,null,
+llm_mask_identifiers,true,호스트·IP·경로를 TARGET_1 형태로 치환
+target_allowlist,[],비어 있음 = 전부 차단 (절대규칙 6)
+scan_default_threads,20,
+scan_default_timeout,10,
+scan_default_retries,1,
+guide_version,null,가이드 본문 임포트 시 갱신
+ext_template_sync_url,https://github.com/projectdiscovery/nuclei-templates,키 목록은 코드에서 통제 (절대규칙 5). URL 만 데이터

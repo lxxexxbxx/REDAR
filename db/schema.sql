@@ -623,13 +623,5 @@ SELECT
 INSERT OR IGNORE INTO schema_version (version) VALUES (1);
 INSERT OR IGNORE INTO schema_version (version) VALUES (2);
 
-INSERT OR IGNORE INTO settings (key, value) VALUES
-    ('offline_mode',        'true'),
-    ('llm_enabled',         'false'),
-    ('llm_provider',        'null'),
-    ('llm_mask_identifiers','true'),
-    ('target_allowlist',    '[]'),          -- 비어 있음 = 전부 차단
-    ('scan_default_threads','20'),
-    ('scan_default_timeout','10'),
-    ('scan_default_retries','1'),
-    ('guide_version',       'null');
+-- settings 기본값은 data/settings_defaults.csv 가 유일한 출처다.
+-- 초기 데이터를 SQL 에 두면 CSV 와 값이 갈라지고 재적재 경로가 두 개가 된다.
