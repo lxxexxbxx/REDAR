@@ -97,6 +97,69 @@ def _view(raw: dict[str, str]) -> dict[str, Any]:
     }
 
 
+class LlmPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scan_id: str | None = None
+    report_id: str | None = None
+
+
+@router.post("/settings/llm/preview")
+def llm_preview(body: LlmPreviewRequest) -> dict[str, Any]:
+    """전송 데이터 미리보기. 응답 본문·추출값은 포함되지 않는다 (docs/01 §7.4)"""
+    from app.domain.ids import new_id
+    from app.report import builder
+    from app.repository import reports as report_repo
+    from app.services import narrative_service
+    from app.services.scan_service import ScanError
+
+    with session() as conn:
+        if body.report_id:
+            view = report_repo.get(conn, body.report_id)
+            if view is None or view["report"] is None:
+                raise ScanError("NOT_FOUND", "보고서를 찾을 수 없습니다.", status_code=404)
+            report = view["report"]
+        elif body.scan_id:
+            report = builder.build(conn, body.scan_id, report_id=new_id("rpt"))
+        else:
+            raise ScanError("INVALID_REQUEST", "scan_id 또는 report_id 가 필요합니다.")
+        return narrative_service.preview(conn, report)
+
+
+@router.post("/settings/llm/test")
+def llm_test() -> dict[str, Any]:
+    """연결 테스트. 오프라인 모드에서는 호출하지 않는다 (절대규칙 5)"""
+    from app.adapters.llm import get_provider
+    from app.adapters.llm.base import LlmError
+
+    with session() as conn:
+        raw = settings_repo.get_all(conn)
+        offline = settings_repo.offline_mode(conn)
+        enabled = settings_repo.as_bool(raw.get("ext_llm_api_enabled"))
+
+    if offline:
+        return {"ok": False, "reason": "오프라인 모드에서는 LLM 을 호출하지 않습니다."}
+    if not enabled:
+        return {"ok": False, "reason": "LLM 통신 지점이 비활성 상태입니다."}
+
+    provider = get_provider(raw.get("llm_provider"), {
+        "endpoint": raw.get("llm_endpoint"),
+        "api_key": raw.get("llm_api_key"),
+        "model": raw.get("llm_model"),
+    })
+    if provider.name == "null":
+        return {"ok": False, "reason": "Provider 가 설정되지 않았습니다 (NullProvider)."}
+    try:
+        text = provider.narrate("executive_summary", {"total_findings": 0})
+    except LlmError as exc:
+        return {"ok": False, "reason": str(exc), "provider": provider.name}
+    return {
+        "ok": bool(text), "provider": provider.name, "model": provider.model,
+        # 응답 본문을 그대로 돌려주지 않는다. 길이만 보고
+        "response_length": len(text or ""),
+    }
+
+
 @router.get("/settings")
 def get_settings() -> dict[str, Any]:
     with session() as conn:
