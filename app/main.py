@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.adapters.nuclei import version as nuclei_version
-from app.api import errors, guide, scans, settings_api, templates
+from app.api import errors, guide, reports, scans, settings_api, templates
 from app.config import settings
 from app.repository.db import session
 
@@ -21,6 +21,7 @@ app.include_router(scans.router, prefix=API_PREFIX)
 app.include_router(settings_api.router, prefix=API_PREFIX)
 app.include_router(guide.router, prefix=API_PREFIX)
 app.include_router(templates.router, prefix=API_PREFIX)
+app.include_router(reports.router, prefix=API_PREFIX)
 
 
 @app.get(f"{API_PREFIX}/health")

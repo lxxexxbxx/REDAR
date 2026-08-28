@@ -1,0 +1,98 @@
+/* 보고서 스타일. 외부 참조 0 (절대규칙 4-1).
+ * 인쇄 기준 A4. 화면과 인쇄에서 같은 골격을 유지한다 */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "NanumGothic", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.6;
+  color: #1a1a1a;
+  background: #fff;
+}
+.page { max-width: 190mm; margin: 0 auto; padding: 16mm 12mm; }
+.mono { font-family: "D2Coding", monospace; font-variant-numeric: tabular-nums; }
+
+h1 { font-size: 20pt; margin: 0 0 4mm; letter-spacing: -0.02em; }
+h2 {
+  font-size: 13pt; margin: 10mm 0 3mm; padding-bottom: 2mm;
+  border-bottom: 1.5pt solid #1a1a1a;
+}
+h3 { font-size: 11.5pt; margin: 6mm 0 2mm; }
+h4 { font-size: 10.5pt; margin: 4mm 0 1.5mm; color: #333; }
+
+/* 표지 */
+.cover { border: 1pt solid #1a1a1a; padding: 10mm; margin-bottom: 8mm; }
+.cover .title { font-size: 22pt; font-weight: 700; }
+.cover .sub { color: #555; margin-top: 2mm; }
+
+/* 목차. 골격이 고정이므로 목차도 항상 같다 */
+.toc { border: 1pt solid #ccc; padding: 6mm 8mm; margin-bottom: 8mm; }
+.toc ol { margin: 0; padding-left: 6mm; }
+.toc li { margin: 1mm 0; }
+
+table { width: 100%; border-collapse: collapse; margin: 3mm 0; }
+th, td {
+  border: 0.5pt solid #bbb; padding: 1.6mm 2.4mm; text-align: left;
+  vertical-align: top; word-break: break-word;
+}
+th { background: #f0f0f0; font-weight: 700; }
+td.num, th.num { text-align: right; font-family: "D2Coding", monospace; }
+
+.empty { color: #666; font-style: normal; padding: 3mm 0; }
+.chip {
+  display: inline-block; border: 0.5pt solid #888; border-radius: 2pt;
+  padding: 0 1.5mm; font-size: 8.5pt; font-family: "D2Coding", monospace;
+}
+
+.sev-critical { color: #b00014; font-weight: 700; }
+.sev-high     { color: #c2410c; font-weight: 700; }
+.sev-medium   { color: #8a6100; }
+.sev-low      { color: #34506b; }
+.sev-info     { color: #555; }
+
+.notice {
+  border: 0.75pt solid #1a1a1a; border-left: 3pt solid #b00014;
+  padding: 3mm 4mm; margin: 4mm 0; background: #fafafa;
+}
+.notice strong { color: #b00014; }
+
+/* 원문과 생성문을 시각적으로 분리한다 (절대규칙 9) */
+.original {
+  border-left: 3pt solid #1a1a1a; padding: 2mm 0 2mm 4mm; margin: 2mm 0;
+  white-space: pre-wrap;
+}
+.original .citation { display: block; margin-top: 1.5mm; font-size: 9pt; color: #555; }
+.generated {
+  border-left: 3pt dashed #888; padding: 2mm 0 2mm 4mm; margin: 2mm 0;
+  color: #333; background: #f7f7f7;
+}
+.generated .tag { font-size: 8.5pt; color: #8a6100; display: block; }
+
+pre.evidence {
+  font-family: "D2Coding", monospace; font-size: 8.5pt; line-height: 1.45;
+  border: 0.5pt solid #ccc; background: #fbfbfb; padding: 2.5mm;
+  white-space: pre-wrap; word-break: break-all; margin: 2mm 0;
+}
+.trunc { color: #8a6100; }
+
+.finding {
+  border: 0.5pt solid #bbb; padding: 4mm; margin: 3mm 0;
+  page-break-inside: avoid;
+}
+.finding .head { display: flex; justify-content: space-between; gap: 4mm; }
+dl.kv { display: grid; grid-template-columns: 32mm 1fr; gap: 1mm 3mm; margin: 2mm 0; }
+dl.kv dt { color: #555; }
+dl.kv dd { margin: 0; word-break: break-word; }
+
+.axis td.bar { padding: 0; }
+.axis .fill { display: inline-block; height: 3mm; background: #1a1a1a; }
+
+footer { margin-top: 10mm; padding-top: 3mm; border-top: 0.5pt solid #ccc;
+         font-size: 9pt; color: #555; }
+
+@page { size: A4; margin: 14mm; }
+@media print {
+  .page { max-width: none; padding: 0; }
+  h2 { page-break-after: avoid; }
+  .finding, table { page-break-inside: avoid; }
+}

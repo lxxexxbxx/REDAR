@@ -1,0 +1,508 @@
+{#
+  보고서 골격. Part A + Part B + 부록으로 고정 (docs/04 §2).
+  재진단 비교 절은 없다 - GET /scans/compare 전용
+
+  섹션을 조건부로 생성하지 않는다. 0건이면 "해당 없음" 으로 렌더링되며
+  절 자체가 사라지지 않는다 (절대규칙 4). 이 파일이 목차의 유일한 출처다
+#}<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>취약점 진단 결과 보고서 — {{ r.meta.target_summary }}</title>
+<style>
+{{ font_faces }}
+{{ base_css }}
+</style>
+</head>
+<body>
+<div class="page">
+
+{# ─────────────────────────────────────────── 표지 #}
+<div class="cover">
+  <div class="title">취약점 진단 결과 보고서</div>
+  <div class="sub">{{ r.meta.target_summary }}</div>
+  <table style="margin-top:6mm">
+    <tr><th style="width:34mm">진단 대상</th>
+        <td class="mono">{{ r.meta.targets | join(', ') | nz }}</td></tr>
+    <tr><th>진단 일시</th>
+        <td class="mono">{{ r.meta.scan_started_at | nz }}
+        {%- if r.meta.scan_finished_at %} ~ {{ r.meta.scan_finished_at }}{% endif %}</td></tr>
+    <tr><th>소요 시간</th>
+        <td class="mono">{% if r.meta.scan_duration_sec is not none %}{{ r.meta.scan_duration_sec }}초{% else %}기록 없음{% endif %}</td></tr>
+    <tr><th>진단 도구</th>
+        <td class="mono">REDAR {{ r.meta.tool_version | nz }}
+          · nuclei {{ r.meta.nuclei_version | nz('미기록') }}
+          · 템플릿 {{ r.meta.template_revision | nz('미기록') }}</td></tr>
+    <tr><th>보고서 ID</th><td class="mono">{{ r.report_id }}</td></tr>
+    <tr><th>작성</th><td>자동 생성 ({{ r.generated_at | nz('생성 중') }})</td></tr>
+  </table>
+</div>
+
+{# ─────────────────────────────────────────── 목차 (고정) #}
+<div class="toc">
+  <strong>목차</strong>
+  <ol>
+    <li>Part A — 진단 결과
+      <ol>
+        <li>A-1. 개요 및 집계</li>
+        <li>A-2. 진단 대상 환경</li>
+        <li>A-3. 심각도별 상세</li>
+        <li>A-4. 유형별 상세</li>
+        <li>A-5. 취약점 상세</li>
+        <li>A-6. 조치 사항</li>
+        <li>A-7. 오탐 처리 내역</li>
+      </ol>
+    </li>
+    <li>Part B — 주요정보통신기반시설 상세가이드 매핑
+      <ol>
+        <li>B-1. 점검항목 판정 요약</li>
+        <li>B-2. 점검항목별 상세</li>
+        <li>B-3. 미매핑 탐지 결과</li>
+      </ol>
+    </li>
+    <li>부록
+      <ol>
+        <li>C-1. 심각도 환산표</li>
+        <li>C-2. 사용 템플릿 목록</li>
+        <li>C-3. 진단 범위 및 한계</li>
+      </ol>
+    </li>
+  </ol>
+</div>
+
+<h1>Part A — 진단 결과</h1>
+
+{# ─────────────────────────────────────────── A-1 #}
+<h2>A-1. 개요 및 집계</h2>
+<p>{{ r.executive_summary.narrative }}</p>
+{% if r.executive_summary.narrative_generated_by != 'template' %}
+<div class="generated"><span class="tag">[AI 생성 — 적용 전 검토 필요]</span></div>
+{% endif %}
+
+<h3>심각도별 집계 (5단계 고정)</h3>
+<table class="axis">
+  <thead><tr><th style="width:24mm">심각도</th><th class="num" style="width:18mm">건수</th><th>분포</th></tr></thead>
+  <tbody>
+  {% for row in r.findings_by_severity %}
+    <tr>
+      <td class="sev-{{ row.severity }}">{{ row.label }}</td>
+      <td class="num">{{ row.count }}</td>
+      <td class="bar">{% if row.count %}<span class="fill"
+        style="width:{{ (row.count / (r.executive_summary.total_findings or 1) * 100) | round(1) }}mm"></span>{% else %}<span class="empty">—</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h3>유형별 집계 (14종 고정)</h3>
+<table>
+  <thead><tr><th>유형</th><th class="num" style="width:18mm">건수</th></tr></thead>
+  <tbody>
+  {% for row in r.findings_by_vuln_type %}
+    <tr><td>{{ row.label }}</td><td class="num">{{ row.count }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h3>주요 위험</h3>
+{% if r.executive_summary.top_risks %}
+<table>
+  <thead><tr><th>취약점</th><th style="width:22mm">심각도</th><th style="width:44mm">근거</th></tr></thead>
+  <tbody>
+  {% for risk in r.executive_summary.top_risks %}
+    <tr><td>{{ risk.name }}</td>
+        <td class="sev-{{ risk.severity }}">{{ risk.severity }}</td>
+        <td>{{ risk.reason }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+
+{# ─────────────────────────────────────────── A-2 #}
+<h2>A-2. 진단 대상 환경</h2>
+{% if r.environment_profiles %}
+{% for profile in r.environment_profiles %}
+<h3>{{ profile.target_host }}</h3>
+<table>
+  <thead><tr><th style="width:30mm">구분</th><th>제품</th><th style="width:26mm">버전</th><th style="width:20mm">신뢰도</th></tr></thead>
+  <tbody>
+    {% for key, label in [('web_server','웹 서버'), ('language','언어 런타임'), ('application','애플리케이션')] %}
+    <tr><td>{{ label }}</td>
+        <td>{{ profile[key].product | nz('미수집') }}</td>
+        <td class="mono">{{ profile[key].version | nz('미확인') }}</td>
+        <td>{{ profile[key].confidence }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h4>구성요소</h4>
+{% if profile.components %}
+<table>
+  <thead><tr><th style="width:26mm">종류</th><th>슬러그</th><th style="width:26mm">버전</th><th style="width:20mm">신뢰도</th></tr></thead>
+  <tbody>
+  {% for c in profile.components %}
+    <tr><td>{{ c.type }}</td><td class="mono">{{ c.slug }}</td>
+        <td class="mono">{{ c.version | nz('미확인') }}</td><td>{{ c.confidence }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+
+<h4>노출 항목 점검</h4>
+{% if profile.exposures %}
+<table>
+  <thead><tr><th style="width:52mm">항목</th><th style="width:20mm">결과</th><th>근거</th></tr></thead>
+  <tbody>
+  {% for e in profile.exposures %}
+    <tr><td class="mono">{{ e.key }}</td>
+        <td>{% if e.value %}<span class="sev-high">노출</span>{% else %}노출 없음{% endif %}</td>
+        <td>{{ e.evidence | nz('—') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+{% endfor %}
+{% else %}
+<p class="empty">환경 조사를 수행하지 않았습니다. 해당 없음</p>
+{% endif %}
+
+<h4>수집기 실행 내역</h4>
+<p>실행: <span class="mono">{{ r.meta.collectors.run | join(', ') | nz('없음') }}</span>
+   · 실패: <span class="mono">{{ r.meta.collectors.failed | join(', ') | nz('없음') }}</span></p>
+
+<h4>템플릿 선별 근거</h4>
+{% if r.meta.selection_basis %}
+{% set b = r.meta.selection_basis %}
+<p>보유 템플릿 <strong>{{ b.total_available }}</strong>개 중
+   <strong>{{ b.total_selected }}</strong>개를 환경 기반으로 선별했습니다.
+   {% if not b.total_available %}
+   (로컬 템플릿 목록이 비어 있어 태그 선별로 실행되었습니다. 환경 기반 후보
+    {{ b.candidate_templates }}개 확인){% endif %}</p>
+<table>
+  <thead><tr><th style="width:44mm">구성요소</th><th style="width:26mm">버전</th><th>연결 템플릿</th></tr></thead>
+  <tbody>
+  {% if b.matched_components %}
+    {% for m in b.matched_components %}
+    <tr><td class="mono">{{ m.slug }}</td><td class="mono">{{ m.version | nz('미확인') }}</td>
+        <td class="mono">{{ m.templates | join(', ') }}</td></tr>
+    {% endfor %}
+  {% else %}
+    <tr><td colspan="3" class="empty">해당 없음</td></tr>
+  {% endif %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">환경 기반 선별 모드가 아닙니다. 해당 없음
+   (선별 방식: {{ r.meta.selection_mode | nz('미기록') }})</p>
+{% endif %}
+
+{# ─────────────────────────────────────────── A-3 #}
+<h2>A-3. 심각도별 상세</h2>
+{% set detail_by_id = {} %}
+{% for f in r.findings_detail %}{% set _ = detail_by_id.__setitem__(f.finding_id, f) %}{% endfor %}
+{% for group in r.findings_by_severity %}
+<h3>{{ group.label }} ({{ group.count }}건)</h3>
+{% if group.findings %}
+<table>
+  <thead><tr><th>취약점</th><th style="width:30mm">유형</th><th>대상</th></tr></thead>
+  <tbody>
+  {% for fid in group.findings %}
+    {% set f = detail_by_id[fid] %}
+    <tr><td>{{ f.name }}</td><td>{{ f.vuln_type_label }}</td>
+        <td class="mono">{{ f.target }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+{% endfor %}
+
+{# ─────────────────────────────────────────── A-4 #}
+<h2>A-4. 유형별 상세</h2>
+{% for group in r.findings_by_vuln_type %}
+<h3>{{ group.label }} ({{ group.count }}건)</h3>
+{% if group.findings %}
+<table>
+  <thead><tr><th>취약점</th><th style="width:22mm">심각도</th><th>취약 URL</th></tr></thead>
+  <tbody>
+  {% for fid in group.findings %}
+    {% set f = detail_by_id[fid] %}
+    <tr><td>{{ f.name }}</td>
+        <td class="sev-{{ f.severity }}">{{ f.severity_label }}</td>
+        <td class="mono">{{ f.target }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+{% endfor %}
+
+{# ─────────────────────────────────────────── A-5 #}
+<h2>A-5. 취약점 상세</h2>
+{% if r.findings_detail %}
+{% for f in r.findings_detail %}
+<div class="finding">
+  <div class="head">
+    <h3 style="margin:0">{{ f.name }}</h3>
+    <span class="sev-{{ f.severity }}">{{ f.severity_label }}</span>
+  </div>
+  <dl class="kv">
+    <dt>심각도 / CVSS</dt>
+    <dd>{{ f.severity_label }} / {% if f.cvss_score is not none %}{{ f.cvss_score }}{% else %}미산정{% endif %}</dd>
+    <dt>가이드 등급</dt><dd>{{ f.severity_guide }}</dd>
+    <dt>CVE</dt><dd class="mono">{{ f.cve_ids | join(', ') | nz }}</dd>
+    <dt>CWE</dt><dd class="mono">{{ f.cwe_ids | join(', ') | nz }}</dd>
+    <dt>유형</dt><dd>{{ f.vuln_type_label }}</dd>
+    <dt>취약 URL</dt><dd class="mono">{{ f.target }}</dd>
+    <dt>템플릿</dt><dd class="mono">{{ f.template_id }} ({{ f.template_source }})</dd>
+    <dt>구성요소</dt><dd class="mono">{{ f.component_slug | nz }}</dd>
+    <dt>점검항목</dt><dd class="mono">{{ f.guide_item_codes | join(', ') | nz('미매핑') }}</dd>
+    <dt>설명</dt><dd>{{ f.description | nz('템플릿 기본 설명 없음') }}</dd>
+  </dl>
+  <h4>탐지 근거</h4>
+  {% if f.evidence.included %}
+    {% if f.evidence.request %}<pre class="evidence">{{ f.evidence.request }}</pre>{% endif %}
+    {% if f.evidence.response %}<pre class="evidence">{{ f.evidence.response }}</pre>{% endif %}
+    {% if not f.evidence.request and not f.evidence.response %}
+    <p class="empty">해당 없음</p>
+    {% endif %}
+    <h4>재현 명령 — 사용자가 직접 실행</h4>
+    {% if f.evidence.curl_command %}
+    <pre class="evidence">{{ f.evidence.curl_command }}</pre>
+    {% else %}<p class="empty">제공 불가</p>{% endif %}
+  {% else %}
+  <p class="empty">근거 포함 옵션이 꺼져 있어 생략되었습니다.</p>
+  {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+
+{# ─────────────────────────────────────────── A-6 #}
+<h2>A-6. 조치 사항</h2>
+
+<h3>패치 트랙 — 즉시 조치</h3>
+{% if r.patch_plan %}
+<table>
+  <thead><tr><th style="width:40mm">구성요소</th><th style="width:26mm">설치 버전</th>
+             <th>업그레이드 목표</th><th class="num" style="width:16mm">CVE</th>
+             <th class="num" style="width:18mm">최대 CVSS</th></tr></thead>
+  <tbody>
+  {% for p in r.patch_plan %}
+    <tr>
+      <td class="mono">{{ p.slug }}<br><span class="chip">{{ p.component_type }}</span></td>
+      <td class="mono">{{ p.installed_version | nz('미확인') }}</td>
+      {# 빈칸으로 두지 않는다. 빈칸은 검토자에게 데이터 누락으로 읽힌다 #}
+      <td>{% if p.upgrade_to_at_least %}<span class="mono">{{ p.upgrade_to_at_least }} 이상</span>
+          {% else %}{{ p.upgrade_note }}{% endif %}</td>
+      <td class="num">{{ p.cve_count }}</td>
+      <td class="num">{% if p.max_cvss is not none %}{{ p.max_cvss }}{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p style="font-size:9pt;color:#555">업그레이드 목표가 없는 항목은 버전 개념이 없는
+   설정·정보 노출 항목입니다. 아래 유형 트랙의 조치를 적용하십시오.</p>
+{% else %}
+<p class="empty">해당 없음 (환경 조사에서 구성요소가 확인되지 않았습니다)</p>
+{% endif %}
+
+<h3>유형 트랙 — 근본 대책</h3>
+{% if r.remediation %}
+{% for item in r.remediation %}
+<div class="finding">
+  <h4 style="margin-top:0">{{ item.title }}
+    <span class="chip">{{ item.item_code }}</span>
+    <span class="chip">우선순위 {{ item.priority_score }}</span></h4>
+  <p style="margin:0 0 2mm;font-size:9.5pt;color:#555">
+    연결된 탐지 {{ item.finding_ids | length }}건</p>
+
+  {% if item.root_fix.is_original %}
+  <div class="original">{{ item.guide_remediation_original }}
+    <span class="citation">[출처: {{ item.guide_citation | nz('KISA 상세가이드') }}]</span></div>
+  {% else %}
+  <div class="generated"><span class="tag">[가이드 원문 없음 — 대체 문구]</span>
+    {{ item.root_fix.summary }}</div>
+  {% endif %}
+
+  {% if item.guide_case_text %}
+  <h4>점검 및 조치 사례 (원문 인용)</h4>
+  <div class="original">{{ item.guide_case_text }}
+    <span class="citation">[출처: {{ item.guide_citation | nz('KISA 상세가이드') }}]</span></div>
+  {% endif %}
+
+  <h4>임시 조치</h4>
+  <p style="margin:0">{{ item.temporary_fix.summary }}</p>
+</div>
+{% endfor %}
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+
+{# ─────────────────────────────────────────── A-7 #}
+<h2>A-7. 오탐 처리 내역</h2>
+{% if r.false_positives %}
+<p>아래 항목은 오탐으로 표시되어 <strong>집계에서 제외</strong>되었습니다.</p>
+<table>
+  <thead><tr><th>취약점</th><th style="width:22mm">심각도</th><th>사유</th></tr></thead>
+  <tbody>
+  {% for fp in r.false_positives %}
+    <tr><td>{{ fp.name }}</td><td>{{ fp.severity }}</td>
+        <td>{{ fp.note | nz('사유 미기재') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+
+<h1>Part B — 주요정보통신기반시설 상세가이드 매핑</h1>
+
+{# ─────────────────────────────────────────── B-1 #}
+<h2>B-1. 점검항목 판정 요약</h2>
+<table>
+  <thead><tr><th style="width:30mm">판정</th><th class="num" style="width:20mm">건수</th></tr></thead>
+  <tbody>
+    <tr><td>양호</td><td class="num">{{ r.guide_mapping.summary.safe }}</td></tr>
+    <tr><td>취약</td><td class="num">{{ r.guide_mapping.summary.vulnerable }}</td></tr>
+    <tr><td>해당 없음</td><td class="num">{{ r.guide_mapping.summary.not_applicable }}</td></tr>
+  </tbody>
+</table>
+
+{# 이 고지가 없으면 '점검하지 않은 것' 이 '양호' 로 둔갑한다 (절대규칙 10) #}
+<div class="notice">
+  <strong>커버리지 고지</strong><br>
+  {{ r.guide_mapping.coverage_notice }}<br>
+  계정 관리·파일 권한·서비스 데몬 설정은 원격 스캐너가 접근할 수 없는 영역입니다.
+</div>
+
+{% if not r.guide_mapping.available %}
+<div class="notice">{{ r.guide_mapping.unavailable_note }}</div>
+{% endif %}
+
+{# ─────────────────────────────────────────── B-2 #}
+<h2>B-2. 점검항목별 상세</h2>
+{# dict 의 .items 메서드와 이름이 겹친다. 대괄호로 접근해야 키를 읽는다 #}
+{% if r.guide_mapping['items'] %}
+{% for item in r.guide_mapping['items'] %}
+<div class="finding">
+  <h4 style="margin-top:0">
+    <span class="mono">{{ item.item_code }}</span>
+    {{ item.item_name | nz('본문 미탑재') }}
+    {% if item.review_required %}<span class="chip">검토 필요</span>{% endif %}
+  </h4>
+  <dl class="kv">
+    <dt>분야</dt><dd>{{ item.category | nz('미탑재') }}</dd>
+    {# 중요도는 가이드 원문 값이다. 탐지 심각도 환산값으로 덮지 않는다 #}
+    <dt>중요도</dt><dd>{{ item.item_severity | nz('미탑재') }}</dd>
+    <dt>판정</dt>
+    <dd>{% if item.verdict == 'vulnerable' %}<span class="sev-high">취약</span>
+        {% elif item.verdict == 'safe' %}양호
+        {% else %}해당 없음{% endif %}</dd>
+    <dt>판단 근거</dt><dd>{{ item.basis }}</dd>
+    <dt>연결 탐지</dt><dd>{{ item.finding_count }}건</dd>
+  </dl>
+  {% if item.criteria_vuln %}
+  <h4>취약 판단기준 (원문 인용)</h4>
+  <div class="original">{{ item.criteria_vuln }}</div>
+  {% endif %}
+  {% if item.remediation %}
+  <h4>조치 방법 (원문 인용)</h4>
+  <div class="original">{{ item.remediation }}
+    <span class="citation">[출처: {{ item.citation | nz('KISA 상세가이드') }}]</span></div>
+  {% endif %}
+  {% if item.case_text %}
+  <h4>점검 및 조치 사례 (원문 인용)</h4>
+  <div class="original">{{ item.case_text }}
+    <span class="citation">[출처: {{ item.citation | nz('KISA 상세가이드') }}]</span></div>
+  {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+
+{# ─────────────────────────────────────────── B-3 #}
+<h2>B-3. 미매핑 탐지 결과</h2>
+<p style="font-size:9.5pt;color:#555">가이드 항목에 연결되지 않은 탐지 결과입니다.
+   <strong>가이드 외 항목</strong>으로 분류됩니다.</p>
+{% if r.unmapped_findings %}
+<table>
+  <thead><tr><th>취약점</th><th style="width:22mm">심각도</th><th>템플릿</th></tr></thead>
+  <tbody>
+  {% for f in r.unmapped_findings %}
+    <tr><td>{{ f.name }}</td><td class="sev-{{ f.severity }}">{{ f.severity }}</td>
+        <td class="mono">{{ f.template_id }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+
+<h1>부록</h1>
+
+<h2>C-1. 심각도 환산표</h2>
+<table>
+  <thead><tr><th style="width:34mm">CVSS 점수</th><th>Severity</th><th style="width:26mm">가이드 등급</th></tr></thead>
+  <tbody>
+  {% for band in r.appendix.severity_conversion_table %}
+    <tr><td class="mono">{{ band.range }}</td>
+        <td>{{ band.severity_label }} ({{ band.severity }})</td>
+        <td>{{ band.severity_guide }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p style="font-size:9pt;color:#555">이 환산값은 Part A 전용입니다. Part B 의 점검항목
+   중요도는 가이드 원문 값을 사용합니다.</p>
+
+<h2>C-2. 사용 템플릿 목록</h2>
+{% if r.appendix.templates_used %}
+<table>
+  <thead><tr><th>템플릿 ID</th><th style="width:26mm">출처</th></tr></thead>
+  <tbody>
+  {% for t in r.appendix.templates_used %}
+    <tr><td class="mono">{{ t.template_id }}</td><td>{{ t.source }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">해당 없음</p>
+{% endif %}
+
+<h2>C-3. 진단 범위 및 한계</h2>
+<p>{{ r.appendix.scope_note }}</p>
+<table>
+  <thead><tr><th style="width:44mm">항목</th><th>내용</th></tr></thead>
+  <tbody>
+    <tr><td>가이드 본문</td>
+        <td>{% if r.meta.guide_db.imported %}탑재 · {{ r.meta.guide_db.version }}
+            · {{ r.meta.guide_db.item_count }}개 항목{% else %}미탑재{% endif %}</td></tr>
+    <tr><td>자동 점검 항목</td>
+        <td>{{ r.meta.guide_coverage.items_covered }}개
+            / 전체 {{ r.meta.guide_coverage.items_total }}개</td></tr>
+    <tr><td>LLM 서술</td>
+        <td>{% if r.meta.llm.used %}사용 · {{ r.meta.llm.provider }}
+            {%- else %}미사용 (사전 정의 문장){% endif %}</td></tr>
+    <tr><td>LLM 생성 구간</td>
+        <td class="mono">{{ r.appendix.llm_generated_sections | join(', ') | nz('없음') }}</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  REDAR {{ r.meta.tool_version }} · 보고서 {{ r.report_id }} ·
+  이 보고서는 자동 생성되었으며, 탐지되지 않음이 양호를 의미하지 않습니다.
+</footer>
+
+</div>
+</body>
+</html>
