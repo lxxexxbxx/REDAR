@@ -20,6 +20,10 @@ def _path(env: str, default: Path) -> Path:
 DB_PATH = _path("REDAR_DB", ROOT / "redar.db")
 DATA_DIR = _path("REDAR_DATA_DIR", ROOT / "data")
 SCHEMA_PATH = ROOT / "db" / "schema.sql"
+# 템플릿 트리. official 은 사용자가 넣거나 sync 로 내려받고, custom 은 저장소 포함
+TEMPLATES_DIR = _path("REDAR_TEMPLATES_DIR", ROOT / "templates")
+OFFICIAL_DIR = TEMPLATES_DIR / "official"
+CUSTOM_DIR = TEMPLATES_DIR / "custom"
 MIGRATIONS_DIR = ROOT / "db" / "migrations"
 FONTS_DIR = ROOT / "assets" / "fonts"
 

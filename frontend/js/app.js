@@ -932,17 +932,18 @@ function viewTemplates() {
     </div>
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">예정</div>
-        <h2>M5 에서 구현</h2>
+        <div class="eyebrow">진행 상태</div>
+        <h2>API 는 동작, 화면은 다음 단계</h2>
       </div>
       <div class="pending">
-        <p style="margin:0">이 화면은 아래 세 가지를 담습니다.</p>
+        <p style="margin:0">M5 백엔드가 완료되어 아래가 API 로 가능합니다.</p>
         <ul>
-          <li>공식 템플릿 목록 조회 — <span class="mono">templates/official/</span> 폴더에 직접 넣거나,
-              설정에서 템플릿 갱신을 허용한 뒤 내려받습니다</li>
-          <li>직접 작성한 템플릿 관리 — <span class="mono">templates/custom/</span></li>
-          <li>폼 기반 템플릿 빌더 — YAML 을 모르는 사용자가 폼 입력으로 템플릿을 만듭니다</li>
+          <li>목록·상세 조회, 폼 → YAML 생성, 수정·삭제·fork</li>
+          <li>검증 2단계 — 문법은 <span class="mono">nuclei -validate</span> 위임, 정책은 자체 구현</li>
+          <li>드라이런 — 대상 1개에 실제 요청 후 matcher 별 매칭 결과 반환</li>
+          <li>공식 템플릿 갱신 — 오프라인 모드에서 차단</li>
         </ul>
+        <p style="margin:8px 0 0">폼 빌더 화면은 이 다음에 붙입니다.</p>
       </div>
     </div>
     <div class="panel">
