@@ -45,6 +45,7 @@ def health() -> dict[str, str | None]:
 # 배포 시에는 Tauri 가 서빙하며 (docs/01 §5.3), 이 마운트는 개발·미리보기용
 if settings.FONTS_DIR.is_dir():
     app.mount("/fonts", StaticFiles(directory=settings.FONTS_DIR), name="fonts")
-_FRONTEND = settings.ROOT / "frontend"
-if _FRONTEND.is_dir():
-    app.mount("/", StaticFiles(directory=_FRONTEND, html=True), name="frontend")
+if settings.FRONTEND_DIR.is_dir():
+    app.mount(
+        "/", StaticFiles(directory=settings.FRONTEND_DIR, html=True), name="frontend"
+    )

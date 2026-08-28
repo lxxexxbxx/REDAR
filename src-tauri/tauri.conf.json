@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "REDAR",
+  "version": "0.3.0",
+  "identifier": "kr.redred.redar",
+  "build": {
+    "frontendDist": "../frontend"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "msi", "nsis"],
+    "icon": ["icons/icon.png"],
+    "externalBin": ["binaries/redar-backend"],
+    "resources": [],
+    "copyright": "team REDRED",
+    "shortDescription": "웹 취약점 진단 도구",
+    "longDescription": "Nuclei 기반 웹 취약점 진단. 모든 처리는 로컬에서 끝난다."
+  },
+  "plugins": {
+    "shell": {
+      "open": false
+    }
+  }
+}

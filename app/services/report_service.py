@@ -22,7 +22,8 @@ from app.services.scan_service import ScanError
 
 logger = logging.getLogger(__name__)
 
-REPORT_DIR = settings.ROOT / "reports"
+# 사용자 쓰기 경로. 번들 디렉터리는 임시라 재시작 시 소실된다 (M10 [2])
+REPORT_DIR = settings.REPORTS_DIR
 # PDF 는 WebView 인쇄로 파생시킨다. 서버가 만들지 않는다 (절대규칙 4-1)
 FORMATS = ("html", "json")
 PDF_NOTE = (

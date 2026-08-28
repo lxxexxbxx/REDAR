@@ -1,15 +1,47 @@
 """파일·환경 수준 설정.
 
 런타임 플래그(offline_mode / llm_enabled / target_allowlist)의 원본은
-DB settings 테이블 (db/schema.sql §8). 여기에는 DB 접속 전 필요한 값만.
+DB settings 테이블. 여기에는 DB 접속 전 필요한 값만.
+
+패키징(M10) 대응: 읽기 전용 번들 리소스와 쓰기 가능 사용자 경로를 분리한다.
+PyInstaller 는 번들을 임시 디렉터리에 풀기 때문에 그 안에 쓰면 재시작 시 소실된다
 """
 from __future__ import annotations
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+# 번들 실행 여부. PyInstaller 가 _MEIPASS 를 넣는다
+FROZEN = getattr(sys, "frozen", False)
+_BUNDLE = Path(getattr(sys, "_MEIPASS", "")) if FROZEN else None
+
+ROOT = _BUNDLE or Path(__file__).resolve().parents[2]
+
+
+def resource_path(rel: str) -> Path:
+    """읽기 전용 번들 리소스. 스키마·CSV·폰트·프론트엔드"""
+    return ROOT / rel
+
+
+def user_data_dir() -> Path:
+    """쓰기 가능 경로. DB·보고서·로그.
+
+    개발 중에는 저장소 루트를 그대로 쓴다 - 경로가 갈리면 개발과 배포 동작이 달라진다
+    """
+    override = os.environ.get("REDAR_HOME")
+    if override:
+        return Path(override).expanduser().resolve()
+    if not FROZEN:
+        return Path(__file__).resolve().parents[2]
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home())
+        return Path(base) / "REDAR"
+    return Path.home() / ".redar"
+
+
+HOME = user_data_dir()
 
 
 def _path(env: str, default: Path) -> Path:
@@ -17,17 +49,30 @@ def _path(env: str, default: Path) -> Path:
     return Path(override).expanduser().resolve() if override else default
 
 
-DB_PATH = _path("REDAR_DB", ROOT / "redar.db")
-DATA_DIR = _path("REDAR_DATA_DIR", ROOT / "data")
-SCHEMA_PATH = ROOT / "db" / "schema.sql"
+DB_PATH = _path("REDAR_DB", HOME / "redar.db")
+DATA_DIR = _path("REDAR_DATA_DIR", resource_path("data"))
+SCHEMA_PATH = resource_path("db/schema.sql")
 # 템플릿 트리. official 은 사용자가 넣거나 sync 로 내려받고, custom 은 저장소 포함
-TEMPLATES_DIR = _path("REDAR_TEMPLATES_DIR", ROOT / "templates")
+TEMPLATES_DIR = _path("REDAR_TEMPLATES_DIR", HOME / "templates")
 OFFICIAL_DIR = TEMPLATES_DIR / "official"
 CUSTOM_DIR = TEMPLATES_DIR / "custom"
-MIGRATIONS_DIR = ROOT / "db" / "migrations"
-FONTS_DIR = ROOT / "assets" / "fonts"
+MIGRATIONS_DIR = resource_path("db/migrations")
+FONTS_DIR = resource_path("assets/fonts")
+FRONTEND_DIR = resource_path("frontend")
+REPORTS_DIR = _path("REDAR_REPORTS_DIR", HOME / "reports")
 
 
 def nuclei_bin() -> str | None:
-    """nuclei 실행 파일 경로. 미설치 시 None (docs/01 §5.5)."""
-    return os.environ.get("REDAR_NUCLEI") or shutil.which("nuclei")
+    """nuclei 실행 파일 경로. 미설치 시 None (docs/01 §5.5).
+
+    번들에 동봉된 경우 그쪽을 먼저 본다
+    """
+    override = os.environ.get("REDAR_NUCLEI")
+    if override:
+        return override
+    if FROZEN:
+        name = "nuclei.exe" if sys.platform == "win32" else "nuclei"
+        bundled = resource_path(f"bin/{name}")
+        if bundled.is_file():
+            return str(bundled)
+    return shutil.which("nuclei")
