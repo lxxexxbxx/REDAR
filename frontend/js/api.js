@@ -74,6 +74,30 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  templateSchema: () => request("/templates/schema"),
+  listTemplates: (params = {}) => request("/templates" + query(params)),
+  getTemplate: (id) => request(`/templates/${encodeURIComponent(id)}`),
+  createTemplate: (form) =>
+    request("/templates", { method: "POST", body: JSON.stringify({ form }) }),
+  updateTemplate: (id, form) =>
+    request(`/templates/${encodeURIComponent(id)}`, {
+      method: "PUT", body: JSON.stringify({ form }),
+    }),
+  deleteTemplate: (id) =>
+    request(`/templates/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  forkTemplate: (id, newId) =>
+    request(`/templates/${encodeURIComponent(id)}/fork`, {
+      method: "POST", body: JSON.stringify({ template_id: newId }),
+    }),
+  parseTemplate: (payload) =>
+    request("/templates/parse", { method: "POST", body: JSON.stringify(payload) }),
+  validateTemplate: (payload) =>
+    request("/templates/validate", { method: "POST", body: JSON.stringify(payload) }),
+  dryrunTemplate: (payload) =>
+    request("/templates/dryrun", { method: "POST", body: JSON.stringify(payload) }),
+  syncTemplates: () => request("/templates/sync", { method: "POST" }),
+  reindexTemplates: () => request("/templates/reindex", { method: "POST" }),
+
   importTargets: (file) => {
     const form = new FormData();
     form.append("file", file);

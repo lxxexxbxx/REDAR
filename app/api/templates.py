@@ -96,7 +96,8 @@ def validate_template(body: ValidateRequest) -> dict[str, Any]:
         if body.form is None:
             raise service.ScanError("INVALID_REQUEST", "yaml 또는 form 이 필요합니다.")
         text = builder.build(body.form)
-    return validator.validate(text)
+    # 검증한 YAML 을 함께 돌려준다. 프론트가 YAML 을 조립하면 조립 규칙이 두 곳에 생긴다
+    return {**validator.validate(text), "yaml": text}
 
 
 @router.post("/templates/dryrun")

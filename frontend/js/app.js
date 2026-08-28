@@ -2,6 +2,9 @@
 
 import { api, ApiError, subscribeScan } from "./api.js";
 import {
+  handleTemplateChange, handleTemplateClick, viewTemplates,
+} from "./templates.js";
+import {
   FINDING_STATUS_LABEL, SCAN_STATUS_LABEL, SEVERITY_ORDER, SEVERITY_LABEL,
   VULN_TYPE_LABEL, VULN_TYPE_ORDER,
   coverageNotice, dash, emptyState, esc, fmtDuration, fmtTime,
@@ -13,7 +16,7 @@ const NAV = [
   { path: "dashboard", label: "대시보드" },
   { path: "scan", label: "스캔 실행" },
   { path: "results", label: "탐지 결과" },
-  { path: "templates", label: "템플릿", tag: "M5" },
+  { path: "templates", label: "템플릿" },
   { path: "report", label: "보고서", tag: "M7" },
   { path: "settings", label: "설정" },
 ];
@@ -922,43 +925,6 @@ async function saveSettings(kind) {
 
 /* -------------------------------------------------------- 미구현 화면 */
 
-function viewTemplates() {
-  view().innerHTML = `
-    <div class="view-head">
-      <div class="eyebrow">진단 항목 관리</div>
-      <h1>템플릿</h1>
-      <p>진단 항목은 nuclei YAML 템플릿으로만 표현됩니다. REDAR 는 사용자 스크립트를
-         실행하지 않습니다.</p>
-    </div>
-    <div class="panel">
-      <div class="panel-head">
-        <div class="eyebrow">진행 상태</div>
-        <h2>API 는 동작, 화면은 다음 단계</h2>
-      </div>
-      <div class="pending">
-        <p style="margin:0">M5 백엔드가 완료되어 아래가 API 로 가능합니다.</p>
-        <ul>
-          <li>목록·상세 조회, 폼 → YAML 생성, 수정·삭제·fork</li>
-          <li>검증 2단계 — 문법은 <span class="mono">nuclei -validate</span> 위임, 정책은 자체 구현</li>
-          <li>드라이런 — 대상 1개에 실제 요청 후 matcher 별 매칭 결과 반환</li>
-          <li>공식 템플릿 갱신 — 오프라인 모드에서 차단</li>
-        </ul>
-        <p style="margin:8px 0 0">폼 빌더 화면은 이 다음에 붙입니다.</p>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-head">
-        <div class="eyebrow">현재</div>
-        <h2>지금 할 수 있는 것</h2>
-      </div>
-      <p style="color:var(--muted);margin:0">
-        템플릿 파일을 <span class="mono">templates/custom/</span> 에 두고
-        스캔 실행 화면에서 <strong>직접 지정</strong> 방식으로 템플릿 ID 를 입력하면
-        바로 실행됩니다.
-      </p>
-    </div>`;
-}
-
 function viewReport() {
   view().innerHTML = `
     <div class="view-head">
@@ -1016,7 +982,7 @@ async function render() {
     else if (path === "results-list") {
       state.scanId = null;
       await viewResults(new URLSearchParams());
-    } else if (path === "templates") viewTemplates();
+    } else if (path === "templates") await viewTemplates();
     else if (path === "report") viewReport();
     else if (path === "settings") viewSettings();
     else go("dashboard");
@@ -1071,9 +1037,18 @@ document.addEventListener("click", async (event) => {
 
   const saveKind = t.closest("[data-save]")?.dataset.save;
   if (saveKind) { saveSettings(saveKind); return; }
+
+  // 템플릿 화면은 자기 이벤트를 스스로 처리한다. 처리했으면 true
+  try {
+    if (await handleTemplateClick(t)) return;
+  } catch (error) { showApiError(error); }
 });
 
 document.addEventListener("change", async (event) => {
+  try {
+    if (await handleTemplateChange(event.target)) return;
+  } catch (error) { showApiError(error); }
+
   const filterKey = event.target.dataset?.filter;
   if (filterKey) {
     resultFilters[filterKey] = event.target.value;
