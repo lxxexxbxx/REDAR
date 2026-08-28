@@ -4,6 +4,7 @@ import { api, ApiError, subscribeScan } from "./api.js";
 import {
   handleTemplateChange, handleTemplateClick, viewTemplates,
 } from "./templates.js";
+import { handleReportClick, viewReport } from "./reports.js";
 import {
   FINDING_STATUS_LABEL, SCAN_STATUS_LABEL, SEVERITY_ORDER, SEVERITY_LABEL,
   VULN_TYPE_LABEL, VULN_TYPE_ORDER,
@@ -17,7 +18,7 @@ const NAV = [
   { path: "scan", label: "스캔 실행" },
   { path: "results", label: "탐지 결과" },
   { path: "templates", label: "템플릿" },
-  { path: "report", label: "보고서", tag: "M7" },
+  { path: "report", label: "보고서" },
   { path: "settings", label: "설정" },
 ];
 
@@ -925,31 +926,6 @@ async function saveSettings(kind) {
 
 /* -------------------------------------------------------- 미구현 화면 */
 
-function viewReport() {
-  view().innerHTML = `
-    <div class="view-head">
-      <div class="eyebrow">산출물</div>
-      <h1>보고서</h1>
-      <p>보고서는 대상과 무관하게 항상 같은 목차로 생성됩니다. 탐지 0건인 항목도
-         사라지지 않고 "해당 없음" 으로 남습니다.</p>
-    </div>
-    <div class="panel">
-      <div class="panel-head">
-        <div class="eyebrow">예정</div>
-        <h2>M7 에서 구현</h2>
-      </div>
-      <div class="pending">
-        <ul>
-          <li>Part A — 진단 결과 (요약 · 심각도별 · 유형별 · 조치 사항 · 오탐 내역)</li>
-          <li>Part B — 주요정보통신기반시설 상세가이드 매핑 (가이드 본문 탑재 시)</li>
-          <li>부록 — 심각도 환산표 · 실행 템플릿 목록</li>
-          <li>자체 완결형 HTML 1차 산출물, PDF 는 인쇄로 파생</li>
-        </ul>
-      </div>
-      ${coverageNotice(state.guide)}
-    </div>`;
-}
-
 /* ------------------------------------------------------------ 부트 */
 
 function showApiError(error) {
@@ -983,7 +959,7 @@ async function render() {
       state.scanId = null;
       await viewResults(new URLSearchParams());
     } else if (path === "templates") await viewTemplates();
-    else if (path === "report") viewReport();
+    else if (path === "report") await viewReport();
     else if (path === "settings") viewSettings();
     else go("dashboard");
   } catch (error) {
@@ -1041,6 +1017,7 @@ document.addEventListener("click", async (event) => {
   // 템플릿 화면은 자기 이벤트를 스스로 처리한다. 처리했으면 true
   try {
     if (await handleTemplateClick(t)) return;
+    if (await handleReportClick(t)) return;
   } catch (error) { showApiError(error); }
 });
 

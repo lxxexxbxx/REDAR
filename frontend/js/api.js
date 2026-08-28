@@ -74,6 +74,30 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  listReports: (params = {}) => request("/reports" + query(params)),
+  getReport: (id) => request(`/reports/${encodeURIComponent(id)}`),
+  createReport: (scanId, options) =>
+    request("/reports", {
+      method: "POST",
+      body: JSON.stringify({ scan_id: scanId, options }),
+    }),
+  deleteReport: (id) =>
+    request(`/reports/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  downloadReport: async (id, format) => {
+    // 파일 본문은 JSON 이 아니라 원문이다. request() 를 쓰지 않고 직접 읽는다
+    const response = await fetch(
+      `${BASE}/reports/${encodeURIComponent(id)}/download?format=${format}`
+    );
+    if (!response.ok) throw new ApiError(response.status, "DOWNLOAD_FAILED",
+      "보고서를 내려받지 못했습니다.");
+    const disposition = response.headers.get("content-disposition") || "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    return { text: await response.text(), filename: match?.[1] || `report.${format}` };
+  },
+
+  compareScans: (base, target) =>
+    request(`/scans/compare${query({ base, target })}`),
+
   templateSchema: () => request("/templates/schema"),
   listTemplates: (params = {}) => request("/templates" + query(params)),
   getTemplate: (id) => request(`/templates/${encodeURIComponent(id)}`),
