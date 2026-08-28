@@ -50,6 +50,10 @@
 
   --rail: 216px;
   --gutter: 28px;
+  --content: 1240px;     /* 본문 폭 상한. statestrip 과 view 가 공유 */
+  --gap: 16px;           /* 블록 간 세로·수평 간격. 단일 출처 */
+  --ctl-h: 38px;         /* 입력·선택·버튼 공통 높이 */
+  --label-col: 112px;    /* .kv dt · .axis-row label 공통 폭 */
 
   --mono: "D2Coding", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --sans: "NanumGothic", -apple-system, "Segoe UI", system-ui, sans-serif;
@@ -179,12 +183,15 @@ a { color: var(--text); }
   position: sticky;
   top: 0;
   z-index: 5;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
   padding: 0 var(--gutter);
   background: var(--ink-850);
   border-bottom: 1px solid var(--line);
+}
+/* 배경·구분선은 전폭, 항목은 본문과 같은 폭에서 끝난다 */
+.strip-inner {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: var(--content);
   font-family: var(--mono);
   font-size: 11px;
 }
@@ -211,8 +218,11 @@ a { color: var(--text); }
 .dot.warn { background: var(--warn); }
 .dot.alert { background: var(--brand); }
 
-.view { padding: 26px var(--gutter) 60px; max-width: 1240px; }
-.view-head { margin-bottom: 22px; }
+.view { padding: 26px var(--gutter) 60px; max-width: var(--content); }
+/* 세로 리듬은 이 두 줄에서만 만든다.
+   블록 자신에 margin 을 주면 그리드 칸 안으로 새어 열이 어긋난다 */
+.view > * + * { margin-top: var(--gap); }
+.view > .view-head + * { margin-top: 24px; }
 .view-head h1 { margin-top: 4px; }
 .view-head p { color: var(--muted); margin: 8px 0 0; max-width: 62ch; }
 
@@ -227,11 +237,10 @@ a { color: var(--text); }
   /* 넓은 테이블은 패널 안에서 스크롤. 페이지 본문의 가로 밀림 방지 */
   overflow-x: auto;
 }
-.panel + .panel { margin-top: 16px; }
 .panel-head { margin-bottom: 16px; }
 .panel-head h2 { margin-top: 4px; }
 
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
 @media (max-width: 1080px) { .grid-2 { grid-template-columns: 1fr; } }
 
 /* ------------------------------------------------- 시그니처: 고정 축 */
@@ -241,7 +250,7 @@ a { color: var(--text); }
 .axis { display: flex; flex-direction: column; gap: 2px; }
 .axis-row {
   display: grid;
-  grid-template-columns: 92px 46px 1fr;
+  grid-template-columns: var(--label-col) 46px 1fr;
   align-items: center;
   gap: 12px;
   padding: 5px 0;
@@ -276,7 +285,8 @@ a { color: var(--text); }
 /* 유형 축 14칸 */
 .typeaxis {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   gap: 1px;
   background: var(--line-soft);
   border: 1px solid var(--line-soft);
@@ -378,7 +388,7 @@ td.nowrap { white-space: nowrap; }
 
 /* ----------------------------------------------------------- 컨트롤 */
 
-label.field { display: block; margin-bottom: 14px; }
+label.field { display: block; margin-bottom: var(--gap); }
 label.field > span {
   display: block;
   font-family: var(--mono);
@@ -395,11 +405,14 @@ input[type="text"], input[type="number"], textarea, select {
   background: var(--ink-900);
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 9px 11px;
+  padding: 0 11px;
   font-family: var(--mono);
   font-size: 13px;
 }
-textarea { resize: vertical; min-height: 84px; line-height: 1.6; }
+/* 높이는 padding 이 아니라 토큰으로. 네이티브 select 는 padding 계산이 달라 어긋난다 */
+input[type="text"], input[type="number"], select:not([multiple]) { height: var(--ctl-h); }
+select[multiple] { padding: 7px 11px; }
+textarea { resize: vertical; min-height: 84px; padding: 9px 11px; line-height: 1.6; }
 input:focus-visible, textarea:focus-visible, select:focus-visible,
 button:focus-visible, a:focus-visible {
   outline: 2px solid var(--brand);
@@ -411,7 +424,8 @@ button {
   background: var(--ink-700);
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 9px 16px;
+  height: var(--ctl-h);
+  padding: 0 16px;
   cursor: pointer;
   letter-spacing: -0.01em;
 }
@@ -422,15 +436,21 @@ button.primary:hover:not(:disabled) { background: #fff; }
 button.danger { color: var(--brand); border-color: rgba(255, 34, 51, 0.45); }
 button.danger:hover:not(:disabled) { background: rgba(255, 34, 51, 0.08); }
 button.ghost { background: transparent; }
-button.sm { padding: 5px 10px; font-size: 12px; }
+button.sm { height: 28px; padding: 0 10px; font-size: 12px; }
 
-.toggle { display: flex; align-items: center; gap: 11px; padding: 9px 0; }
-.toggle input { width: 16px; height: 16px; accent-color: var(--brand); flex: none; }
+/* 체크박스는 본문 전체가 아니라 제목 줄에 맞춘다. 설명 줄 수가 달라도 위치 고정 */
+.toggle { display: flex; align-items: flex-start; gap: 11px; padding: 9px 0; }
+.toggle input { width: 16px; height: 16px; margin-top: 3px; accent-color: var(--brand); flex: none; }
 .toggle .t-body { min-width: 0; }
 .toggle .t-body b { display: block; font-weight: 400; }
 .toggle .t-body small { color: var(--faint); }
 
-.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+/* 패널 하단 동작 영역. 간격을 화면마다 인라인으로 쓰면 어긋난다 */
+.actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: var(--gap); }
+/* 필드의 하단 여백이 이미 간격 역할 */
+label.field + .actions, .row + .actions, .toggle + .actions { margin-top: 0; }
+
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: var(--gap); }
 .filters select, .filters input { width: auto; min-width: 120px; }
 
 /* ----------------------------------------------------- 진행률 (레이더 스윕) */
@@ -469,7 +489,7 @@ button.sm { padding: 5px 10px; font-size: 12px; }
 
 /* 좁은 화면: 좌측 레일을 상단 바로 전환 */
 @media (max-width: 860px) {
-  :root { --gutter: 16px; }
+  :root { --gutter: 16px; --label-col: 92px; }
   .shell { grid-template-columns: 1fr; }
   .rail {
     position: static;
@@ -489,8 +509,7 @@ button.sm { padding: 5px 10px; font-size: 12px; }
   }
   .rail-foot { display: none; }
   .drawer { width: 100%; }
-  .axis-row { grid-template-columns: 78px 38px 1fr; }
-  .kv { grid-template-columns: 92px 1fr; }
+  .typeaxis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -508,7 +527,7 @@ button.sm { padding: 5px 10px; font-size: 12px; }
 }
 .empty .eyebrow { margin-bottom: 10px; }
 .empty p { margin: 0 auto; max-width: 52ch; }
-.empty .cta { margin-top: 18px; }
+.cta { margin-top: var(--gap); }
 
 /* 미구현 화면. 어느 마일스톤에서 채워지는지 명시한다 */
 .pending { border-left: 2px solid var(--line); padding-left: 16px; color: var(--muted); }
@@ -530,14 +549,14 @@ button.sm { padding: 5px 10px; font-size: 12px; }
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
 }
 .drawer-head {
-  padding: 18px 22px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
 }
-.drawer-body { padding: 20px 22px 40px; overflow-y: auto; }
+.drawer-body { padding: 20px 20px 40px; overflow-y: auto; }
 .drawer-body section { margin-bottom: 24px; }
 .drawer-body h3 {
   font-family: var(--mono);
@@ -548,7 +567,7 @@ button.sm { padding: 5px 10px; font-size: 12px; }
   font-weight: 400;
   margin-bottom: 8px;
 }
-.kv { display: grid; grid-template-columns: 116px 1fr; gap: 6px 14px; font-size: 13px; }
+.kv { display: grid; grid-template-columns: var(--label-col) 1fr; gap: 6px 12px; font-size: 13px; }
 .kv dt { color: var(--faint); }
 .kv dd { margin: 0; font-family: var(--mono); word-break: break-all; }
 
