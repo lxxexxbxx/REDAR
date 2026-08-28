@@ -376,8 +376,19 @@ def get_finding(conn: sqlite3.Connection, finding_id: str) -> dict[str, Any] | N
         return None
     view = _finding_view(row)
     view["guide_refs"] = _guide_refs(conn, finding_id)
-    # 가이드 본문은 M6. 미탑재 시 빈 배열 (docs/00 §4)
-    view["guide_items"] = []
+    # 매핑된 점검항목 전문. 본문 미탑재면 빈 배열이며 매핑(guide_refs)은 그대로 남는다
+    view["guide_items"] = [
+        dict(item)
+        for item in conn.execute(
+            "SELECT g.*, r.is_primary, r.matched_by, r.confidence AS map_confidence"
+            "  FROM finding_guide_refs r"
+            "  JOIN guide_items g ON g.item_code = r.item_code"
+            " WHERE r.finding_id = ?"
+            # 대표 항목이 먼저. 보고서 Part B 본문 묶음과 같은 순서
+            " ORDER BY r.is_primary DESC, g.item_code",
+            (finding_id,),
+        )
+    ]
     return view
 
 

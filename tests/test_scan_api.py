@@ -251,16 +251,16 @@ def test_false_positive_excluded_from_aggregations(client, allowlisted):
     assert client.get(f"{API}/scans/{scan_id}").json()["finding_counts"]["critical"] == 0
 
 
-def test_finding_detail_includes_empty_guide_items(client, allowlisted):
-    """가이드 본문 미탑재 시 빈 배열이 정상 (절대규칙 3)."""
+def test_finding_detail_maps_without_guide_body(client, allowlisted):
+    """본문 미탑재 시 guide_items 는 빈 배열, 매핑은 남는다 (절대규칙 3)."""
     scan_id = _create(client, ["http://localhost:7860"]).json()["scan_id"]
     _wait_done(client, scan_id)
     finding_id = client.get(f"{API}/scans/{scan_id}/findings").json()["items"][0][
         "finding_id"
     ]
     detail = client.get(f"{API}/findings/{finding_id}").json()
-    assert detail["guide_items"] == []
-    assert detail["guide_refs"] == []
+    assert detail["guide_items"] == []          # 본문 없음
+    assert detail["guide_refs"]                 # 매핑은 저장됨 (M6)
     assert detail["evidence"]["curl_command"].startswith("curl ")
 
 

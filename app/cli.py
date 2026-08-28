@@ -161,11 +161,6 @@ def _print_totals(conn: sqlite3.Connection) -> None:
         print(f"  {table}: {total} rows total")
 
 
-# 가이드 본문·이미지. 파일명이 배포마다 달라 _CSV_LOADS 에 두지 않고 경로를 받는다
-_GUIDE_ITEMS = CsvLoad("guide_items.csv", "guide_items", "item_code", ("item_code",))
-_GUIDE_IMAGES = CsvLoad("guide_images.csv", "guide_item_images", None)
-
-
 def import_guide(
     items_csv: Path,
     images_csv: Path | None = None,
@@ -173,50 +168,24 @@ def import_guide(
 ) -> dict[str, int]:
     """가이드 본문 CSV 임포트. 저작권 대상이라 저장소에 없고 사용자가 직접 넣는다
 
-    본문 없이도 보고서 Part A 는 생성된다 (절대규칙 3). 이 명령은 Part B 를 켜는 경로
+    본문 없이도 보고서 Part A 는 생성된다 (절대규칙 3). 이 명령은 Part B 를 켜는 경로.
+    적재 로직은 services/guide_importer.py 하나만 쓴다 - API 와 같은 경로
     """
-    from app.repository import guide as guide_repo
+    from app.services import guide_importer
 
     target = db_path or settings.DB_PATH
     if not target.is_file():
         raise FileNotFoundError(f"DB 없음: {target}. init-db 를 먼저 실행")
 
-    result: dict[str, int] = {}
     with session(target) as conn:
-        result["items"] = _upsert_csv(conn, items_csv, _GUIDE_ITEMS)
-        print(f"  {items_csv.name} -> guide_items: {result['items']} rows")
-
-        if images_csv:
-            codes = _column_values(images_csv, "item_code")
-            removed = guide_repo.clear_images(conn, sorted(set(codes)))
-            result["images"] = _upsert_csv(conn, images_csv, _GUIDE_IMAGES)
-            print(
-                f"  {images_csv.name} -> guide_item_images:"
-                f" {result['images']} rows (기존 {removed}행 교체)"
-            )
-
-        result["fts"] = guide_repo.rebuild_fts(conn)
-        print(f"  guide_items_fts 재구축: {result['fts']} rows")
-
-        found = guide_repo.versions(conn)
-        if len(found) > 1:
-            # 판 섞임은 보고서 근거 페이지가 어긋나는 원인이라 조용히 넘기지 않는다
-            print(f"  [경고] guide_version 이 섞여 있음: {found}")
-        if found:
-            settings_repo.put_many(conn, {"guide_version": found[-1]})
-        conn.commit()
-
-        orphans = guide_repo.orphan_image_codes(conn)
-        if orphans:
-            print(f"  [경고] 본문 없는 이미지 항목: {orphans[:5]}")
-        print(f"  guide_version: {found[-1] if found else '없음'}")
+        result = guide_importer.import_files(conn, items_csv, images_csv)
+    for key in ("item_count", "image_count"):
+        print(f"  {key}: {result[key]}")
+    for message in result["errors"]:
+        print(f"  [경고] {message}")
+    print(f"  guide_version: {result['version']}")
     print(f"import-guide done: {target}")
     return result
-
-
-def _column_values(path: Path, column: str) -> list[str]:
-    with path.open(encoding="utf-8-sig", newline="") as fh:
-        return [row[column] for row in csv.DictReader(fh)]
 
 
 def import_scan(
@@ -258,6 +227,11 @@ def import_scan(
                 writer.add(finding)
         scan_repo.set_status(conn, scan_id, ScanStatus.COMPLETED)
         print(f"  적재 {writer.inserted}건 / 중복 제외 {writer.skipped}건")
+
+        from app.services import guide_service
+
+        mapping = guide_service.map_scan(conn, scan_id)
+        print(f"  가이드 매핑 {mapping.refs_written}건 / 탐지 {mapping.findings_mapped}건")
     print(f"import-scan done: {scan_id}")
     return scan_id
 

@@ -205,7 +205,10 @@ def test_import_guide_fills_items_images_and_fts(tmp_path):
     items, images = _write_guide(tmp_path)
     result = import_guide(items, images, db)
 
-    assert result == {"items": 2, "images": 2, "fts": 2}
+    # 반환 형식은 docs/00 §6 의 POST /guide/import 응답과 동일하다
+    assert result["imported"] is True
+    assert (result["item_count"], result["image_count"]) == (2, 2)
+    assert result["errors"] == []
     with session(db) as conn:
         status = __import__(
             "app.repository.guide", fromlist=["status"]

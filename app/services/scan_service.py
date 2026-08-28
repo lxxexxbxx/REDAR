@@ -22,7 +22,7 @@ from app.repository import settings_repo
 from app.repository.db import session
 from app.repository.findings import FindingBatchWriter
 from app.repository.rules import load_vuln_type_rules
-from app.services import environment_service
+from app.services import environment_service, guide_service
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +192,12 @@ class ScanService:
 
                 if run.cancel.is_set():
                     status = ScanStatus.CANCELED
+
+                # 가이드 매핑. 본문 미탑재여도 매핑은 저장된다 (절대규칙 3)
+                try:
+                    guide_service.map_scan(conn, run.scan_id)
+                except Exception:  # noqa: BLE001 - 매핑 실패가 스캔 실패는 아니다
+                    logger.warning("가이드 매핑 실패 %s", run.scan_id, exc_info=True)
         except RuntimeError as exc:                    # nuclei 미설치 등
             status, error = ScanStatus.FAILED, ("NUCLEI_UNAVAILABLE", str(exc))
             logger.warning("스캔 실패 %s: %s", run.scan_id, exc)
