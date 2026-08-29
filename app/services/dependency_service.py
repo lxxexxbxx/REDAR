@@ -1,14 +1,14 @@
 """외부 도구 의존성 관리 (nuclei 등).
 
-세 가지 확보 경로를 제공한다. 폐쇄망에서도 도구를 쓸 수 있어야 한다.
+세 가지 확보 경로를 제공. 폐쇄망에서도 도구를 쓸 수 있어야 함
 
-    탐지   이미 설치된 것을 찾는다 (경로 지정 > 번들 > 사용자 홈 > PATH)
-    반입   사용자가 바이너리 파일을 직접 넣는다. 외부 통신 없음
-    설치   Go 툴체인을 받아 go install 로 빌드한다. 외부 통신 발생
+    탐지   이미 설치된 것을 찾음 (경로 지정 > 번들 > 사용자 홈 > PATH)
+    반입   사용자가 바이너리 파일을 직접 넣음. 외부 통신 없음
+    설치   Go 툴체인을 받아 go install 로 빌드. 외부 통신 발생
 
-**설치는 외부 통신 지점 4번이다** (docs/01 §7.1). 기본 비활성이며
-오프라인 모드에서 차단되고, 요청마다 명시적 동의가 필요하다.
-반입·경로 지정은 통신이 없으므로 오프라인에서도 동작한다
+**설치는 외부 통신 지점 4번** (docs/01 §7.1). 기본 비활성이며
+오프라인 모드에서 차단되고, 요청마다 명시적 동의가 필요
+반입·경로 지정은 통신이 없으므로 오프라인에서도 동작함
 """
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ class Dependency:
     manual_url: str = ""
 
 
-# 확장 지점. 항목을 추가하면 설정 화면·API 가 자동으로 따라간다
+# 확장 지점. 항목을 추가하면 설정 화면·API 가 자동으로 따라감
 REGISTRY: tuple[Dependency, ...] = (
     Dependency(
         key="nuclei",
@@ -96,9 +96,9 @@ def get(key: str) -> Dependency:
 # ────────────────────────────────────────────── 탐지
 
 def sync_configured_paths(conn: sqlite3.Connection) -> None:
-    """DB 의 지정 경로를 settings 모듈에 밀어넣는다. 기동 시·변경 시 호출.
+    """DB 의 지정 경로를 settings 모듈에 밀어넣음. 기동 시·변경 시 호출.
 
-    settings 가 DB 를 직접 읽으면 계층 방향이 뒤집힌다 (docs/01 §2.1)
+    settings 가 DB 를 직접 읽으면 계층 방향이 뒤집힘 (docs/01 §2.1)
     """
     raw = settings_repo.get_all(conn)
     settings.set_configured_nuclei(raw.get("dep_nuclei_path") or None)
@@ -108,8 +108,8 @@ def sync_configured_paths(conn: sqlite3.Connection) -> None:
 def resolve(conn: sqlite3.Connection, dependency: Dependency) -> dict[str, Any]:
     """(경로, 출처).
 
-    탐색 순서를 여기서 다시 구현하지 않는다. 실행에 쓰이는 경로와 화면에 보이는
-    경로가 갈라지면 '표시된 것과 다른 바이너리로 스캔' 이 된다
+    탐색 순서를 여기서 다시 구현하지 않음. 실행에 쓰이는 경로와 화면에 보이는
+    경로가 갈라지면 '표시된 것과 다른 바이너리로 스캔' 이 됨
     """
     if dependency.key == "nuclei":
         found = settings.nuclei_bin()
@@ -117,7 +117,7 @@ def resolve(conn: sqlite3.Connection, dependency: Dependency) -> dict[str, Any]:
         configured = settings_repo.get_all(conn).get(f"dep_{dependency.key}_path")
         found = configured or shutil.which(dependency.key)
 
-    # 지정만 되어 있고 실제로 없는 경로를 '사용 가능' 으로 보고하지 않는다
+    # 지정만 되어 있고 실제로 없는 경로를 '사용 가능' 으로 보고하지 않음
     if not found or not Path(found).is_file():
         return {"path": found, "source": None}
     return {"path": found, "source": _source_of(conn, dependency, found)}
@@ -169,7 +169,7 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
             "available": found["source"] is not None,
             "path": found["path"],
             "source": found["source"],
-            # 실행 불가한 경로에 버전을 붙이면 available=False 와 모순된다
+            # 실행 불가한 경로에 버전을 붙이면 available=False 와 모순됨
             "version": (
                 _version_of(dependency, found["path"]) if found["source"] else None
             ),
@@ -177,7 +177,7 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         })
     return {
         "items": items,
-        # 자동 설치 가능 조건. 화면이 버튼 활성 여부를 판단한다
+        # 자동 설치 가능 조건. 화면이 버튼 활성 여부를 판단함
         "install_allowed": install_enabled and not offline,
         "offline_mode": offline,
         "install_endpoint_enabled": install_enabled,
@@ -196,7 +196,7 @@ def _blocked_reason(offline: bool, enabled: bool) -> str | None:
 # ────────────────────────────────────────────── 경로 지정 · 반입
 
 def set_path(conn: sqlite3.Connection, key: str, path: str | None) -> dict[str, Any]:
-    """특정 버전을 쓰도록 경로를 고정한다. 통신 없음"""
+    """특정 버전을 쓰도록 경로를 고정. 통신 없음"""
     dependency = get(key)
     if path:
         target = Path(path).expanduser()
@@ -220,7 +220,7 @@ def set_path(conn: sqlite3.Connection, key: str, path: str | None) -> dict[str, 
 def import_binary(
     conn: sqlite3.Connection, key: str, payload: bytes
 ) -> dict[str, Any]:
-    """폐쇄망 반입 경로. 사용자가 가져온 바이너리를 등록한다. 통신 없음"""
+    """폐쇄망 반입 경로. 사용자가 가져온 바이너리를 등록. 통신 없음"""
     dependency = get(key)
     if not payload:
         raise ScanError("INVALID_REQUEST", "빈 파일입니다.")
@@ -242,7 +242,7 @@ def import_binary(
     result = status(conn)
     entry = next(i for i in result["items"] if i["key"] == key)
     if not entry["version"]:
-        # 실행되지 않는 파일을 등록한 채로 두지 않는다
+        # 실행되지 않는 파일을 등록한 채로 두지 않음
         settings_repo.put_many(conn, {f"dep_{dependency.key}_path": ""})
         target.unlink(missing_ok=True)
         sync_configured_paths(conn)
@@ -262,7 +262,7 @@ def install(conn: sqlite3.Connection, key: str, *, confirmed: bool) -> dict[str,
     if not dependency.installable:
         raise ScanError("INVALID_REQUEST", f"{dependency.label} 은 자동 설치를 지원하지 않습니다.")
     if not confirmed:
-        # 사용자가 매번 명시적으로 동의해야 한다. 설정만으로 자동 실행되지 않는다
+        # 사용자가 매번 명시적으로 동의해야 한다. 설정만으로 자동 실행되지 않음
         raise ScanError(
             "INVALID_REQUEST",
             "자동 설치에는 명시적 동의가 필요합니다 (confirm=true).",
@@ -345,7 +345,7 @@ def _install_go() -> Path:
                 digest.update(chunk)
                 out.write(chunk)
         if expected and digest.hexdigest() != expected:
-            # 검증 실패한 아카이브를 풀지 않는다
+            # 검증 실패한 아카이브를 풀지 않음
             raise ScanError(
                 "INTERNAL_ERROR",
                 f"Go 아카이브 체크섬 불일치 (기대 {expected[:16]}…)",
@@ -361,7 +361,7 @@ def _install_go() -> Path:
 
 
 def _extract(archive: Path, destination: Path) -> None:
-    """아카이브 최상위가 go/ 이므로 상위 디렉터리에 푼다"""
+    """아카이브 최상위가 go/ 이므로 상위 디렉터리에 풀어냄"""
     shutil.rmtree(destination, ignore_errors=True)
     destination.parent.mkdir(parents=True, exist_ok=True)
     if archive.suffix == ".zip":
@@ -381,7 +381,7 @@ def _go_install(go_binary: Path, dependency: Dependency) -> Path:
 
     env = {
         **os.environ,
-        # 산출물 위치를 확정한다. 기본 GOPATH/bin 은 환경마다 다르다
+        # 산출물 위치를 확정. 기본 GOPATH/bin 은 환경마다 다름
         "GOBIN": str(target_dir),
         "GOPATH": str(gopath),
         "GOTOOLCHAIN": "local",

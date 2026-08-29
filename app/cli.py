@@ -30,7 +30,7 @@ class CsvLoad:
     replace: bool = True          # False = 기존 행 유지. 사용자 변경값 보호
 
 
-# SQLite 초기 데이터는 전부 이 목록의 CSV 에서만 들어온다. 코드·SQL 하드코딩 금지
+# SQLite 초기 데이터는 전부 이 목록의 CSV 에서만 들어옴. 코드·SQL 하드코딩 금지
 #
 # settings 만 replace=False: 재적재가 사용자가 바꾼 allowlist·오프라인 모드를
 # 기본값으로 되돌리면 안 됨
@@ -62,7 +62,7 @@ _CSV_LOADS: tuple[CsvLoad, ...] = (
     ),
 )
 
-# 유지보수용 주석 컬럼. 테이블에 없어도 오류로 보지 않는다
+# 유지보수용 주석 컬럼. 테이블에 없어도 오류로 보지 않음
 _NOTE_COLUMNS = frozenset({"note"})
 
 
@@ -83,7 +83,7 @@ def _upsert_csv(conn: sqlite3.Connection, path: Path, load: CsvLoad) -> int:
     }
     unknown = set(rows[0]) - table_cols - _NOTE_COLUMNS
     if unknown:
-        # 오타 컬럼을 조용히 버리면 값이 통째로 누락된 채 적재가 성공한다
+        # 오타 컬럼을 조용히 버리면 값이 통째로 누락된 채 적재가 성공함
         raise ValueError(f"{path.name}: 테이블에 없는 컬럼 {sorted(unknown)}")
     cols = [c for c in rows[0] if c in table_cols]
 
@@ -166,10 +166,10 @@ def import_guide(
     images_csv: Path | None = None,
     db_path: Path | None = None,
 ) -> dict[str, int]:
-    """가이드 본문 CSV 임포트. 저작권 대상이라 저장소에 없고 사용자가 직접 넣는다
+    """가이드 본문 CSV 임포트. 저작권 대상이라 저장소에 없고 사용자가 직접 넣음
 
-    본문 없이도 보고서 Part A 는 생성된다 (절대규칙 3). 이 명령은 Part B 를 켜는 경로.
-    적재 로직은 services/guide_importer.py 하나만 쓴다 - API 와 같은 경로
+    본문 없이도 보고서 Part A 는 생성됨 (절대규칙 3). 이 명령은 Part B 를 켜는 경로.
+    적재 로직은 services/guide_importer.py 하나만 사용 - API 와 같은 경로
     """
     from app.services import guide_importer
 

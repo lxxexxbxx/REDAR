@@ -1,7 +1,7 @@
-"""외부 LLM API Provider. 사용자가 명시적으로 활성화해야 동작한다 (절대규칙 5).
+"""외부 LLM API Provider. 사용자가 명시적으로 활성화해야 동작 (절대규칙 5).
 
-허용된 외부 통신 3곳 중 하나다. 오프라인 모드에서는 호출 지점에서 차단된다
-(narrative_service). 이 클래스는 통신만 담당하며 차단 판단을 하지 않는다
+허용된 외부 통신 3곳 중 하나. 오프라인 모드에서는 호출 지점에서 차단됨
+(narrative_service). 이 클래스는 통신만 담당하며 차단 판단을 하지 않음
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.adapters.llm.base import TEMPERATURE, LlmError
 _TIMEOUT_SEC = 30
 _MAX_RESPONSE_BYTES = 64 * 1024
 
-# 목적별 지시문. LLM 이 구조를 만들지 않도록 '문장만' 을 명시한다
+# 목적별 지시문. LLM 이 구조를 만들지 않도록 '문장만' 을 명시함
 _INSTRUCTION = {
     "executive_summary":
         "아래 진단 집계를 바탕으로 종합 의견을 3~5문장으로 작성하라."
@@ -66,7 +66,7 @@ class MonoGptProvider:
             with urllib.request.urlopen(request, timeout=_TIMEOUT_SEC) as response:
                 body = json.loads(response.read(_MAX_RESPONSE_BYTES))
         except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
-            # 자격증명이 메시지에 섞이지 않도록 예외 타입만 남긴다
+            # 자격증명이 메시지에 섞이지 않도록 예외 타입만 남김
             raise LlmError(f"LLM 호출 실패: {type(exc).__name__}") from exc
 
         try:

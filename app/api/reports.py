@@ -40,7 +40,7 @@ def create_report(body: CreateReportRequest) -> dict[str, Any]:
         "status": view["status"],
         "generated_at": view["generated_at"],
         "files": [f["format"] for f in view["files"]],
-        # PDF 는 WebView 인쇄로 파생시킨다 (절대규칙 4-1)
+        # PDF 는 WebView 인쇄로 파생 (절대규칙 4-1)
         "pdf_note": report_service.PDF_NOTE,
     }
 

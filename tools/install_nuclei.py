@@ -8,11 +8,11 @@
 
 Go 툴체인을 확인하고 없으면 공식 배포본을 사용자 경로에 설치한 뒤
     go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-로 nuclei 를 빌드한다. 저장소·번들에 바이너리를 포함하지 않는다
+로 nuclei 를 빌드. 저장소·번들에 바이너리를 포함하지 않음
 
-**앱에서 호출하지 않는다.** API·GUI 버튼으로 노출하면 아웃바운드 통신 지점이
-4개가 되어 절대규칙 5(외부 통신은 3곳뿐)를 깬다. 손으로 실행하는 설치 스크립트다.
-tools/ 는 런타임 코드가 아니며 app/ 에서 import 하지 않는다
+**앱에서 호출하지 않음.** API·GUI 버튼으로 노출하면 아웃바운드 통신 지점이
+4개가 되어 절대규칙 5(외부 통신은 3곳뿐)를 깬다. 손으로 실행하는 설치 스크립트
+tools/ 는 런타임 코드가 아니며 app/ 에서 import 하지 않음
 """
 from __future__ import annotations
 
@@ -38,8 +38,8 @@ GO_DOWNLOAD_BASE = "https://go.dev/dl/"
 WINDOWS = platform.system() == "Windows"
 EXE = ".exe" if WINDOWS else ""
 
-# 설치 위치. 사용자 홈 아래라 관리자 권한이 필요 없다.
-# app/config/settings.py 의 nuclei_bin() 이 REDAR_HOME/bin 을 탐색한다
+# 설치 위치. 사용자 홈 아래라 관리자 권한이 필요 없음
+# app/config/settings.py 의 nuclei_bin() 이 REDAR_HOME/bin 을 탐색함
 HOME = Path(os.environ.get("REDAR_HOME") or (
     Path(os.environ.get("LOCALAPPDATA", Path.home())) / "REDAR" if WINDOWS
     else Path.home() / ".redar"
@@ -69,7 +69,7 @@ def find_nuclei() -> Path | None:
 
 
 def find_go() -> Path | None:
-    """PATH 우선. 없으면 이 스크립트가 전에 설치한 툴체인을 본다"""
+    """PATH 우선. 없으면 이 스크립트가 전에 설치한 툴체인을 봄"""
     on_path = shutil.which("go")
     if on_path:
         return Path(on_path)
@@ -77,16 +77,16 @@ def find_go() -> Path | None:
     return local if local.is_file() else None
 
 
-# ANSI 색상 코드. nuclei 는 -version 출력에도 색을 넣는다
+# ANSI 색상 코드. nuclei 는 -version 출력에도 색을 넣음
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 _VERSION_LINE = re.compile(r"\bv?\d+\.\d+(\.\d+)?\b")
 
 
 def version_of(binary: Path, *args: str) -> str:
-    """버전 문자열. 첫 줄이 아니라 버전이 담긴 줄을 고른다.
+    """버전 문자열. 첫 줄이 아니라 버전이 담긴 줄을 선택
 
-    nuclei 는 환경에 따라 sonic/ast 경고를 먼저 출력한다. 첫 줄만 보면
-    버전 대신 경고가 표시된다
+    nuclei 는 환경에 따라 sonic/ast 경고를 먼저 출력. 첫 줄만 보면
+    버전 대신 경고가 표시됨
     """
     try:
         out = subprocess.run(
@@ -150,14 +150,14 @@ def download(url: str, target: Path, expected_sha256: str) -> None:
             out.write(chunk)
     actual = digest.hexdigest()
     if expected_sha256 and actual != expected_sha256:
-        # 검증 실패한 아카이브를 풀지 않는다
+        # 검증 실패한 아카이브를 풀지 않음
         target.unlink(missing_ok=True)
         sys.exit(f"체크섬 불일치\n  기대: {expected_sha256}\n  실제: {actual}")
     log(f"  체크섬 확인: {actual[:16]}…")
 
 
 def extract(archive: Path, destination: Path) -> None:
-    """아카이브 최상위가 go/ 이므로 상위 디렉터리에 푼다"""
+    """아카이브 최상위가 go/ 이므로 상위 디렉터리에 풀어냄"""
     shutil.rmtree(destination, ignore_errors=True)
     destination.parent.mkdir(parents=True, exist_ok=True)
     log(f"  푸는 중: {destination}")
@@ -194,7 +194,7 @@ def install_nuclei(go_binary: Path) -> Path:
 
     env = {
         **os.environ,
-        # GOBIN 을 지정해 산출물 위치를 확정한다. 기본 GOPATH/bin 은 환경마다 다르다
+        # GOBIN 을 지정해 산출물 위치를 확정. 기본 GOPATH/bin 은 환경마다 다름
         "GOBIN": str(BIN_DIR),
         "GOPATH": str(GO_PATH),
         "GOTOOLCHAIN": "local",

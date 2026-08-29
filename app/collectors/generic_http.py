@@ -134,7 +134,7 @@ def _tls_exposure(ctx: TargetContext) -> ExposureFinding:
 def _handshake_ok(host: str, port: int, version, timeout: int) -> bool:
     """지정 프로토콜로만 핸드셰이크 시도. 성립하면 True"""
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    # 취약 설정 확인이 목적이므로 인증서 검증은 하지 않는다. 데이터를 주고받지 않음
+    # 취약 설정 확인이 목적이므로 인증서 검증은 하지 않음. 데이터를 주고받지 않음
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
     try:

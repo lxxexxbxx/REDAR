@@ -1,7 +1,7 @@
 """M8 완료 조건 검증 (IMPLEMENTATION_BRIEF.md M8).
 
 명명 규칙: fixed / still_vulnerable 이 아니라 resolved / persisted.
-도구는 조치 성공 여부를 판정하지 않는다
+도구는 조치 성공 여부를 판정하지 않음
 """
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ def test_persisted_carries_both_finding_ids(conn, pair):
 
 
 def test_naming_uses_resolved_not_fixed(conn, pair):
-    """조치 성공 판정처럼 읽히는 이름을 쓰지 않는다"""
+    """조치 성공 판정처럼 읽히는 이름을 쓰지 않음"""
     base, target = pair
     result = compare_service.compare(conn, base, target)
     assert set(result["summary"]) == {s.value for s in CompareState}
@@ -93,7 +93,7 @@ def test_false_positive_excluded(conn, pair):
     )
     conn.commit()
     result = compare_service.compare(conn, base, target)
-    # 오탐은 집계에서 빠졌으므로 '미탐지' 로도 나오지 않는다
+    # 오탐은 집계에서 빠졌으므로 '미탐지' 로도 나오지 않음
     assert result["summary"]["resolved"] == 0
 
 
@@ -196,7 +196,7 @@ def test_compare_route_not_shadowed_by_scan_id(db_path, monkeypatch):
     with TestClient(app) as client:
         response = client.get(f"{API}/scans/compare?base=scn_x&target=scn_y")
     assert response.status_code == 404
-    # scan_id 로 오해석되면 'compare' 를 못 찾는다는 메시지가 나온다
+    # scan_id 로 오해석되면 'compare' 를 못 찾는다는 메시지가 나옴
     assert "scn_x" in response.json()["error"]["message"]
 
 
@@ -215,7 +215,7 @@ def test_compare_endpoint_returns_full_shape(db_path, monkeypatch, conn, pair):
 
 
 def test_report_does_not_include_comparison(conn, pair):
-    """비교는 이 API 전용이다. 보고서 골격에 들어가지 않는다 (docs/04 §2)"""
+    """비교는 이 API 전용. 보고서 골격에 들어가지 않음 (docs/04 §2)"""
     from app.report import builder
 
     base, _ = pair

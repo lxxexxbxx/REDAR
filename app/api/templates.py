@@ -34,7 +34,7 @@ class ParseRequest(BaseModel):
 
 
 class ValidateRequest(BaseModel):
-    """폼 또는 YAML 중 하나. 폼이 오면 YAML 로 만든 뒤 검증한다"""
+    """폼 또는 YAML 중 하나. 폼이 오면 YAML 로 만든 뒤 검증"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -96,7 +96,7 @@ def validate_template(body: ValidateRequest) -> dict[str, Any]:
         if body.form is None:
             raise service.ScanError("INVALID_REQUEST", "yaml 또는 form 이 필요합니다.")
         text = builder.build(body.form)
-    # 검증한 YAML 을 함께 돌려준다. 프론트가 YAML 을 조립하면 조립 규칙이 두 곳에 생긴다
+    # 검증한 YAML 을 함께 돌려줌. 프론트가 YAML 을 조립하면 조립 규칙이 두 곳에 생김
     return {**validator.validate(text), "yaml": text}
 
 

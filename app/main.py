@@ -20,7 +20,7 @@ API_PREFIX = "/api/v1"
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """설정에 지정·반입된 도구 경로를 읽어 둔다. 실패해도 기동은 계속한다"""
+    """설정에 지정·반입된 도구 경로를 읽어 둠. 실패해도 기동은 계속"""
     try:
         from app.services import dependency_service
 
@@ -37,8 +37,8 @@ app = FastAPI(
 )
 
 errors.register(app)
-# /scans/compare 를 /scans/{scan_id} 보다 먼저 등록한다.
-# 뒤에 두면 'compare' 가 scan_id 로 해석되어 404 가 된다
+# /scans/compare 를 /scans/{scan_id} 보다 먼저 등록함
+# 뒤에 두면 'compare' 가 scan_id 로 해석되어 404 가 됨
 app.include_router(compare.router, prefix=API_PREFIX)
 app.include_router(scans.router, prefix=API_PREFIX)
 app.include_router(settings_api.router, prefix=API_PREFIX)

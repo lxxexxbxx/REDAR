@@ -1,6 +1,6 @@
 """스캔 비교 라우터 (docs/00 §4).
 
-비교는 이 API 전용이다. 보고서에는 반영하지 않는다 (docs/04 §2)
+비교는 이 API 전용. 보고서에는 반영하지 않음 (docs/04 §2)
 """
 from __future__ import annotations
 

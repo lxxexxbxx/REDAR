@@ -1,6 +1,6 @@
 """환경 조사 흐름 제어. HTTP 객체 참조 없음 (docs/01 §2.1).
 
-수집기 실패는 스캔 중단 사유가 아니다. collectors_failed 에 남기고 계속 (M4 규칙 2)
+수집기 실패는 스캔 중단 사유가 아님. collectors_failed 에 남기고 계속 (M4 규칙 2)
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from app.repository import environment as env_repo
 logger = logging.getLogger(__name__)
 
 # 스택 필드별로 어느 수집기를 신뢰할지. 뒤에 오는 수집기가 앞을 덮어쓸 조건은
-# '더 구체적인 값을 가졌을 때' 뿐이다. 빈 값으로 덮으면 앞선 탐지가 사라진다
+# '더 구체적인 값을 가졌을 때' 뿐. 빈 값으로 덮으면 앞선 탐지가 사라짐
 _STACK_FIELDS = ("web_server", "language", "application")
 
 
@@ -40,10 +40,10 @@ def collect_target(
     timeout_sec: int = 5,
     http=None,
 ) -> EnvironmentResult:
-    """대상 1개 조사 후 저장. 예외를 밖으로 내보내지 않는다"""
+    """대상 1개 조사 후 저장. 예외를 밖으로 내보내지 않음"""
     parsed = urlmod.parse(target)
     ctx = collectors.TargetContext(
-        # 스킴 없는 'host:port' 입력은 평문으로 본다. https 를 가정하면 TLS 판정이 왜곡
+        # 스킴 없는 'host:port' 입력은 평문으로 봄. https 를 가정하면 TLS 판정이 왜곡
         scheme=parsed.scheme or "http",
         host=parsed.host,
         port=parsed.port,
@@ -85,7 +85,7 @@ def _merge(result: EnvironmentResult, collected: collectors.CollectResult) -> No
         if found is None or found.product is None:
             continue
         current = result.stack.get(name)
-        # 버전을 가진 값이 없는 값을 이긴다. 같은 조건이면 먼저 온 수집기 유지
+        # 버전을 가진 값이 없는 값을 이김. 같은 조건이면 먼저 온 수집기 유지
         if current is None or (not current.get("version") and found.version):
             result.stack[name] = _stack_dict(found)
 
@@ -122,7 +122,7 @@ def _component_dict(found: collectors.ComponentFinding) -> dict[str, Any]:
 
 @dataclass
 class Selection:
-    """선별 결과 + 근거. basis 는 scans.selection_basis 에 JSON 으로 저장된다"""
+    """선별 결과 + 근거. basis 는 scans.selection_basis 에 JSON 으로 저장됨"""
 
     template_ids: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
@@ -130,7 +130,7 @@ class Selection:
 
 
 # 탐지된 제품 -> nuclei 태그. 인벤토리가 비어 있어도 스캔이 성립하는 경로.
-# 제품 문자열은 수집기마다 다르다 ('Apache' / 'Apache httpd') 이므로 부분 일치로 찾는다
+# 제품 문자열은 수집기마다 다름 ('Apache' / 'Apache httpd') 이므로 부분 일치로 찾음
 _PRODUCT_TAGS = (
     ("wordpress", "wordpress"),
     ("apache", "apache"),
@@ -148,11 +148,11 @@ def _tag_for(product: str) -> str | None:
 def select_templates(
     conn: sqlite3.Connection, results: list[EnvironmentResult]
 ) -> Selection:
-    """탐지된 구성요소·스택에 연결된 템플릿만 고른다.
+    """탐지된 구성요소·스택에 연결된 템플릿만 선택
 
-    분모(total_available)는 로컬 템플릿 인벤토리다. M5 가 채우기 전에는 0 이며,
-    그 상태에서는 id 선별이 성립하지 않으므로 태그 선별로만 동작한다.
-    0 을 임의의 다른 수치로 채우면 보고서 부록의 선별 근거가 거짓이 된다
+    분모(total_available)는 로컬 템플릿 인벤토리. M5 가 채우기 전에는 0 이며,
+    그 상태에서는 id 선별이 성립하지 않으므로 태그 선별로만 동작함
+    0 을 임의의 다른 수치로 채우면 보고서 부록의 선별 근거가 거짓이 됨
     """
     slugs = sorted({
         c["slug"] for r in results for c in r.components
@@ -189,7 +189,7 @@ def select_templates(
 
     candidates = sorted({t for templates in by_slug.values() for t in templates})
     available = env_repo.local_template_count(conn)
-    # 인벤토리에 있는 것만 실행 대상. 비어 있으면 태그가 스캔을 이끈다
+    # 인벤토리에 있는 것만 실행 대상. 비어 있으면 태그가 스캔을 이끔
     selected = env_repo.templates_for_ids(conn, candidates)
 
     return Selection(
@@ -200,7 +200,7 @@ def select_templates(
             "matched_stack": matched_stack,
             "total_selected": len(selected),
             "total_available": available,
-            # 분모의 출처. 0 이면 인벤토리 미탑재 상태임을 보고서가 설명할 수 있어야 한다
+            # 분모의 출처. 0 이면 인벤토리 미탑재 상태임을 보고서가 설명할 수 있어야 함
             "universe": "templates",
             "candidate_templates": len(candidates),
             "selection_tags": tags,

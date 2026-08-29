@@ -1,6 +1,6 @@
 """가이드 매핑 엔진 (docs/03 §3, §5).
 
-탐지 결과와 환경 조사 결과를 가이드 점검항목에 연결하고 판정한다.
+탐지 결과와 환경 조사 결과를 가이드 점검항목에 연결하고 판정함
 가이드 본문(guide_items)이 없어도 동작해야 한다 - 매핑 테이블은 번들이고
 finding_guide_refs.item_code 에 FK 가 없다 (절대규칙 3)
 """
@@ -18,8 +18,8 @@ from app.repository import guide as guide_repo
 
 logger = logging.getLogger(__name__)
 
-# 우선순위. 상위에서 매칭되면 하위는 적용하지 않는다 (docs/03 §3.1).
-# 같은 층에서는 복수 매칭을 허용한다
+# 우선순위. 상위에서 매칭되면 하위는 적용하지 않음 (docs/03 §3.1).
+# 같은 층에서는 복수 매칭을 허용함
 PRIORITY = (
     "template_id",
     "cve_id",
@@ -29,9 +29,9 @@ PRIORITY = (
     "vuln_type",
 )
 
-# 우선순위 규칙 밖의 예외. CVE 를 가진 탐지에 항상 추가되며 is_primary=0 이다.
+# 우선순위 규칙 밖의 예외. CVE 를 가진 탐지에 항상 추가되며 is_primary=0 임
 # 유형 트랙만 두면 '버전 올리기' 가 사라지고, 패치 트랙만 두면 모든 CVE 가
-# WEB-25 하나로 수렴해 유형별 조치가 없어진다 (docs/03 §3.1.1)
+# WEB-25 하나로 수렴해 유형별 조치가 없어짐 (docs/03 §3.1.1)
 MATCH_CVE_PRESENT = "cve_present"
 
 
@@ -43,7 +43,7 @@ class MappingResult:
 
 
 def map_scan(conn: sqlite3.Connection, scan_id: str) -> MappingResult:
-    """스캔의 탐지 결과를 점검항목에 연결한다. 재실행 안전"""
+    """스캔의 탐지 결과를 점검항목에 연결. 재실행 안전"""
     rules = guide_repo.load_mappings(conn)
     findings = guide_repo.mappable_findings(conn, scan_id)
     skipped = guide_repo.detection_finding_count(conn, scan_id)
@@ -84,7 +84,7 @@ def resolve(
             refs.append({**hit, "is_primary": True})
         break                       # 상위 층에서 매칭되면 하위는 적용하지 않는다
 
-    # 2트랙. CVE 가 있으면 패치 항목을 항상 추가한다 (is_primary=0)
+    # 2트랙. CVE 가 있으면 패치 항목을 항상 추가 (is_primary=0)
     cves = _values(finding, "cve_ids")
     if cves:
         for hit in rules.get(MATCH_CVE_PRESENT, {}).get("*", []):
@@ -119,7 +119,7 @@ def _hits(
     elif match_type == "vuln_type":
         keys = [finding.get("vuln_type")]
     elif match_type == "exposure_key":
-        # 노출 항목은 finding 이 아니라 환경 조사에서 판정한다 (verdicts 참조)
+        # 노출 항목은 finding 이 아니라 환경 조사에서 판정 (verdicts 참조)
         return []
     else:
         keys = []
@@ -148,7 +148,7 @@ def _values(finding: dict[str, Any], column: str) -> list[str]:
 
 # ────────────────────────────────────────────── 판정 (docs/03 §5.1)
 
-# 점검 가능 근거가 없으면 safe 로 두지 않는다. '점검하지 않은 것' 이
+# 점검 가능 근거가 없으면 safe 로 두지 않음. '점검하지 않은 것' 이
 # '양호' 로 둔갑하는 것이 보고서에서 가장 위험한 오류 (절대규칙 10)
 _UNCHECKED_NOTE = "점검 범위 외 — 원격 스캔으로 확인할 수 없는 항목"
 _EXPOSURE_SAFE_NOTE = "환경 조사에서 확인됨 · 노출 없음"
@@ -164,9 +164,9 @@ class ItemVerdict:
 
 
 def verdicts(conn: sqlite3.Connection, scan_id: str) -> list[ItemVerdict]:
-    """점검항목별 판정. 매핑이 있는 항목 전부를 대상으로 한다.
+    """점검항목별 판정. 매핑이 있는 항목 전부를 대상으로 함
 
-    0건인 항목이 목록에서 사라지면 보고서 목차가 대상마다 달라진다 (절대규칙 4)
+    0건인 항목이 목록에서 사라지면 보고서 목차가 대상마다 달라짐 (절대규칙 4)
     """
     rules = guide_repo.load_mappings(conn)
     counts = guide_repo.ref_counts(conn, scan_id)
@@ -174,7 +174,7 @@ def verdicts(conn: sqlite3.Connection, scan_id: str) -> list[ItemVerdict]:
     exposures: dict[str, dict[str, Any]] = {}
     for profile in env_repo.profiles(conn, scan_id):
         for exposure in profile["exposures"]:
-            # 대상이 여러 개면 하나라도 노출이면 노출로 본다
+            # 대상이 여러 개면 하나라도 노출이면 노출로 봄
             previous = exposures.get(exposure["key"])
             if previous is None or (exposure["value"] and not previous["value"]):
                 exposures[exposure["key"]] = exposure
@@ -217,7 +217,7 @@ def verdicts(conn: sqlite3.Connection, scan_id: str) -> list[ItemVerdict]:
             continue
 
         if keys:
-            # 매핑은 노출 기준인데 그 노출을 수집하지 못했다 -> 점검하지 않음
+            # 매핑은 노출 기준인데 그 노출을 수집하지 못함 -> 점검하지 않음
             out.append(ItemVerdict(
                 item_code, GuideVerdict.NOT_APPLICABLE,
                 f"{_UNCHECKED_NOTE} (미수집: {', '.join(sorted(keys))})",
@@ -233,7 +233,7 @@ def verdicts(conn: sqlite3.Connection, scan_id: str) -> list[ItemVerdict]:
 
 
 def summary(items: list[ItemVerdict]) -> dict[str, int]:
-    """판정 집계. 0건 판정도 키를 유지한다 (절대규칙 4)"""
+    """판정 집계. 0건 판정도 키를 유지 (절대규칙 4)"""
     counts = {verdict.value: 0 for verdict in GuideVerdict}
     for item in items:
         counts[item.verdict.value] += 1

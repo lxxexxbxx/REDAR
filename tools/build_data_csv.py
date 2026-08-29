@@ -5,16 +5,16 @@
     python3 tools/build_data_csv.py
     python3 tools/build_data_csv.py --guide-db kisa.db --templates ~/nuclei-templates
 
-저작 CSV — 손으로 관리한다. 이 도구는 읽고 검증만 하며 덮어쓰지 않는다
+저작 CSV — 손으로 관리. 이 도구는 읽고 검증만 하며 덮어쓰지 않음
     data/settings_defaults.csv          SQLite settings 기본값
     data/vuln_type_rules.csv            nuclei tags/cwe -> VulnType
     data/guide_mappings.csv             탐지 -> KISA 점검항목
 
-파생 CSV — --guide-db 지정 시 재생성한다
+파생 CSV — --guide-db 지정 시 재생성함
     data/guide_mappings.templates.csv   CWE 로 안 풀리는 템플릿 예외
     data/component_advisories.csv       플러그인/테마 취약 버전 -> 패치 목표
 
-매핑 값을 이 파일에 상수로 두지 않는다. 코드와 CSV 양쪽에 값이 존재하면
+매핑 값을 이 파일에 상수로 두지 않음. 코드와 CSV 양쪽에 값이 존재하면
 DB 에 들어간 값이 어느 쪽에서 왔는지 추적할 수 없다 (docs/05 §4.2, §4.3)
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-# 런타임 코드를 재사용한다. 적재 규칙·Enum 사본을 만들면 검증이 실제 적재와 갈라진다
+# 런타임 코드를 재사용. 적재 규칙·Enum 사본을 만들면 검증이 실제 적재와 갈라짐
 from app.cli import load_data                      # noqa: E402
 from app.config import settings as app_settings    # noqa: E402
 from app.domain.enums import VulnType              # noqa: E402
@@ -42,9 +42,9 @@ DERIVED = ("guide_mappings.templates.csv", "component_advisories.csv")
 # ────────────────────────────────────────────────── 검증
 
 def validate(data_dir: Path, guide_db: Path | None) -> None:
-    """실제 스키마에 실제 적재기로 넣어 본다.
+    """실제 스키마에 실제 적재기로 넣어 봄
 
-    CHECK·UNIQUE·NOT NULL 을 스키마가 이미 가지고 있으므로 제약 사본을 두지 않는다
+    CHECK·UNIQUE·NOT NULL 을 스키마가 이미 가지고 있으므로 제약 사본을 두지 않음
     """
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -66,7 +66,7 @@ def validate(data_dir: Path, guide_db: Path | None) -> None:
         " WHERE mapping_basis IS NULL OR trim(mapping_basis) = ''"
     ).fetchall()
     if no_basis:
-        # 근거 없는 매핑은 나중에 검토가 불가능하다 (docs/05 §4.3)
+        # 근거 없는 매핑은 나중에 검토가 불가능 (docs/05 §4.3)
         fails.append(f"mapping_basis 누락 {len(no_basis)}행: {tuple(no_basis[0])}")
 
     if guide_db:
@@ -100,17 +100,17 @@ def authored_cwe_codes(data_dir: Path) -> set[str]:
 
 # ────────────────────────────────────────────────── 파생 생성
 
-# nuclei-templates 는 WordPress 취약점을 전부 /http/cves/YYYY/ 아래에 둔다.
-# 즉 템플릿 파일 경로에는 테마·플러그인 구분 정보가 없다.
+# nuclei-templates 는 WordPress 취약점을 전부 /http/cves/YYYY/ 아래에 둠
+# 즉 템플릿 파일 경로에는 테마·플러그인 구분 정보가 없음
 # 구분은 템플릿이 요청하는 URL 에 있다:  /wp-content/themes/<slug>
 # 파일 경로로 판별하면 테마 59종(twentytwenty*, astra, divi, oceanwp …)이
-# 전부 wp_plugin 으로 떨어져 v_patch_plan 조인에서 빠진다. (CHANGELOG §12.3)
+# 전부 wp_plugin 으로 떨어져 v_patch_plan 조인에서 빠짐. (CHANGELOG §12.3)
 _TH_RE = re.compile(r"/wp-content/themes/([a-z0-9][a-z0-9._-]*)", re.I)
 _PL_RE = re.compile(r"/wp-content/plugins/([a-z0-9][a-z0-9._-]*)", re.I)
 
 
 def load_theme_slugs(root: str | None) -> set[str]:
-    """themes/ 에만 등장하는 슬러그 집합. 양쪽에 나오면 모호하므로 제외한다."""
+    """themes/ 에만 등장하는 슬러그 집합. 양쪽에 나오면 모호하므로 제외."""
     if not root:
         print("  [경고] --templates 미지정 → 테마 판별 불가. 전부 wp_plugin 이 된다.")
         return set()
@@ -158,7 +158,7 @@ def generate_advisories(con: sqlite3.Connection, out: Path, templates: str | Non
         slugs = [x for x in (t["slugs"] or "").split(",") if x]
         cves = [x for x in (t["cve"] or "").split(",") if x] or [""]
         for slug in slugs:
-            # 파일 경로가 아니라 슬러그의 출처로 판별한다. load_theme_slugs 주석 참조
+            # 파일 경로가 아니라 슬러그의 출처로 판별. load_theme_slugs 주석 참조
             ctype = "wp_theme" if slug.lower() in theme_slugs else "wp_plugin"
             for cve in cves:
                 key = (ctype, slug, cve, t["id"])
@@ -183,7 +183,7 @@ def generate_advisories(con: sqlite3.Connection, out: Path, templates: str | Non
 def generate_template_exceptions(
     con: sqlite3.Connection, out: Path, cwe_codes: set[str], rules_path: Path
 ) -> None:
-    """CWE 로 안 풀리는 템플릿만 개별 매핑. 키워드 규칙은 외부 파일에서 읽는다"""
+    """CWE 로 안 풀리는 템플릿만 개별 매핑. 키워드 규칙은 외부 파일에서 읽음"""
     if not rules_path.is_file():
         print(f"  [경고] {rules_path} 없음 → 템플릿 예외 생성 생략")
         return

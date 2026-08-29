@@ -190,7 +190,7 @@ def patch_finding(finding_id: str, body: PatchFindingRequest) -> Any:
 
 @router.get("/scans/{scan_id}/environment")
 def scan_environment(scan_id: str) -> dict[str, Any]:
-    """환경 조사 결과 (docs/00 §4). 미수집이면 빈 목록. 조건부 생략하지 않는다"""
+    """환경 조사 결과 (docs/00 §4). 미수집이면 빈 목록. 조건부 생략하지 않음"""
     with session() as conn:
         if scan_repo.get_scan(conn, scan_id) is None:
             raise ScanError("NOT_FOUND", "스캔을 찾을 수 없습니다.", status_code=404)

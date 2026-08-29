@@ -1,7 +1,7 @@
 """가이드 데이터 조회 · 임포트.
 
 본문(guide_items)은 미탑재가 정상 상태. 매핑 테이블은 번들이라 항상 존재 (절대규칙 3)
-본문·이미지는 저작권 대상이라 저장소에 없고 사용자가 임포트한다 (절대규칙 8)
+본문·이미지는 저작권 대상이라 저장소에 없고 사용자가 임포트 (절대규칙 8)
 """
 from __future__ import annotations
 
@@ -27,15 +27,15 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         ).fetchone()[0],
         # 자동 점검 가능 항목 수. 커버리지 고지의 근거값 (절대규칙 10)
         "items_covered": coverage["items_covered"],
-        # 고지 문장을 서버가 내려준다. GUI 와 보고서가 같은 문장을 쓰도록 단일화
+        # 고지 문장을 서버가 내려줌. GUI 와 보고서가 같은 문장을 쓰도록 단일화
         "coverage_notice": format_coverage_notice(
             item_count, coverage["items_covered"]
         ),
     }
 
 
-# FTS 는 본문과 동기화하는 트리거가 없다. 임포트마다 이 함수로 다시 채운다.
-# 누락 시 에러 없이 유사항목 검색만 0건이 되어 발견이 늦다
+# FTS 는 본문과 동기화하는 트리거가 없다. 임포트마다 이 함수로 다시 채움
+# 누락 시 에러 없이 유사항목 검색만 0건이 되어 발견이 늦음
 _FTS_COLUMNS = (
     "item_code", "item_name", "check_content", "security_threat",
     "remediation", "case_text",
@@ -54,7 +54,7 @@ def clear_images(conn: sqlite3.Connection, item_codes: list[str]) -> int:
 
 
 def replace_images(conn: sqlite3.Connection, rows: list[dict]) -> int:
-    """이미지 전체 교체. guide_item_images 에 UNIQUE 가 없어 재임포트 시 중복된다"""
+    """이미지 전체 교체. guide_item_images 에 UNIQUE 가 없어 재임포트 시 중복됨"""
     conn.execute("DELETE FROM guide_item_images")
     if not rows:
         return 0
@@ -103,7 +103,7 @@ def orphan_image_codes(conn: sqlite3.Connection) -> list[str]:
 # ────────────────────────────────────────────── 매핑 (M6)
 
 def load_mappings(conn: sqlite3.Connection) -> dict:
-    """match_type -> match_value -> 규칙 목록. 스캔마다 한 번만 읽는다"""
+    """match_type -> match_value -> 규칙 목록. 스캔마다 한 번만 읽음"""
     out: dict = {}
     for row in conn.execute(
         "SELECT match_type, match_value, item_code, confidence, mapping_basis,"
@@ -132,7 +132,7 @@ def mapped_item_codes(conn: sqlite3.Connection) -> list[str]:
 def mappable_findings(conn: sqlite3.Connection, scan_id: str) -> list[dict]:
     """자산 식별 템플릿(is_detection=1)은 취약점이 아니므로 제외 (docs/05 자주 하는 실수).
 
-    오탐 표시된 항목도 제외한다 - 집계에서 빠지므로 매핑도 남기지 않는다
+    오탐 표시된 항목도 제외 - 집계에서 빠지므로 매핑도 남기지 않음
     """
     rows = conn.execute(
         "SELECT f.finding_id, f.template_id, f.cve_ids, f.cwe_ids, f.vuln_type,"
@@ -223,7 +223,7 @@ def items(
 def replace_items(conn: sqlite3.Connection, rows: list[dict]) -> int:
     """본문 전체 삭제 후 재적재 (docs/03 §2.3).
 
-    finding_guide_refs 는 건드리지 않는다 - 별도 층이며 본문 없이도 유지된다
+    finding_guide_refs 는 건드리지 않음 - 별도 층이며 본문 없이도 유지됨
     """
     if not rows:
         return 0

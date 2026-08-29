@@ -5,8 +5,8 @@
 
   python3 tools/verify_guide.py --pdf <가이드>.pdf --csv data/guide_items_2026.csv
 
-가이드 판형이 바뀌면 이 검증이 먼저 실패한다.
-검증을 통과하지 못한 CSV 는 임포트하지 않는다.
+가이드 판형이 바뀌면 이 검증이 먼저 실패함
+검증을 통과하지 못한 CSV 는 임포트하지 않음
 """
 import argparse, csv, re, sys, collections
 import pymupdf
@@ -25,8 +25,8 @@ items = []
 for r in csv.DictReader(open(a.csv, encoding='utf-8-sig')):
     r['page_start'] = int(r['page_start']); r['page_end'] = int(r['page_end'])
     r['title'] = r['item_name']
-    # criteria_safe / criteria_vuln 은 원문에서 '양호 :' '취약 :' 로 분리되어 있다.
-    # 이어붙이면 연속 문자열이 아니므로 각각 따로 대조한다.
+    # criteria_safe / criteria_vuln 은 원문에서 '양호 :' '취약 :' 로 분리되어 있음
+    # 이어붙이면 연속 문자열이 아니므로 각각 따로 대조함
     r['code'] = r['item_code']
     items.append(r)
 

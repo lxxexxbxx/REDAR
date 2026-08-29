@@ -219,7 +219,7 @@ a { color: var(--text); }
 .dot.alert { background: var(--brand); }
 
 .view { padding: 26px var(--gutter) 60px; max-width: var(--content); }
-/* 세로 리듬은 이 두 줄에서만 만든다.
+/* 세로 리듬은 이 두 줄에서만 생성
    블록 자신에 margin 을 주면 그리드 칸 안으로 새어 열이 어긋난다 */
 .view > * + * { margin-top: var(--gap); }
 .view > .view-head + * { margin-top: 24px; }

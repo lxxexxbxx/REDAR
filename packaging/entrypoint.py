@@ -1,7 +1,7 @@
-"""번들 실행 진입점. 포트를 동적으로 잡고 stdout 으로 알린다.
+"""번들 실행 진입점. 포트를 동적으로 잡고 stdout 으로 알림
 
-고정 포트는 점유 시 기동 실패하거나 타 프로세스에 접속한다 (M10 [3]).
-Tauri 셸이 이 stdout 한 줄을 읽어 WebView 를 띄운다
+고정 포트는 점유 시 기동 실패하거나 타 프로세스에 접속 (M10 [3]).
+Tauri 셸이 이 stdout 한 줄을 읽어 WebView 를 띄움
 """
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ import sys
 import threading
 from pathlib import Path
 
-# 번들 루트를 import 경로에 넣는다. PyInstaller 는 _MEIPASS 를 sys.path 에 넣지만
-# --onedir 의 하위 디렉터리 구조까지 보장하지 않는다
-# 개발 실행에서는 저장소 루트가 packaging/ 의 상위다
+# 번들 루트를 import 경로에 넣음. PyInstaller 는 _MEIPASS 를 sys.path 에 넣지만
+# --onedir 의 하위 디렉터리 구조까지 보장하지 않음
+# 개발 실행에서는 저장소 루트가 packaging/ 의 상위
 sys.path.insert(
     0, str(Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1])))
 )
@@ -29,10 +29,10 @@ def free_port() -> int:
 
 
 def watch_parent() -> None:
-    """부모(셸) 종료 감지. 남으면 포트와 DB 락이 유지된다 (M10 완료 조건 4).
+    """부모(셸) 종료 감지. 남으면 포트와 DB 락이 유지됨 (M10 완료 조건 4).
 
-    셸이 SIGTERM 등으로 죽으면 창 이벤트가 돌지 않아 Rust 쪽 정리가 못 돈다.
-    부모가 사라지면 stdin 의 쓰기 끝이 닫혀 EOF 가 되므로 그것을 기다린다
+    셸이 SIGTERM 등으로 죽으면 창 이벤트가 돌지 않아 Rust 쪽 정리가 못 돎
+    부모가 사라지면 stdin 의 쓰기 끝이 닫혀 EOF 가 되므로 그것을 대기
     """
     def wait() -> None:
         try:
@@ -52,7 +52,7 @@ def main() -> None:
     from app.config import settings
 
     settings.HOME.mkdir(parents=True, exist_ok=True)
-    # 첫 실행 시 사용자 데이터 경로에 DB 를 만든다. init-db 를 따로 돌리지 않아도 된다
+    # 첫 실행 시 사용자 데이터 경로에 DB 를 생성. init-db 를 따로 돌리지 않아도 됨
     init_db(settings.DB_PATH)
 
     watch_parent()
@@ -62,8 +62,8 @@ def main() -> None:
         + json.dumps({"port": port, "home": str(settings.HOME)}, ensure_ascii=False),
         flush=True,
     )
-    # import 문자열이 아니라 앱 객체를 넘긴다. 번들에서는 uvicorn 이 모듈을
-    # 이름으로 다시 import 하지 못해 'Could not import module' 로 죽는다
+    # import 문자열이 아니라 앱 객체를 넘김. 번들에서는 uvicorn 이 모듈을
+    # 이름으로 다시 import 하지 못해 'Could not import module' 로 죽음
     from app.main import app as asgi_app
 
     uvicorn.run(

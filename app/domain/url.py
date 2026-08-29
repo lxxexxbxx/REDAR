@@ -1,7 +1,7 @@
 """대상 URL 분해. host / port 를 확정값으로 확보.
 
 nuclei 출력의 matched-at 은 'http://localhost:7860/api/v1/version' 형태이고
-host 필드는 'localhost' 로 포트가 빠져 있어 한쪽만 믿을 수 없음.
+host 필드는 'localhost' 로 포트가 빠져 있어 한쪽만 믿을 수 없음
 fingerprint 가 host·port 를 분리해 받으므로 분해 실패를 조용히 넘기면 안 됨
 """
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """WordPress 수집기. 버전·테마·플러그인 + 노출 8종.
 
 exposure_key 8종의 정본은 docs/00 §1.2 (wordpress 담당분).
-주 진단 대상이 WordPress 이므로 이 수집기가 환경 기반 선별의 핵심 입력을 만든다
+주 진단 대상이 WordPress 이므로 이 수집기가 환경 기반 선별의 핵심 입력을 생성
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ _ASSET_RE = re.compile(
 )
 _VER_PARAM_RE = re.compile(r"[?&]ver=([\w.\-]+)")
 
-# 로그인 시도 제한을 제공하는 플러그인. 탐지되면 제한 없음으로 단정하지 않는다
+# 로그인 시도 제한을 제공하는 플러그인. 탐지되면 제한 없음으로 단정하지 않음
 _LOGIN_LIMITERS = frozenset({
     "limit-login-attempts-reloaded", "limit-login-attempts", "loginizer",
     "wordfence", "better-wp-security", "ithemes-security-pro",
@@ -36,7 +36,7 @@ _LOGIN_LIMITERS = frozenset({
     "wp-limit-login-attempts", "sucuri-scanner",
 })
 
-# 백업·설정 파일 노출 후보. 응답 본문은 기록하지 않는다 - 자격증명이 들어있다
+# 백업·설정 파일 노출 후보. 응답 본문은 기록하지 않음 - 자격증명이 들어있음
 _BACKUP_PATHS = (
     "/wp-config.php.bak", "/wp-config.php~", "/wp-config.php.save",
     "/wp-config.php.orig", "/wp-config.php.txt", "/wp-config.bak",
@@ -54,7 +54,7 @@ class WordPressCollector:
     order = ORDER_APPLICATION
 
     def applicable(self, ctx: TargetContext) -> bool:
-        """WordPress 징후가 없으면 실행하지 않는다. 무관한 대상에 8회 요청 금지"""
+        """WordPress 징후가 없으면 실행하지 않음. 무관한 대상에 8회 요청 금지"""
         root = ctx.get("/")
         if not root.status:
             return False
@@ -75,7 +75,7 @@ class WordPressCollector:
         result.application = StackFinding(
             product="WordPress",
             version=version,
-            # 버전 확정 불가 시 None + low. 추정값을 확정처럼 두지 않는다 (M4 규칙 3)
+            # 버전 확정 불가 시 None + low. 추정값을 확정처럼 두지 않음 (M4 규칙 3)
             confidence=Confidence.HIGH if version else Confidence.LOW,
             evidence=version_evidence,
         )
@@ -100,7 +100,7 @@ class WordPressCollector:
 def _detect_version(root, readme) -> tuple[str | None, str, bool]:
     """(버전, 근거, 외부 노출 여부).
 
-    노출 여부는 '우리가 원격에서 알아낼 수 있었는가' 와 같다
+    노출 여부는 '우리가 원격에서 알아낼 수 있었는가' 와 같음
     """
     match = _GENERATOR_RE.search(root.text)
     if match:
@@ -116,8 +116,8 @@ def _detect_version(root, readme) -> tuple[str | None, str, bool]:
 def _detect_components(body: str, wp_version: str | None) -> list[ComponentFinding]:
     """정적 자산 경로에서 플러그인·테마 추출.
 
-    ?ver= 값이 WordPress 본체 버전과 같으면 구성요소 버전이 아니라 캐시 버스터다.
-    구분이 불가하므로 version=None + low 로 둔다 (M4 규칙 3)
+    ?ver= 값이 WordPress 본체 버전과 같으면 구성요소 버전이 아니라 캐시 버스터
+    구분이 불가하므로 version=None + low 로 둠 (M4 규칙 3)
     """
     found: dict[tuple[str, str], ComponentFinding] = {}
     for match in _ASSET_RE.finditer(body):
@@ -133,7 +133,7 @@ def _detect_components(body: str, wp_version: str | None) -> list[ComponentFindi
             type=ctype,
             slug=slug,
             version=None if ambiguous else version,
-            # 자산 경로에 나타나면 로드된 것이므로 활성으로 본다
+            # 자산 경로에 나타나면 로드된 것이므로 활성으로 봄
             active=True,
             confidence=(
                 Confidence.MEDIUM if version and not ambiguous else Confidence.LOW
@@ -144,14 +144,14 @@ def _detect_components(body: str, wp_version: str | None) -> list[ComponentFindi
             ),
         )
         previous = found.get(key)
-        # 같은 슬러그가 여러 자산에 나오면 버전이 확인된 쪽을 남긴다
+        # 같은 슬러그가 여러 자산에 나오면 버전이 확인된 쪽을 남김
         if previous is None or (previous.version is None and candidate.version):
             found[key] = candidate
     return sorted(found.values(), key=lambda c: (c.type, c.slug))
 
 
 def _xmlrpc(ctx: TargetContext) -> ExposureFinding:
-    """GET 은 405 + 안내 문구가 정상 응답. POST 는 보내지 않는다 (M4 규칙 1)"""
+    """GET 은 405 + 안내 문구가 정상 응답. POST 는 보내지 않음 (M4 규칙 1)"""
     resp = ctx.get("/xmlrpc.php")
     enabled = resp.status == 405 or "xml-rpc server accepts post" in resp.text.lower()
     return ExposureFinding(
@@ -172,7 +172,7 @@ def _rest_user_enum(ctx: TargetContext) -> ExposureFinding:
             listed = 0
     return ExposureFinding(
         key="rest_user_enum", value=listed > 0, path=path,
-        # 계정명 자체는 남기지 않는다. 건수만 근거로 기록
+        # 계정명 자체는 남기지 않음. 건수만 근거로 기록
         evidence=f"{resp.status or resp.error} · 계정 {listed}건 열거",
     )
 
@@ -196,7 +196,7 @@ def _login(ctx: TargetContext, slugs: set[str]) -> list[ExposureFinding]:
     throttled = any(
         r.status == 429 or r.header("retry-after") for r in responses
     )
-    # 인증 시도(POST)를 보내지 않으므로 '제한 없음' 은 단정이 아니라 관측 결과다
+    # 인증 시도(POST)를 보내지 않으므로 '제한 없음' 은 단정이 아니라 관측 결과
     no_ratelimit = accessible and not throttled and not limiter
 
     return [
@@ -218,7 +218,7 @@ def _login(ctx: TargetContext, slugs: set[str]) -> list[ExposureFinding]:
 def _admin_page(ctx: TargetContext) -> ExposureFinding:
     path = "/wp-admin/"
     resp = ctx.get(path)
-    # 정상 설치는 wp-login.php 로 리다이렉트된다. 최종 URL 로 판별
+    # 정상 설치는 wp-login.php 로 리다이렉트됨. 최종 URL 로 판별
     redirected_to_login = "wp-login.php" in resp.url
     public = resp.ok and not redirected_to_login
     return ExposureFinding(
@@ -229,7 +229,7 @@ def _admin_page(ctx: TargetContext) -> ExposureFinding:
 
 
 def _backup_files(ctx: TargetContext) -> ExposureFinding:
-    """응답 본문을 근거에 남기지 않는다. wp-config 백업에는 DB 자격증명이 있다"""
+    """응답 본문을 근거에 남기지 않음. wp-config 백업에는 DB 자격증명이 있다"""
     for path in _BACKUP_PATHS:
         resp = ctx.get(path)
         if resp.ok and resp.text.strip():

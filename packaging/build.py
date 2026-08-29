@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""2단계 빌드 오케스트레이션 (IMPLEMENTATION_BRIEF M10).
+"""빌드 오케스트레이션 (IMPLEMENTATION_BRIEF M10).
 
-    python3 packaging/build.py                      # 백엔드만
-    python3 packaging/build.py --tauri              # 백엔드 + 데스크톱 셸
-    python3 packaging/build.py --tauri --install-rust   # Rust 없으면 설치까지
+    python3 packaging/build.py                 # 전 과정 자동 + 앱 실행
+    python3 packaging/build.py --backend-only  # 백엔드 번들까지만
+    python3 packaging/build.py --install-rust  # Rust 없으면 설치까지
+    python3 packaging/build.py --no-launch     # 빌드만 하고 실행 안 함
 
-순서를 지킨다. [1] 이 [3] 보다 어렵다 - Tauri 는 이미 만들어진 실행 파일을
-감싸는 것뿐이고, Python 을 실행 파일로 묶는 과정에서 리소스 경로·동적 import 가 터진다
+전 과정 = 가상환경 생성 · 의존성 설치 · 백엔드 번들 · 데스크톱 셸 · 실행.
+시스템 파이썬으로 실행해도 됨. 가상환경 준비 후 그 파이썬으로 자기 자신을 재실행
 
-[1] PyInstaller --onedir 로 백엔드 빌드
-[2] 산출물 구조 확인
-[3] Tauri 번들
+순서 고정. [2] 가 [4] 보다 어려움 - Tauri 는 만들어진 실행 파일을 감쌀 뿐이고,
+Python 을 실행 파일로 묶는 과정에서 리소스 경로·동적 import 가 터짐
+
+[1] 가상환경 · 의존성
+[2] PyInstaller --onedir 백엔드 번들
+[3] 산출물 스테이징
+[4] Tauri 번들
+[5] 앱 실행
 """
 from __future__ import annotations
 
@@ -62,13 +68,13 @@ def _module_exists(name: str) -> bool:
 
 
 def stage_backend(bundle: Path) -> Path:
-    """[2] Tauri 리소스로 넣을 복사본 생성. 심볼릭 링크를 푼다.
+    """[2] Tauri 리소스로 넣을 복사본 생성. 심볼릭 링크를 풀어냄
 
     externalBin(sidecar)을 쓰지 않는 이유: 파일 하나만 복사되어 --onedir 의
-    _internal 이 빠진다. onefile 로 바꾸면 실행마다 9~18초가 걸린다 (실측)
+    _internal 이 빠짐. onefile 로 바꾸면 실행마다 9~18초가 걸림 (실측)
 
     링크를 푸는 이유: Python.framework 안의 심볼릭 링크에서 Tauri 리소스 복사가
-    'Not a directory' 로 실패한다. 해제 비용은 약 +6MB
+    'Not a directory' 로 실패. 해제 비용은 약 +6MB
     """
     suffix = ".exe" if platform.system() == "Windows" else ""
     executable = bundle / f"{BACKEND_NAME}{suffix}"
@@ -88,7 +94,7 @@ def stage_backend(bundle: Path) -> Path:
 RUSTUP_UNIX = "https://sh.rustup.rs"
 RUSTUP_WINDOWS = "https://win.rustup.rs/x86_64"
 
-MANUAL_RUST_GUIDE = """Rust 툴체인이 없습니다. 아래 중 하나로 설치하세요.
+MANUAL_RUST_GUIDE = """Rust 툴체인이 없음. 아래 중 하나로 설치하세요.
 
   Windows   winget install Rustlang.Rustup
             또는 https://rustup.rs 에서 rustup-init.exe 실행
@@ -97,11 +103,11 @@ MANUAL_RUST_GUIDE = """Rust 툴체인이 없습니다. 아래 중 하나로 설�
   Linux     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 설치 후 새 터미널에서 다시 실행하세요.
-자동으로 설치하려면 --install-rust 를 붙입니다 (외부 통신 발생)."""
+자동으로 설치하려면 --install-rust 를 붙임 (외부 통신 발생)."""
 
 
 def cargo_path() -> str | None:
-    """PATH 우선. rustup 이 방금 설치한 경우 PATH 갱신 전이라 홈도 본다"""
+    """PATH 우선. rustup 이 방금 설치한 경우 PATH 갱신 전이라 홈도 봄"""
     found = shutil.which("cargo")
     if found:
         return found
@@ -138,7 +144,7 @@ def install_rust() -> str:
 
 
 def build_tauri(auto_install_rust: bool) -> None:
-    """[3] Tauri 번들. Rust 툴체인이 필요하다"""
+    """[3] Tauri 번들. Rust 툴체인이 필요"""
     cargo = cargo_path()
     if cargo is None:
         if not auto_install_rust:
@@ -149,7 +155,7 @@ def build_tauri(auto_install_rust: bool) -> None:
     if npx is None:
         sys.exit("npx 가 없습니다. Node.js 를 설치하세요 (https://nodejs.org).")
 
-    # rustup 직후에는 PATH 에 없을 수 있어 cargo 위치를 직접 넣어준다
+    # rustup 직후에는 PATH 에 없을 수 있어 cargo 위치를 직접 넣어줌
     env = {**os.environ}
     cargo_bin = str(Path(cargo).parent)
     if cargo_bin not in env.get("PATH", ""):
@@ -162,32 +168,112 @@ def report_size(path: Path) -> None:
     print(f"  크기: {total / 1024 / 1024:.1f}MB ({path})")
 
 
+VENV_DIR = ROOT / ".venv"
+REQUIREMENTS = ROOT / "requirements.txt"
+APP_NAME = "REDAR"
+
+
+def venv_python() -> Path:
+    return VENV_DIR / ("Scripts/python.exe" if _windows() else "bin/python")
+
+
+def in_target_venv() -> bool:
+    try:
+        return Path(sys.executable).resolve() == venv_python().resolve()
+    except OSError:
+        return False
+
+
+def ensure_venv() -> None:
+    """[1] 가상환경 준비 후 그 파이썬으로 재실행.
+
+    시스템 파이썬으로 PyInstaller 를 돌리면 의존성이 번들에서 빠짐
+    """
+    if in_target_venv():
+        return
+
+    if not venv_python().is_file():
+        print("[1] 가상환경 생성")
+        run([sys.executable, "-m", "venv", str(VENV_DIR)])
+    else:
+        print("[1] 가상환경 확인")
+
+    print("  의존성 설치")
+    python = str(venv_python())
+    run([python, "-m", "pip", "install", "-q", "--upgrade", "pip"])
+    run([python, "-m", "pip", "install", "-q", "-r", str(REQUIREMENTS)])
+
+    print("  가상환경 파이썬으로 재실행")
+    # 재귀 방지. 자식은 in_target_venv() 가 참이라 이 분기를 건너뜀
+    completed = subprocess.run([python, __file__, *sys.argv[1:]], cwd=ROOT)
+    sys.exit(completed.returncode)
+
+
+def launch() -> None:
+    """[5] 빌드된 앱 실행. 실패해도 빌드 결과는 남음"""
+    release = ROOT / "src-tauri" / "target" / "release"
+    if _windows():
+        candidates = [release / f"{APP_NAME}.exe", release / "redar.exe"]
+        command = None
+        for candidate in candidates:
+            if candidate.is_file():
+                command = [str(candidate)]
+                break
+    elif platform.system() == "Darwin":
+        bundle = release / "bundle" / "macos" / f"{APP_NAME}.app"
+        command = ["open", str(bundle)] if bundle.is_dir() else None
+        if command is None and (release / "redar").is_file():
+            command = [str(release / "redar")]
+    else:
+        binary = release / "redar"
+        command = [str(binary)] if binary.is_file() else None
+
+    if command is None:
+        print("  [경고] 실행 파일을 찾지 못함. 빌드 산출물만 남김")
+        return
+    print(f"  $ {' '.join(command)}")
+    subprocess.Popen(command, cwd=ROOT)
+    print(f"  {APP_NAME} 실행")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="REDAR 빌드")
-    parser.add_argument("--tauri", action="store_true", help="데스크톱 셸까지 빌드")
+    parser.add_argument(
+        "--backend-only", action="store_true", help="백엔드 번들까지만",
+    )
     parser.add_argument("--no-clean", action="store_true", help="이전 산출물 유지")
+    parser.add_argument("--no-launch", action="store_true", help="빌드 후 실행 안 함")
     parser.add_argument(
         "--install-rust", action="store_true",
         help="Rust 가 없으면 rustup 으로 설치 (외부 통신 발생)",
     )
     args = parser.parse_args()
 
-    print("[1] 백엔드 빌드 (PyInstaller --onedir)")
+    ensure_venv()
+
+    print("[2] 백엔드 번들 (PyInstaller --onedir)")
     bundle = build_backend(clean=not args.no_clean)
     report_size(bundle)
 
-    print("[2] 백엔드 산출물 확인")
+    print("[3] 산출물 스테이징")
     stage_backend(bundle)
 
-    if args.tauri:
-        print("[3] 데스크톱 셸 빌드 (Tauri)")
-        build_tauri(args.install_rust)
-        bundles = ROOT / "src-tauri" / "target" / "release" / "bundle"
-        if bundles.is_dir():
-            report_size(bundles)
-    else:
-        print("[3] 생략 (--tauri 로 활성화)")
+    if args.backend_only:
+        print("[4] 생략 (--backend-only)")
+        print("빌드 완료")
+        return
 
+    print("[4] 데스크톱 셸 (Tauri)")
+    build_tauri(args.install_rust)
+    bundles = ROOT / "src-tauri" / "target" / "release" / "bundle"
+    if bundles.is_dir():
+        report_size(bundles)
+
+    if args.no_launch:
+        print("[5] 생략 (--no-launch)")
+    else:
+        print("[5] 앱 실행")
+        launch()
     print("빌드 완료")
 
 

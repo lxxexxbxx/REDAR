@@ -166,9 +166,9 @@ def test_validation_error_uses_common_error_shape(client):
 
 
 def test_environment_driven_requires_environment_collection(client, allowlisted):
-    """환경 조사 없이 환경 기반 선별은 성립하지 않는다.
+    """환경 조사 없이 환경 기반 선별은 성립하지 않음
 
-    filter 로 조용히 대체하면 보고서의 선별 근거가 사라진다 (M4)
+    filter 로 조용히 대체하면 보고서의 선별 근거가 사라짐 (M4)
     """
     response = client.post(
         f"{API}/scans",
@@ -183,7 +183,7 @@ def test_environment_driven_requires_environment_collection(client, allowlisted)
 
 
 def test_environment_driven_mode_accepted(client, allowlisted):
-    """M4 부터 지원. 수집기가 대상에 닿지 못해도 스캔은 생성된다"""
+    """M4 부터 지원. 수집기가 대상에 닿지 못해도 스캔은 생성됨"""
     response = client.post(
         f"{API}/scans",
         json={
@@ -252,7 +252,7 @@ def test_false_positive_excluded_from_aggregations(client, allowlisted):
 
 
 def test_finding_detail_maps_without_guide_body(client, allowlisted):
-    """본문 미탑재 시 guide_items 는 빈 배열, 매핑은 남는다 (절대규칙 3)."""
+    """본문 미탑재 시 guide_items 는 빈 배열, 매핑은 남음 (절대규칙 3)."""
     scan_id = _create(client, ["http://localhost:7860"]).json()["scan_id"]
     _wait_done(client, scan_id)
     finding_id = client.get(f"{API}/scans/{scan_id}/findings").json()["items"][0][

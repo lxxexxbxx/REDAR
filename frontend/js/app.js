@@ -1034,7 +1034,7 @@ document.addEventListener("click", async (event) => {
   const saveKind = t.closest("[data-save]")?.dataset.save;
   if (saveKind) { saveSettings(saveKind); return; }
 
-  // 템플릿 화면은 자기 이벤트를 스스로 처리한다. 처리했으면 true
+  // 템플릿 화면은 자기 이벤트를 스스로 처리. 처리했으면 true
   try {
     if (await handleDependencyClick(t, refreshAndRender)) return;
     if (await handleTemplateClick(t)) return;

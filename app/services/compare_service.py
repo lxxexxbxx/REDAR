@@ -1,9 +1,9 @@
 """스캔 비교 (docs/00 §4).
 
-도구는 차이만 보고한다. 조치 성공 여부를 판정하지 않는다 - 판정하는 순간
-조치 결과에 대한 책임이 도구로 넘어온다 (docs/01 §1.1)
+도구는 차이만 보고. 조치 성공 여부를 판정하지 않음 - 판정하는 순간
+조치 결과에 대한 책임이 도구로 넘어옴 (docs/01 §1.1)
 
-fixed / still_vulnerable 이 아니라 resolved / persisted 를 쓴다. 명명 규칙 변경 금지
+fixed / still_vulnerable 이 아니라 resolved / persisted 를 사용. 명명 규칙 변경 금지
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def compare(
     conn: sqlite3.Connection, base_id: str, target_id: str
 ) -> dict[str, Any]:
     """fingerprint 일치로 3분류. fingerprint 는 쿼리스트링을 제외한 경로 기준이라
-    파라미터 차이가 오분류를 유발하지 않는다 (docs/02 §3.3)
+    파라미터 차이가 오분류를 유발하지 않음 (docs/02 §3.3)
     """
     base = scan_repo.get_scan(conn, base_id)
     target = scan_repo.get_scan(conn, target_id)
@@ -72,7 +72,7 @@ def compare(
         CompareState.PERSISTED.value: persisted,
         CompareState.EMERGED.value: emerged,
         "environment_diff": environment_diff(conn, base_id, target_id),
-        # 항상 포함한다. 이 문장이 없으면 미탐지가 조치 완료로 읽힌다
+        # 항상 포함. 이 문장이 없으면 미탐지가 조치 완료로 읽힘
         "disclaimer": DISCLAIMER,
     }
 
@@ -80,7 +80,7 @@ def compare(
 def _by_fingerprint(
     conn: sqlite3.Connection, scan_id: str
 ) -> dict[str, dict[str, Any]]:
-    """오탐은 비교 대상에서 제외한다. 집계에서 빠진 항목이 비교에 나오면 혼란"""
+    """오탐은 비교 대상에서 제외. 집계에서 빠진 항목이 비교에 나오면 혼란"""
     return {
         row["fingerprint"]: dict(row)
         for row in conn.execute(
@@ -116,7 +116,7 @@ def _scan_view(scan: dict[str, Any], total: int) -> dict[str, Any]:
 def environment_diff(
     conn: sqlite3.Connection, base_id: str, target_id: str
 ) -> dict[str, list[dict[str, Any]]]:
-    """환경 변화. 결과 차이의 설명을 제공한다 (docs/00 §4)"""
+    """환경 변화. 결과 차이의 설명을 제공 (docs/00 §4)"""
     before = _flatten(env_repo.profiles(conn, base_id))
     after = _flatten(env_repo.profiles(conn, target_id))
 

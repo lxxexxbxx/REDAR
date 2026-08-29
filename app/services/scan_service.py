@@ -93,8 +93,8 @@ class ScanService:
         if not req.targets:
             raise ScanError("INVALID_REQUEST", "스캔 대상이 비어 있습니다.")
         if req.mode == "environment_driven" and not req.collect_environment:
-            # 환경 조사 없이 환경 기반 선별은 성립하지 않는다. 조용히 filter 로
-            # 대체하면 보고서의 선별 근거가 사라진다
+            # 환경 조사 없이 환경 기반 선별은 성립하지 않음. 조용히 filter 로
+            # 대체하면 보고서의 선별 근거가 사라짐
             raise ScanError(
                 "INVALID_REQUEST",
                 "environment_driven 모드는 환경 조사(collect_environment)가 필요합니다.",
@@ -193,7 +193,7 @@ class ScanService:
                 if run.cancel.is_set():
                     status = ScanStatus.CANCELED
 
-                # 가이드 매핑. 본문 미탑재여도 매핑은 저장된다 (절대규칙 3)
+                # 가이드 매핑. 본문 미탑재여도 매핑은 저장됨 (절대규칙 3)
                 try:
                     guide_service.map_scan(conn, run.scan_id)
                 except Exception:  # noqa: BLE001 - 매핑 실패가 스캔 실패는 아니다
@@ -224,9 +224,9 @@ class ScanService:
         self._emit(run, None, None)
 
     def _collect_environment(self, run: _Run, req: ScanRequest, conn):
-        """수집 -> 선별. 실패해도 스캔을 중단하지 않는다 (M4 규칙 2).
+        """수집 -> 선별. 실패해도 스캔을 중단하지 않음 (M4 규칙 2).
 
-        environment_driven 이 아니면 선별 결과를 쓰지 않고 조사 기록만 남긴다
+        environment_driven 이 아니면 선별 결과를 쓰지 않고 조사 기록만 남김
         """
         self._emit(run, "progress", {
             "scan_id": run.scan_id, "percent": 0, "phase": "collecting_environment",

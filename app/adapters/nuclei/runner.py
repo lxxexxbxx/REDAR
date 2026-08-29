@@ -23,7 +23,7 @@ _TERMINATE_GRACE_SEC = 5
 class RunOptions:
     targets: Sequence[str]
     template_ids: Sequence[str] = field(default_factory=tuple)
-    # 템플릿 파일·디렉터리 경로. custom 템플릿은 로드되어야 -id 로 걸릴 수 있다
+    # 템플릿 파일·디렉터리 경로. custom 템플릿은 로드되어야 -id 로 걸릴 수 있음
     template_paths: Sequence[str] = field(default_factory=tuple)
     tags: Sequence[str] = field(default_factory=tuple)
     severities: Sequence[str] = field(default_factory=tuple)
@@ -55,7 +55,7 @@ def build_command(opts: RunOptions, exe: str | None = None) -> list[str]:
     ]
     for target in opts.targets:
         cmd += ["-target", target]
-    # -t 는 경로, -id 는 템플릿 id 필터다. id 를 -t 로 넘기면 경로로 해석되어 실패
+    # -t 는 경로, -id 는 템플릿 id 필터. id 를 -t 로 넘기면 경로로 해석되어 실패
     for path in opts.template_paths:
         cmd += ["-t", path]
     if opts.template_ids:
@@ -98,7 +98,7 @@ def run(
         list(command),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        # -target 으로 대상을 넘기므로 stdin 은 쓰지 않는다. 열어두면 대기 위험
+        # -target 으로 대상을 넘기므로 stdin 은 쓰지 않음. 열어두면 대기 위험
         stdin=subprocess.DEVNULL,
         text=True,
         bufsize=1,

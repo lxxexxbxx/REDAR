@@ -1,7 +1,7 @@
 """보고서 조회·저장. SQL 전용 (docs/02 §5).
 
 집계·정렬을 SQL 로 고정하는 이유: 같은 스캔에 같은 순서가 나와야 재점검 비교가
-성립한다. LLM 은 이 순서에 개입하지 않는다 (db/schema.sql §7)
+성립. LLM 은 이 순서에 개입하지 않음 (db/schema.sql §7)
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def findings_for_report(
 
 
 def false_positives(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:
-    """A-7. 집계에서 제외되었음을 보고서에 남긴다"""
+    """A-7. 집계에서 제외되었음을 보고서에 남김"""
     return [
         dict(row)
         for row in conn.execute(
@@ -87,7 +87,7 @@ def findings_by_item(conn: sqlite3.Connection, scan_id: str) -> dict[str, list[s
 
 
 def report_sections(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:
-    """조치 우선순위. priority_score 는 SQL 이 확정한다 (docs/04 A-6)"""
+    """조치 우선순위. priority_score 는 SQL 이 확정 (docs/04 A-6)"""
     return [
         dict(row)
         for row in conn.execute(
@@ -133,7 +133,7 @@ def guide_items_for_scan(
 
 
 def templates_used(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:
-    """실행 템플릿. scan_templates 가 비면 탐지된 템플릿으로 대체한다"""
+    """실행 템플릿. scan_templates 가 비면 탐지된 템플릿으로 대체"""
     rows = conn.execute(
         "SELECT template_id, source FROM scan_templates WHERE scan_id = ?"
         " ORDER BY template_id",

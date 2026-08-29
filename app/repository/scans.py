@@ -179,7 +179,7 @@ def get_scan(conn: sqlite3.Connection, scan_id: str) -> dict[str, Any] | None:
         "mode": row["selection_mode"],
         **(json.loads(row["selection_detail"]) if row["selection_detail"] else {}),
     }
-    # 선별 근거. environment_driven 이 아니면 None. 조건부 생략 없이 항상 키를 둔다
+    # 선별 근거. environment_driven 이 아니면 None. 조건부 생략 없이 항상 키를 둠
     view["selection_basis"] = (
         json.loads(row["selection_basis"]) if row["selection_basis"] else None
     )
@@ -376,7 +376,7 @@ def get_finding(conn: sqlite3.Connection, finding_id: str) -> dict[str, Any] | N
         return None
     view = _finding_view(row)
     view["guide_refs"] = _guide_refs(conn, finding_id)
-    # 매핑된 점검항목 전문. 본문 미탑재면 빈 배열이며 매핑(guide_refs)은 그대로 남는다
+    # 매핑된 점검항목 전문. 본문 미탑재면 빈 배열이며 매핑(guide_refs)은 그대로 남음
     view["guide_items"] = [
         dict(item)
         for item in conn.execute(

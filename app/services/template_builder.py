@@ -1,11 +1,11 @@
 """폼 <-> nuclei YAML 양방향 변환 (docs/00 §3.3, §3.4).
 
-폼 스키마를 백엔드가 제공한다. 필드 추가 시 GUI 수정 없이 반영되어야 하고,
-스키마와 변환 로직이 떨어져 있으면 '스키마에는 있으나 변환되지 않는 필드'가 생긴다.
-그래서 두 개를 같은 파일에 둔다
+폼 스키마를 백엔드가 제공. 필드 추가 시 GUI 수정 없이 반영되어야 하고,
+스키마와 변환 로직이 떨어져 있으면 '스키마에는 있으나 변환되지 않는 필드'가 생김
+그래서 두 개를 같은 파일에 둠
 
 YAML 인젝션 방지: 폼 값은 전부 스키마 검사(패턴·enum·타입)를 통과한 뒤
-safe_dump 로 직렬화된다. 사용자 문자열을 YAML 텍스트에 이어붙이지 않는다
+safe_dump 로 직렬화됨. 사용자 문자열을 YAML 텍스트에 이어붙이지 않음
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import yaml
 
 from app.domain.enums import Severity
 
-# 파일 경로 조작 방지. template_id 가 파일명이 되므로 여기서 막는다 (M5 보안)
+# 파일 경로 조작 방지. template_id 가 파일명이 되므로 여기서 막음 (M5 보안)
 TEMPLATE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 CWE_RE = re.compile(r"^CWE-\d+$")
@@ -26,12 +26,12 @@ MATCHER_PARTS = ("body", "header", "all")
 HTTP_METHODS = ("GET", "POST", "PUT", "DELETE")
 CONDITIONS = ("and", "or")
 
-# 빌더가 다루는 최상위 키. 이 밖의 키는 unsupported_fields 로 보고한다
+# 빌더가 다루는 최상위 키. 이 밖의 키는 unsupported_fields 로 보고함
 _SUPPORTED_TOP = frozenset({"id", "info", "http", "requests"})
 _SUPPORTED_INFO = frozenset({
     "name", "author", "severity", "description", "classification", "tags",
 })
-# classification 하위도 마찬가지. cvss-metrics·epss·cpe 는 폼에 없어 재구성 시 사라진다
+# classification 하위도 마찬가지. cvss-metrics·epss·cpe 는 폼에 없어 재구성 시 사라짐
 _SUPPORTED_CLASSIFICATION = frozenset({"cve-id", "cwe-id", "cvss-score"})
 _SUPPORTED_REQUEST = frozenset({
     "method", "path", "body", "headers", "matchers", "matchers-condition",
@@ -49,8 +49,8 @@ FORM_SCHEMA: dict[str, Any] = {
                 {"key": "severity", "label": "심각도", "type": "enum", "required": True,
                  "options": [s.value for s in Severity]},
                 {"key": "description", "label": "설명", "type": "text"},
-                # nuclei 가 필수로 요구한다. 없으면 'no template author field provided'
-                # 로 로드 자체가 실패한다
+                # nuclei 가 필수로 요구. 없으면 'no template author field provided'
+                # 로 로드 자체가 실패함
                 {"key": "author", "label": "작성자", "type": "string", "required": True},
                 {"key": "tags", "label": "태그", "type": "list"},
             ],
@@ -105,7 +105,7 @@ FORM_SCHEMA: dict[str, Any] = {
 
 
 class BuildError(ValueError):
-    """폼 구조 오류. 어느 필드가 문제인지 담는다"""
+    """폼 구조 오류. 어느 필드가 문제인지 담음"""
 
     def __init__(self, field: str, message: str) -> None:
         super().__init__(message)
@@ -222,8 +222,8 @@ def _requests(form: dict[str, Any]) -> list[dict[str, Any]]:
         if entry.get("body"):
             request["body"] = str(entry["body"])
 
-        # matcher 는 첫 요청에만 붙인다. 여러 요청에 같은 조건을 복제하면
-        # 어느 요청이 매칭됐는지 구분할 수 없다
+        # matcher 는 첫 요청에만 붙임. 여러 요청에 같은 조건을 복제하면
+        # 어느 요청이 매칭됐는지 구분할 수 없음
         if index == 0:
             request["matchers-condition"] = condition
             request["matchers"] = matchers
@@ -246,7 +246,7 @@ def _matchers(raw: Any) -> list[dict[str, Any]]:
             raise BuildError(f"matchers[{index}].values", "값이 없습니다.")
 
         matcher: dict[str, Any] = {"type": kind}
-        # 드라이런이 matcher 별 결과를 특정하려면 이름이 필요하다 (M5 완료 조건)
+        # 드라이런이 matcher 별 결과를 특정하려면 이름이 필요 (M5 완료 조건)
         matcher["name"] = f"m{index}"
         if kind == "status":
             try:
@@ -276,7 +276,7 @@ def parse(text: str) -> dict[str, Any]:
     """YAML -> 폼 + 미지원 필드 목록.
 
     공식 템플릿에는 빌더 폼으로 표현 불가한 문법이 있다. 실패로 처리하지 않고
-    unsupported_fields 로 알린다 (M5 완료 조건, docs/05 자주 하는 실수)
+    unsupported_fields 로 알림 (M5 완료 조건, docs/05 자주 하는 실수)
     """
     try:
         document = yaml.safe_load(text)

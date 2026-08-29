@@ -1,7 +1,7 @@
 """보고서 생성 흐름 제어 (docs/04 §3).
 
 파이프라인: 조회 -> 집계 -> 환경 -> 매핑 -> 판정 -> 조치 수집 -> JSON 완성 -> 렌더
-[1]~[7] 은 결정론적이며 LLM(M9)은 [8] 에서 산문 필드만 덮는다
+[1]~[7] 은 결정론적이며 LLM(M9)은 [8] 에서 산문 필드만 덮음
 """
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ from app.services.scan_service import ScanError
 
 logger = logging.getLogger(__name__)
 
-# 사용자 쓰기 경로. 번들 디렉터리는 임시라 재시작 시 소실된다 (M10 [2])
+# 사용자 쓰기 경로. 번들 디렉터리는 임시라 재시작 시 소실됨 (M10 [2])
 REPORT_DIR = settings.REPORTS_DIR
-# PDF 는 WebView 인쇄로 파생시킨다. 서버가 만들지 않는다 (절대규칙 4-1)
+# PDF 는 WebView 인쇄로 파생. 서버가 만들지 않음 (절대규칙 4-1)
 FORMATS = ("html", "json")
 PDF_NOTE = (
     "PDF 는 HTML 을 브라우저·앱에서 인쇄(Ctrl+P / Cmd+P)하여 'PDF 로 저장' 으로"
@@ -43,7 +43,7 @@ DEFAULT_OPTIONS = {
 def create(
     conn: sqlite3.Connection, scan_id: str, options: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    """보고서 생성. 실패해도 reports 행에 사유가 남는다"""
+    """보고서 생성. 실패해도 reports 행에 사유가 남음"""
     if scan_repo.get_scan(conn, scan_id) is None:
         raise ScanError("NOT_FOUND", "스캔을 찾을 수 없습니다.", status_code=404)
 
@@ -114,7 +114,7 @@ def get(conn: sqlite3.Connection, report_id: str) -> dict[str, Any]:
 def download(
     conn: sqlite3.Connection, report_id: str, fmt: str
 ) -> tuple[str, str, str]:
-    """(본문, 미디어 타입, 파일명). pdf 는 지원하지 않는다"""
+    """(본문, 미디어 타입, 파일명). pdf 는 지원하지 않음"""
     view = get(conn, report_id)
     if fmt == "pdf":
         raise ScanError(

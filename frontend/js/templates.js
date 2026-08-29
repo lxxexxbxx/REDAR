@@ -1,7 +1,7 @@
-/* 템플릿 화면. 폼은 GET /templates/schema 를 그려서 만든다.
+/* 템플릿 화면. 폼은 GET /templates/schema 를 그려서 생성
  *
- * 필드 정의를 프론트에 복제하지 않는다 - 백엔드에 필드가 추가되면 이 화면이
- * 자동으로 따라간다 (docs/00 §3). 그래서 렌더러는 타입별로만 분기한다 */
+ * 필드 정의를 프론트에 복제하지 않음 - 백엔드에 필드가 추가되면 이 화면이
+ * 자동으로 따라간다 (docs/00 §3). 그래서 렌더러는 타입별로만 분기 */
 import { api, ApiError } from "./api.js";
 import { esc, dash, toast } from "./ui.js";
 
@@ -335,7 +335,7 @@ function renderCheck(result) {
 }
 
 async function preview() {
-  // YAML 은 서버가 만든 것을 그대로 보여준다 (validate 응답에 포함)
+  // YAML 은 서버가 만든 것을 그대로 보여줌 (validate 응답에 포함)
   renderCheck(await api.validateTemplate({ form: collectForm() }));
 }
 
@@ -459,7 +459,7 @@ export async function handleTemplateClick(target) {
   if (remove) {
     const group = remove.closest("[data-group]");
     const container = group.parentElement;
-    // 최소 1개는 남긴다. 스키마의 min_items 를 화면에서도 지킨다
+    // 최소 1개는 남김. 스키마의 min_items 를 화면에서도 지킴
     if (container.children.length > 1) group.remove();
     else toast("최소 1개는 필요합니다", "err");
     return true;

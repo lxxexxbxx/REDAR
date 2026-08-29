@@ -28,7 +28,7 @@ def _as_address(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | No
 def host_allowed(host: str, allowlist: Sequence[str]) -> bool:
     """호스트 단독 판정. 포트는 무관.
 
-    호스트명은 정확 일치만. DNS 로 IP 를 얻어 CIDR 대조하는 방식은 쓰지 않음.
+    호스트명은 정확 일치만. DNS 로 IP 를 얻어 CIDR 대조하는 방식은 쓰지 않음
     이름 해석 결과에 따라 허용 범위가 바뀌고 조회 자체가 아웃바운드 통신
     """
     if not host or not allowlist:

@@ -1,7 +1,7 @@
 """M5 완료 조건 검증 (IMPLEMENTATION_BRIEF.md M5).
 
-nuclei 는 실행하지 않는다. 문법 검증은 미설치 시 건너뜀으로 보고되어야 하고,
-드라이런은 JSONL 을 돌려주는 러너를 주입한다
+nuclei 는 실행하지 않음. 문법 검증은 미설치 시 건너뜀으로 보고되어야 하고,
+드라이런은 JSONL 을 돌려주는 러너를 주입함
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from app.services import template_validator as validator
 from app.services.scan_service import ScanError
 
 VALID_FORM = {
-    # author 는 nuclei 필수 필드다. 없으면 템플릿 로드 자체가 실패한다
+    # author 는 nuclei 필수 필드다. 없으면 템플릿 로드 자체가 실패함
     "info": {"id": "demo-rce", "name": "Demo RCE", "severity": "critical",
              "author": "redred", "tags": ["wordpress", "rce"]},
     "classification": {"cve_id": "CVE-2026-63030", "cwe_id": "CWE-94",
@@ -78,7 +78,7 @@ workflows:
 
 @pytest.fixture
 def custom_dir(tmp_path, monkeypatch):
-    """템플릿 쓰기를 임시 디렉터리로 격리. 저장소 templates/ 를 건드리지 않는다"""
+    """템플릿 쓰기를 임시 디렉터리로 격리. 저장소 templates/ 를 건드리지 않음"""
     target = tmp_path / "custom"
     target.mkdir()
     monkeypatch.setattr("app.config.settings.CUSTOM_DIR", target, raising=False)
@@ -109,8 +109,8 @@ def test_form_builds_valid_yaml_and_passes_policy():
     result = validator.validate(text)
     assert result["policy"]["valid"] is True
     assert result["policy"]["errors"] == []
-    # nuclei 가 있으면 실제 문법 검증을 통과하고, 없으면 건너뜀으로 보고한다.
-    # 어느 쪽이든 '실패' 는 아니다
+    # nuclei 가 있으면 실제 문법 검증을 통과하고, 없으면 건너뜀으로 보고함
+    # 어느 쪽이든 '실패' 는 아님
     assert result["syntax"]["valid"] in (True, None)
     if result["syntax"]["valid"] is None:
         assert result["syntax"]["skipped"] is True
@@ -125,7 +125,7 @@ def test_round_trip_is_lossless():
 
 
 def test_matchers_get_names_for_dryrun_attribution():
-    """드라이런이 matcher 별 결과를 특정하려면 이름이 필요하다"""
+    """드라이런이 matcher 별 결과를 특정하려면 이름이 필요"""
     document = yaml.safe_load(builder.build(VALID_FORM))
     names = [m["name"] for m in document["http"][0]["matchers"]]
     assert names == ["m0", "m1"]
@@ -197,7 +197,7 @@ def test_missing_matchers_rejected():
 # ─────────────────────────────────────────── 공식 템플릿 파싱 (완료 조건 2)
 
 def test_official_template_parses_with_unsupported_fields():
-    """미지원 문법은 예외가 아니라 unsupported_fields 로 반환된다"""
+    """미지원 문법은 예외가 아니라 unsupported_fields 로 반환됨"""
     parsed = builder.parse(OFFICIAL_YAML)
     unsupported = parsed["unsupported_fields"]
 
@@ -207,7 +207,7 @@ def test_official_template_parses_with_unsupported_fields():
     assert any("extractors" in f for f in unsupported)
     assert any("binary" in f for f in unsupported)
 
-    # 나머지는 폼에 채워져 있어야 한다
+    # 나머지는 폼에 채워져 있어야 함
     form = parsed["form"]
     assert form["info"]["id"] == "CVE-2026-33017"
     assert form["info"]["severity"] == "critical"

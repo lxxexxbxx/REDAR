@@ -1,8 +1,8 @@
 """수집기 프로토콜 · 레지스트리 · HTTP 프로브 (docs/01 §4.1).
 
 절대 규칙 (IMPLEMENTATION_BRIEF M4)
-  1. 읽기 전용. 대상 상태를 변경하는 요청을 보내지 않는다 -> GET/HEAD 만 허용
-  2. 수집기 실패는 예외를 전파하지 않는다. collectors_failed 에 기록하고 계속
+  1. 읽기 전용. 대상 상태를 변경하는 요청을 보내지 않음 -> GET/HEAD 만 허용
+  2. 수집기 실패는 예외를 전파하지 않음. collectors_failed 에 기록하고 계속
   3. 확신할 수 없으면 version=None + confidence=low. 추정값의 확정 표기 금지
   4. 타임아웃 필수
 """
@@ -24,7 +24,7 @@ from app.domain.enums import Confidence
 
 logger = logging.getLogger(__name__)
 
-# 응답 본문 상한. 대상 부하와 메모리 모두 통제. 버전 표기는 앞부분에 있다
+# 응답 본문 상한. 대상 부하와 메모리 모두 통제. 버전 표기는 앞부분에 있음
 _MAX_BODY_BYTES = 256 * 1024
 _ALLOWED_METHODS = frozenset({"GET", "HEAD"})
 
@@ -79,7 +79,7 @@ class ExposureFinding:
 
 @dataclass
 class CollectResult:
-    """수집기 1개의 산출물. 비어 있어도 실패가 아니다"""
+    """수집기 1개의 산출물. 비어 있어도 실패가 아님"""
 
     web_server: StackFinding | None = None
     language: StackFinding | None = None
@@ -97,7 +97,7 @@ class TargetContext:
     port: int | None
     timeout_sec: int = 5
     http: Callable[..., Response] | None = None
-    # 앞선 수집기 결과. applicable() 이 상위 판단을 참조한다 (docs/01 §4.1)
+    # 앞선 수집기 결과. applicable() 이 상위 판단을 참조 (docs/01 §4.1)
     collected: dict[str, CollectResult] = field(default_factory=dict)
 
     @property
@@ -140,7 +140,7 @@ class Collector(Protocol):
 
 
 def fetch_url(url: str, *, method: str = "GET", timeout: int = 5) -> Response:
-    """HTTP 요청 1건. 실패를 예외로 올리지 않고 Response.error 로 돌려준다.
+    """HTTP 요청 1건. 실패를 예외로 올리지 않고 Response.error 로 돌려줌
 
     GET/HEAD 만 허용. 대상 상태를 바꾸는 메서드는 코드 수준에서 차단 (M4 규칙 1)
     """
@@ -160,7 +160,7 @@ def fetch_url(url: str, *, method: str = "GET", timeout: int = 5) -> Response:
                 url=resp.url,
             )
     except urllib.error.HTTPError as exc:
-        # 404·403 도 판단 근거다. 오류가 아니라 응답으로 취급
+        # 404·403 도 판단 근거. 오류가 아니라 응답으로 취급
         body = b""
         try:
             body = exc.read(_MAX_BODY_BYTES)
@@ -177,9 +177,9 @@ def fetch_url(url: str, *, method: str = "GET", timeout: int = 5) -> Response:
 
 
 def registry() -> list[Collector]:
-    """collectors/ 안의 모듈에서 COLLECTOR 를 수집한다.
+    """collectors/ 안의 모듈에서 COLLECTOR 를 수집함
 
-    파일 추가만으로 등록되어야 한다 (M4 완료 조건). 등록표를 따로 두면 누락이 생긴다
+    파일 추가만으로 등록되어야 한다 (M4 완료 조건). 등록표를 따로 두면 누락이 생김
     """
     package = importlib.import_module(__package__)
     found: list[Collector] = []

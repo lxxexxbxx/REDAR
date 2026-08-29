@@ -1,9 +1,9 @@
 """템플릿 검증 2단계 (docs/00 §3).
 
-  1) 문법  -> nuclei -validate 에 위임. 재구현하지 않는다 (docs/05 §5.1 규약 6)
+  1) 문법  -> nuclei -validate 에 위임. 재구현하지 않음 (docs/05 §5.1 규약 6)
   2) 정책  -> 우리 구현. 필수 필드·ID 형식·느슨한 matcher 경고
 
-nuclei 미설치는 검증 실패가 아니다. 문법 단계를 건너뛰었다고 알린다 (절대규칙 8)
+nuclei 미설치는 검증 실패가 아님. 문법 단계를 건너뛰었다고 알림 (절대규칙 8)
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from app.services import template_builder as builder
 
 logger = logging.getLogger(__name__)
 
-# 첫 실행은 nuclei 가 설정 디렉터리를 만드느라 20 초를 넘긴다.
+# 첫 실행은 nuclei 가 설정 디렉터리를 만드느라 20 초를 넘김
 # 이후 호출은 0.2 초 수준 (실측)
 _SYNTAX_TIMEOUT_SEC = 60
 
@@ -37,7 +37,7 @@ def validate(yaml_text: str) -> dict[str, Any]:
     syntax = check_syntax(yaml_text)
     policy = check_policy(yaml_text)
     return {
-        # 문법 단계를 건너뛴 경우(None)는 실패로 보지 않는다
+        # 문법 단계를 건너뛴 경우(None)는 실패로 보지 않음
         "valid": policy["valid"] and syntax["valid"] is not False,
         "syntax": syntax,
         "policy": policy,
@@ -62,8 +62,8 @@ def check_syntax(yaml_text: str) -> dict[str, Any]:
                 [binary, "-validate", "-t", str(path), "-duc", "-silent"],
                 capture_output=True, text=True, timeout=_SYNTAX_TIMEOUT_SEC,
                 encoding="utf-8", errors="replace",
-                # 대상 인자가 없으면 nuclei 가 stdin 을 읽으려 대기한다.
-                # 파이프로 실행되면 무한 대기가 된다
+                # 대상 인자가 없으면 nuclei 가 stdin 을 읽으려 대기함
+                # 파이프로 실행되면 무한 대기가 됨
                 stdin=subprocess.DEVNULL,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
@@ -77,7 +77,7 @@ def check_syntax(yaml_text: str) -> dict[str, Any]:
     return {
         "valid": proc.returncode == 0,
         "checker": "nuclei -validate",
-        # 로그·응답에 템플릿 본문을 되돌리지 않는다. nuclei 메시지만 전달
+        # 로그·응답에 템플릿 본문을 되돌리지 않음. nuclei 메시지만 전달
         "message": message[:600] or None,
     }
 
@@ -169,7 +169,7 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
 
 
 def _is_loose(matchers: list[Any]) -> bool:
-    """status 만으로 판정하는 matcher 구성. 정상 페이지도 매칭된다"""
+    """status 만으로 판정하는 matcher 구성. 정상 페이지도 매칭됨"""
     kinds = {
         str(m.get("type") or "").strip()
         for m in matchers if isinstance(m, dict)

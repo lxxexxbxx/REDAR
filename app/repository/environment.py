@@ -46,7 +46,7 @@ def save_profile(
     collectors_run: list[str],
     collectors_failed: list[str],
 ) -> str:
-    """프로필 1건 저장. 재수집 시 같은 (scan_id, target_host) 를 갱신한다"""
+    """프로필 1건 저장. 재수집 시 같은 (scan_id, target_host) 를 갱신"""
     values: list[Any] = [profile_id, scan_id, target_host]
     for field in _STACK_FIELDS:
         item = stack.get(field) or {}
@@ -64,7 +64,7 @@ def save_profile(
     ).fetchone()
     stored_id = row["profile_id"]
 
-    # 재수집이면 이전 행을 지우고 다시 넣는다. UNIQUE 가 있어도 사라진 항목이 남는다
+    # 재수집이면 이전 행을 지우고 다시 넣음. UNIQUE 가 있어도 사라진 항목이 남음
     conn.execute("DELETE FROM env_components WHERE profile_id = ?", (stored_id,))
     conn.execute("DELETE FROM env_exposures WHERE profile_id = ?", (stored_id,))
 
@@ -165,7 +165,7 @@ def advisory_templates(
 def local_template_count(conn: sqlite3.Connection) -> int:
     """로컬 템플릿 인벤토리 크기. selection_basis.total_available 의 분모.
 
-    M5 의 템플릿 관리가 채운다. 그전에는 0 이며 선별 근거에 0 으로 남는다
+    M5 의 템플릿 관리가 채움. 그전에는 0 이며 선별 근거에 0 으로 남음
     """
     return conn.execute("SELECT COUNT(*) FROM templates").fetchone()[0]
 
@@ -173,7 +173,7 @@ def local_template_count(conn: sqlite3.Connection) -> int:
 def templates_for_ids(
     conn: sqlite3.Connection, template_ids: list[str]
 ) -> list[str]:
-    """인벤토리에 실제로 존재하는 템플릿만 남긴다. 없으면 빈 목록"""
+    """인벤토리에 실제로 존재하는 템플릿만 남김. 없으면 빈 목록"""
     if not template_ids:
         return []
     marks = ", ".join("?" * len(template_ids))

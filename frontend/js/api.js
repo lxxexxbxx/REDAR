@@ -101,7 +101,7 @@ export const api = {
   deleteReport: (id) =>
     request(`/reports/${encodeURIComponent(id)}`, { method: "DELETE" }),
   downloadReport: async (id, format) => {
-    // 파일 본문은 JSON 이 아니라 원문이다. request() 를 쓰지 않고 직접 읽는다
+    // 파일 본문은 JSON 이 아니라 원문이다. request() 를 쓰지 않고 직접 읽음
     const response = await fetch(
       `${BASE}/reports/${encodeURIComponent(id)}/download?format=${format}`
     );

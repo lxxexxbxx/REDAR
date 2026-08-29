@@ -1,8 +1,8 @@
 """의존성 관리 검증.
 
-자동 설치는 외부 통신 지점 4번이다. 기본 비활성 · 오프라인 차단 ·
+자동 설치는 외부 통신 지점 4번. 기본 비활성 · 오프라인 차단 ·
 요청마다 명시 동의라는 세 겹의 통제가 실제로 동작해야 한다 (docs/01 §7.1).
-반입·경로 지정은 통신이 없으므로 폐쇄망에서도 동작해야 한다
+반입·경로 지정은 통신이 없으므로 폐쇄망에서도 동작해야 함
 """
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def test_install_blocked_when_endpoint_disabled(conn, clean_settings):
 
 
 def test_install_requires_explicit_confirmation(conn, clean_settings):
-    """설정만으로 자동 실행되지 않는다. 요청마다 사용자가 동의한다"""
+    """설정만으로 자동 실행되지 않음. 요청마다 사용자가 동의"""
     settings_repo.put_many(conn, {
         "offline_mode": False, "ext_dependency_install_enabled": True,
     })
@@ -80,7 +80,7 @@ def test_install_requires_explicit_confirmation(conn, clean_settings):
 
 
 def test_confirmation_checked_before_network(conn, clean_settings, monkeypatch):
-    """동의 없이는 네트워크에 닿기 전에 멈춘다"""
+    """동의 없이는 네트워크에 닿기 전에 멈춤"""
     called: list[str] = []
     monkeypatch.setattr(
         dependency_service, "go_asset", lambda: called.append("net") or ("x", "")
@@ -117,7 +117,7 @@ def test_unknown_dependency_rejected(conn):
 # ─────────────────────────────── 반입 (통신 없음. 폐쇄망 경로)
 
 def test_import_works_offline(conn, home, fake_binary, clean_settings):
-    """오프라인에서도 반입은 동작해야 한다. 폐쇄망의 유일한 경로다"""
+    """오프라인에서도 반입은 동작해야 한다. 폐쇄망의 유일한 경로"""
     settings_repo.put_many(conn, {"offline_mode": True})
     result = dependency_service.import_binary(
         conn, "nuclei", fake_binary.read_bytes()
@@ -136,7 +136,7 @@ def test_imported_binary_is_executable(conn, home, fake_binary, clean_settings):
 
 
 def test_unrunnable_import_is_rejected_and_rolled_back(conn, home, clean_settings):
-    """실행되지 않는 파일을 등록한 채로 두면 스캔이 조용히 실패한다"""
+    """실행되지 않는 파일을 등록한 채로 두면 스캔이 조용히 실패"""
     with pytest.raises(ScanError, match="실행할 수 없습니다"):
         dependency_service.import_binary(conn, "nuclei", b"not-a-binary")
     assert not (home / "bin" / "nuclei").exists()
@@ -155,7 +155,7 @@ def test_set_path_pins_specific_binary(conn, home, fake_binary, clean_settings):
     entry = next(i for i in result["items"] if i["key"] == "nuclei")
     assert entry["path"] == str(fake_binary)
     assert entry["source"] == "configured"
-    # 지정 경로가 자동 탐색을 이긴다
+    # 지정 경로가 자동 탐색을 이김
     assert settings.nuclei_bin() == str(fake_binary)
 
 
@@ -221,7 +221,7 @@ def test_dependency_endpoints(db_path, monkeypatch, home, fake_binary):
         assert listed.status_code == 200
         assert listed.json()["items"][0]["key"] == "nuclei"
 
-        # 동의 없는 설치 요청은 거부된다
+        # 동의 없는 설치 요청은 거부됨
         denied = client.post(f"{API}/dependencies/nuclei/install", json={})
         assert denied.status_code in (400, 403)
 
@@ -251,7 +251,7 @@ def test_reported_path_matches_execution_path(conn, home, fake_binary,
 
 def test_missing_override_is_not_reported_available(conn, home, monkeypatch,
                                                     clean_settings):
-    """지정만 되어 있고 실제로 없는 경로를 '사용 가능' 으로 보고하지 않는다"""
+    """지정만 되어 있고 실제로 없는 경로를 '사용 가능' 으로 보고하지 않음"""
     monkeypatch.setenv("REDAR_NUCLEI", "/nonexistent/nuclei")
     entry = next(
         i for i in dependency_service.status(conn)["items"] if i["key"] == "nuclei"

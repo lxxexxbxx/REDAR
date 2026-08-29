@@ -1,10 +1,10 @@
 """식별자 마스킹 · 역치환 (docs/01 §7.4).
 
-호스트·IP·경로를 TARGET_1 형태로 치환해 전송하고, 응답에서 되돌린다.
-치환하지 않으면 내부 호스트명과 경로가 외부 API 로 나간다
+호스트·IP·경로를 TARGET_1 형태로 치환해 전송하고, 응답에서 되돌림
+치환하지 않으면 내부 호스트명과 경로가 외부 API 로 나감
 
-응답 본문·추출값은 애초에 컨텍스트에 넣지 않는다. 마스킹은 2차 방어이며
-1차 방어는 화이트리스트다 (narrative_service.build_context)
+응답 본문·추출값은 애초에 컨텍스트에 넣지 않음. 마스킹은 2차 방어이며
+1차 방어는 화이트리스트 (narrative_service.build_context)
 """
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-# 마스킹 대상. 경로는 호스트보다 먼저 치환한다 - URL 안의 호스트가 먼저 바뀌면
-# 경로 패턴이 깨진다
+# 마스킹 대상. 경로는 호스트보다 먼저 치환 - URL 안의 호스트가 먼저 바뀌면
+# 경로 패턴이 깨짐
 _URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.I)
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _HOSTNAME_RE = re.compile(
@@ -26,7 +26,7 @@ _PREFIX = {"target": "TARGET", "path": "PATH"}
 
 @dataclass
 class Masker:
-    """치환 사전을 들고 있는 1회용 객체. 보고서 1건 안에서 일관된 번호를 쓴다"""
+    """치환 사전을 들고 있는 1회용 객체. 보고서 1건 안에서 일관된 번호를 사용"""
 
     mapping: dict[str, str] = field(default_factory=dict)
     _counters: dict[str, int] = field(default_factory=dict)
@@ -61,7 +61,7 @@ class Masker:
         return value
 
     def unmask(self, text: str | None) -> str:
-        """응답 역치환. 긴 토큰을 먼저 되돌린다 - TARGET_1 이 TARGET_10 을 깨뜨린다"""
+        """응답 역치환. 긴 토큰을 먼저 되돌림 - TARGET_1 이 TARGET_10 을 깨뜨림"""
         if not text:
             return ""
         out = text

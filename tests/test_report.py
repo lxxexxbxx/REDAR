@@ -1,6 +1,6 @@
 """M7 완료 조건 검증 (IMPLEMENTATION_BRIEF.md M7, docs/04 §4).
 
-TC-R05 와 TC-R07 이 "대상과 무관하게 동일한 형식" 요구사항의 유일한 검증 수단이다
+TC-R05 와 TC-R07 이 "대상과 무관하게 동일한 형식" 요구사항의 유일한 검증 수단임
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from app.services.scan_service import ScanError
 
 MOCK_CSV = Path(__file__).parent / "fixtures" / "guide_items_mock.csv"
 
-# 보고서 골격. 이 목록이 바뀌면 대상마다 목차가 달라진다는 뜻이다
+# 보고서 골격. 이 목록이 바뀌면 대상마다 목차가 달라진다는 뜻임
 EXPECTED_SECTIONS = [
     "Part A — 진단 결과",
     "A-1. 개요 및 집계",
@@ -148,7 +148,7 @@ def test_tc_r04_no_guide_no_llm(conn, scan_with_findings):
     assert report["executive_summary"]["total_findings"] == 2
     assert report["guide_mapping"]["available"] is False
     assert report["guide_mapping"]["unavailable_note"]
-    # 매핑 자체는 남아 있다. 본문만 없다
+    # 매핑 자체는 남아 있다. 본문만 없음
     assert report["guide_mapping"]["summary"]["vulnerable"] >= 1
 
     html = renderer.render_html(report)
@@ -170,7 +170,7 @@ def test_tc_r05_zero_findings_keeps_all_sections(conn, empty_scan):
     report = _report(conn, empty_scan)
     assert report["executive_summary"]["total_findings"] == 0
 
-    # 축은 0건이어도 전부 유지된다
+    # 축은 0건이어도 전부 유지됨
     assert len(report["findings_by_severity"]) == len(Severity)
     assert len(report["findings_by_vuln_type"]) == len(VulnType)
     assert all(g["count"] == 0 for g in report["findings_by_severity"])
@@ -219,7 +219,7 @@ def test_zero_and_nonzero_scans_share_toc(conn, empty_scan, scan_with_findings):
 # ─────────────────────────────── TC-R08 · R09 (가이드 원문)
 
 def test_tc_r08_part_b_severity_is_guide_original(conn, guide_loaded, scan_with_findings):
-    """Part B 중요도는 guide_items 원문 값. 탐지 심각도 환산값이 아니다"""
+    """Part B 중요도는 guide_items 원문 값. 탐지 심각도 환산값이 아님"""
     report = _report(conn, scan_with_findings)
     items = {i["item_code"]: i for i in report["guide_mapping"]["items"]}
 
@@ -283,7 +283,7 @@ def test_tc_r10_coverage_notice_in_part_b(conn, guide_loaded, scan_with_findings
 # ─────────────────────────────── TC-R11 (fixed_version 결측)
 
 def test_tc_r11_missing_fixed_version_has_replacement_text(conn, scan_with_findings):
-    """빈칸은 검토자에게 데이터 누락으로 읽힌다. 대체 문구를 넣는다"""
+    """빈칸은 검토자에게 데이터 누락으로 읽힘. 대체 문구를 넣음"""
     conn.execute(
         "INSERT OR REPLACE INTO environment_profiles (profile_id, scan_id,"
         " target_host) VALUES ('env_r', 'scn_rpt', 'wp.local')"
@@ -320,7 +320,7 @@ def test_tc_r12_html_is_self_contained(conn, guide_loaded, scan_with_findings):
 
 
 def test_font_weights_registered_separately():
-    """400 과 700 을 각각 등록한다. 하나만 등록하면 fake bold 가 된다"""
+    """400 과 700 을 각각 등록. 하나만 등록하면 fake bold 가 된다"""
     faces = renderer.font_faces()
     assert "font-weight:400" in faces
     assert "font-weight:700" in faces
@@ -328,7 +328,7 @@ def test_font_weights_registered_separately():
 
 
 def test_font_base64_is_cached():
-    """보고서마다 재인코딩하면 1.1MB 를 매번 인코딩한다"""
+    """보고서마다 재인코딩하면 1.1MB 를 매번 인코딩"""
     renderer.font_faces.cache_clear()
     first = renderer.font_faces()
     assert renderer.font_faces() is first
@@ -338,7 +338,7 @@ def test_font_base64_is_cached():
 # ─────────────────────────────── PDF · 파일명 · 옵션
 
 def test_pdf_download_is_rejected_with_guidance(conn, scan_with_findings):
-    """PDF 는 WebView 인쇄로 파생시킨다. 서버가 만들지 않는다 (절대규칙 4-1)"""
+    """PDF 는 WebView 인쇄로 파생. 서버가 만들지 않음 (절대규칙 4-1)"""
     view = report_service.create(conn, scan_with_findings, {})
     with pytest.raises(ScanError) as exc:
         report_service.download(conn, view["report_id"], "pdf")
@@ -396,7 +396,7 @@ def test_false_positive_excluded_from_counts_but_listed(conn, scan_with_findings
 
 
 def test_report_json_is_self_sufficient(conn, guide_loaded, scan_with_findings):
-    """렌더러가 JSON 밖 DB 를 조회하면 GUI 미리보기와 파일이 갈라진다"""
+    """렌더러가 JSON 밖 DB 를 조회하면 GUI 미리보기와 파일이 갈라짐"""
     report = _report(conn, scan_with_findings)
     saved = json.loads(builder.dumps(report))
     html = renderer.render_html(saved)         # DB 접근 없이 렌더
@@ -429,7 +429,7 @@ def test_coverage_values_recorded_on_report_row(conn, guide_loaded, scan_with_fi
 
 
 def test_priority_score_comes_from_sql(conn, guide_loaded, scan_with_findings):
-    """조치 우선순위는 SQL 이 확정한다. LLM 미개입"""
+    """조치 우선순위는 SQL 이 확정. LLM 미개입"""
     report = _report(conn, scan_with_findings)
     scores = [item["priority_score"] for item in report["remediation"]]
     assert scores == sorted(scores, reverse=True)

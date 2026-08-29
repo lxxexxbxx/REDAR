@@ -1,6 +1,6 @@
 """M9 완료 조건 검증 (IMPLEMENTATION_BRIEF.md M9).
 
-LLM 없이 보고서가 완성품이어야 한다. 이 파일은 '없어도 된다' 를 증명한다
+LLM 없이 보고서가 완성품이어야 한다. 이 파일은 '없어도 된다' 를 증명함
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from tests.test_report import MOCK_CSV, _make_scan
 
 
 class FakeProvider:
-    """호출 기록을 남기는 Provider. 실제 통신하지 않는다"""
+    """호출 기록을 남기는 Provider. 실제 통신하지 않음"""
 
     name = "monogpt"
     model = "fake-1"
@@ -115,7 +115,7 @@ def test_exception_does_not_propagate_and_counts_fallback(conn, scan, llm_on,
     )
     report = narrative_service.apply(conn, _report(conn, scan))
 
-    # 예외가 올라오지 않고 템플릿 문장이 남는다
+    # 예외가 올라오지 않고 템플릿 문장이 남음
     assert report["executive_summary"]["narrative_generated_by"] == "template"
     assert report["meta"]["llm"]["fallback_count"] >= 1
 
@@ -293,7 +293,7 @@ def test_llm_response_is_unmasked(conn, scan, llm_on, monkeypatch):
     ]
     assert expanded, "설명 확장이 있어야 한다"
     joined = " ".join(expanded)
-    # 발급한 토큰은 역치환된다. 발급하지 않은 토큰은 그대로 남는 것이 정상
+    # 발급한 토큰은 역치환됨. 발급하지 않은 토큰은 그대로 남는 것이 정상
     assert "TARGET_" not in joined
     assert "wp.local" in joined
 
@@ -350,7 +350,7 @@ def test_remediation_keeps_original_alongside_llm_text(conn, scan, llm_on,
 
 def test_llm_does_not_invent_remediation_when_no_original(conn, scan, llm_on,
                                                           monkeypatch):
-    """원문이 없는 항목은 LLM 에 넘기지 않는다. 가짜 조치 방법 생성 방지"""
+    """원문이 없는 항목은 LLM 에 넘기지 않음. 가짜 조치 방법 생성 방지"""
     conn.execute("UPDATE guide_items SET remediation = NULL")
     conn.commit()
     provider = FakeProvider()
@@ -388,7 +388,7 @@ def test_llm_does_not_change_toc(conn, scan, llm_on, monkeypatch):
 
 
 def test_llm_does_not_change_verdicts(conn, scan, llm_on, monkeypatch):
-    """판정은 LLM 이 건드리지 않는다 (절대규칙 2)"""
+    """판정은 LLM 이 건드리지 않음 (절대규칙 2)"""
     before = _report(conn, scan)["guide_mapping"]["summary"]
     monkeypatch.setattr(
         "app.services.narrative_service.get_provider", lambda *a, **k: FakeProvider()

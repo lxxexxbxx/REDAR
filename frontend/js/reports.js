@@ -1,7 +1,7 @@
 /* 보고서 화면 + 스캔 비교.
  *
- * 미리보기는 Report JSON 을 그대로 쓴다. 화면이 DB 를 다시 조회하면 파일 산출물과
- * 갈라진다 (docs/04 §3). PDF 는 브라우저 인쇄로 파생시킨다 (절대규칙 4-1) */
+ * 미리보기는 Report JSON 을 그대로 사용. 화면이 DB 를 다시 조회하면 파일 산출물과
+ * 갈라짐 (docs/04 §3). PDF 는 브라우저 인쇄로 파생 (절대규칙 4-1) */
 import { api } from "./api.js";
 import { esc, dash, fmtTime, toast, SEVERITY_LABEL } from "./ui.js";
 

@@ -4,23 +4,23 @@
 KISA 상세가이드 PDF -> guide_items 임포트 CSV
 
 docs/03_GUIDE_DATA.md §1.2 B안 구현.
-가이드 원문은 저장소에 포함하지 않으며, 사용자가 보유한 PDF 를 이 스크립트로 변환한다.
+가이드 원문은 저장소에 포함하지 않으며, 사용자가 보유한 PDF 를 이 스크립트로 변환함
 
   pip install pymupdf pdfplumber
   pdftotext -layout <가이드>.pdf full.txt        # 선택. 명령어 들여쓰기 보존용
   python3 tools/extract_guide.py --pdf <가이드>.pdf \
       --csv data/guide_items_2026.csv --imgdir data/guide_images
 
-산출 CSV 를 POST /api/v1/guide/import 에 업로드한다.
+산출 CSV 를 POST /api/v1/guide/import 에 업로드함
 
 파싱 방식 메모
-  - 항목 경계: 표 괘선 중 "라벨 열을 가로지르는 선"만 행 경계로 인정한다.
-    값 열에만 걸친 선은 셀 내부 구분선(양호/취약)이므로 제외해야 한다.
-  - HWP 표는 라벨이 셀 세로 중앙정렬이라 줄 순서 파싱이 어긋난다. 좌표 기반 필수.
-  - 10장 Web Application 은 CI/SI 등 하이픈 없는 별도 체계이며 원문에 CC 중복이 있다.
-    PK 는 WA-nn 으로 정규화하고 원문 약어는 item_code_raw 에 보존한다.
+  - 항목 경계: 표 괘선 중 "라벨 열을 가로지르는 선"만 행 경계로 인정함
+    값 열에만 걸친 선은 셀 내부 구분선(양호/취약)이므로 제외해야 함
+  - HWP 표는 라벨이 셀 세로 중앙정렬이라 줄 순서 파싱이 어긋남. 좌표 기반 필수.
+  - 10장 Web Application 은 CI/SI 등 하이픈 없는 별도 체계이며 원문에 CC 중복이 있음
+    PK 는 WA-nn 으로 정규화하고 원문 약어는 item_code_raw 에 보존함
   - 원문 오타 (히)->하, (증)->중 정규화.
-  - M-01~M-04(이동통신)는 대상/판단기준/조치방법이 없고 상세 설명만 있다. 원문 구조다.
+  - M-01~M-04(이동통신)는 대상/판단기준/조치방법이 없고 상세 설명만 있다. 원문 구조
 """
 import os, re, io, json, sqlite3, argparse, hashlib
 import collections
@@ -30,7 +30,7 @@ import pymupdf
 import pdfplumber
 
 CODE_RE = re.compile(r'^([A-Z]{1,3})-(\d{1,3})$')
-# 그림 캡션. 원문이 "[ 실행 창 ]" 형태로 이미지 바로 아래에 둔다
+# 그림 캡션. 원문이 "[ 실행 창 ]" 형태로 이미지 바로 아래에 둠
 IMGCAP_RE = re.compile(r'^\[\s*.{1,60}\s*\]$')
 RISK_RE = re.compile(r'^\(([가-힣])\)$')
 RISK_FIX = {'히': '하', '증': '중', '중': '중', '상': '상', '하': '하'}
@@ -80,10 +80,10 @@ WA_RE = re.compile(r'^[A-Z]{2,4}$')
 def template_xrefs(doc, threshold=3):
     """페이지 장식으로 판정되는 이미지 xref 집합.
 
-    page.get_images() 는 머리말 띠·장 표지 같은 페이지 템플릿 그래픽까지 반환한다.
+    page.get_images() 는 머리말 띠·장 표지 같은 페이지 템플릿 그래픽까지 반환함
     2026판에서는 xref 69/77(595x75 상단 띠)이 각각 429/424 페이지에 등장하며,
-    이를 거르지 않으면 추출물의 69%가 장식 이미지가 된다.
-    같은 이미지가 여러 페이지에 반복되면 콘텐츠가 아니라 템플릿이다.
+    이를 거르지 않으면 추출물의 69%가 장식 이미지가 됨
+    같은 이미지가 여러 페이지에 반복되면 콘텐츠가 아니라 템플릿임
     """
     c = collections.Counter()
     for page in doc:

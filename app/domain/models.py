@@ -357,7 +357,7 @@ class Appendix(Strict):
 
 
 class Report(Strict):
-    """렌더링 이전에 완결된 보고서. 렌더러는 이 JSON 외 DB 조회 없음.
+    """렌더링 이전에 완결된 보고서. 렌더러는 이 JSON 외 DB 조회 없음
 
     unmapped_findings / false_positives 누락 시 Part A 와 Part B 건수 불일치 발생.
     0건이어도 빈 배열로 존재

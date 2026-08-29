@@ -5,16 +5,16 @@ data/vuln_type_rules.csv 의 분류 정확도 실측
 
   python3 tools/measure_vuln_type.py --templates ~/nuclei-templates
 
-other 비율이 5% 를 넘으면 규칙 보강 대상이다.
-규칙을 고치기 전에 반드시 이 값을 먼저 본다. 감으로 고치면 오분류가 늘어난다.
+other 비율이 5% 를 넘으면 규칙 보강 대상임
+규칙을 고치기 전에 반드시 이 값을 먼저 봄. 감으로 고치면 오분류가 늘어남
 """
 import argparse, csv, collections, os, re, sys
 import yaml
 
 CWE_RE = re.compile(r'CWE-\d+', re.I)
 
-# 자산 식별 전용 템플릿(플러그인·테마 탐지). 취약점이 아니므로 분류 대상에서 뺀다.
-# 포함하면 전부 other 로 잡혀 other 비율이 실제보다 크게 나온다.
+# 자산 식별 전용 템플릿(플러그인·테마 탐지). 취약점이 아니므로 분류 대상에서 뺌
+# 포함하면 전부 other 로 잡혀 other 비율이 실제보다 크게 나옴.
 DETECT_PATHS = ('/http/technologies/',)
 DETECT_ID = ('-detect', '-detection')
 

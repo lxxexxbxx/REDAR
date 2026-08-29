@@ -1,7 +1,7 @@
 """템플릿 인벤토리. SQL 전용 (docs/02 §4).
 
-templates 테이블은 로컬에 있는 템플릿의 색인이다. YAML 본문은 파일에 있고
-DB 에는 메타데이터만 둔다 - 본문을 DB 에 넣으면 nuclei 가 읽을 파일이 따로 필요해진다
+templates 테이블은 로컬에 있는 템플릿의 색인. YAML 본문은 파일에 있고
+DB 에는 메타데이터만 둠 - 본문을 DB 에 넣으면 nuclei 가 읽을 파일이 따로 필요해짐
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ ON CONFLICT (template_id) DO UPDATE SET
 """
 
 
-# NOT NULL 컬럼의 기본값. 부분 행을 넣어도 스키마 기본값과 같은 결과가 되게 한다
+# NOT NULL 컬럼의 기본값. 부분 행을 넣어도 스키마 기본값과 같은 결과가 되게 함
 _DEFAULTS = {"is_detection": 0}
 
 

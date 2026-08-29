@@ -1,10 +1,10 @@
 """LLM 서술 레이어 (docs/04 §5).
 
-완결된 Report JSON 의 산문 필드만 덮는다. 판정·구조·정렬에 개입하지 않는다.
-실패는 예외로 올리지 않고 템플릿 문장을 남긴다 (절대규칙 2)
+완결된 Report JSON 의 산문 필드만 덮음. 판정·구조·정렬에 개입하지 않음
+실패는 예외로 올리지 않고 템플릿 문장을 남김 (절대규칙 2)
 
-전송 데이터는 화이트리스트로 만든다. 응답 본문·추출값·자격증명은 컨텍스트에
-넣지 않으며, 호스트·경로는 마스킹 후 전송한다 (docs/01 §7.4)
+전송 데이터는 화이트리스트로 생성. 응답 본문·추출값·자격증명은 컨텍스트에
+넣지 않으며, 호스트·경로는 마스킹 후 전송 (docs/01 §7.4)
 """
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ def apply(conn: sqlite3.Connection, report: dict[str, Any]) -> dict[str, Any]:
 def _call(
     provider, masker: Masker | None, purpose: str, context: dict[str, Any]
 ) -> str | None:
-    """1회 호출. 예외를 상위로 올리지 않는다 (구현 규칙 1)"""
+    """1회 호출. 예외를 상위로 올리지 않음 (구현 규칙 1)"""
     if purpose not in PURPOSES:
         raise ValueError(f"허용되지 않은 purpose: {purpose}")
     payload = masker.mask_context(context) if masker else context
@@ -135,7 +135,7 @@ def _narrate_summary(provider, masker, budget, state, report) -> None:
 
 
 def _narrate_remediation(provider, masker, budget, state, report) -> None:
-    """상위 priority_score 항목만. 정렬은 SQL 이 이미 확정했다"""
+    """상위 priority_score 항목만. 정렬은 SQL 이 이미 확정함"""
     targets = [
         item for item in report["remediation"]
         if item.get("guide_remediation_original")
@@ -147,14 +147,14 @@ def _narrate_remediation(provider, masker, budget, state, report) -> None:
         text = _call(provider, masker, "remediation_rewrite", {
             "item_code": item["item_code"],
             "title": item["title"],
-            # 원문을 넘기고 다듬게 한다. 새 조치를 만들게 하지 않는다
+            # 원문을 넘기고 다듬게 한다. 새 조치를 만들게 하지 않음
             "guide_remediation_original": item["guide_remediation_original"],
             "finding_count": len(item["finding_ids"]),
         })
         if text is None:
             state["fallbacks"] += 1
             continue
-        # 원문 병기 필수. guide_remediation_original 은 그대로 유지된다 (절대규칙 9)
+        # 원문 병기 필수. guide_remediation_original 은 그대로 유지됨 (절대규칙 9)
         item["narrative"] = text
         item["narrative_generated_by"] = GENERATED_BY_LLM
         state["sections"].append(f"remediation[{index}].narrative")
@@ -188,7 +188,7 @@ def _narrate_descriptions(provider, masker, budget, state, report) -> None:
 
 
 def preview(conn: sqlite3.Connection, report: dict[str, Any]) -> dict[str, Any]:
-    """전송 데이터 미리보기 (docs/00 §7). 응답 본문은 포함되지 않는다"""
+    """전송 데이터 미리보기 (docs/00 §7). 응답 본문은 포함되지 않음"""
     raw = settings_repo.get_all(conn)
     masker = Masker() if settings_repo.as_bool(
         raw.get("llm_mask_identifiers"), default=True

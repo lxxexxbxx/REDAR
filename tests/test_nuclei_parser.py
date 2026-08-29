@@ -236,7 +236,7 @@ def test_build_command_contains_required_flags():
 
 
 def test_build_command_requires_binary_and_targets(monkeypatch):
-    # exe="" 는 falsy 라 settings.nuclei_bin() 로 넘어간다. 부재 조건을 직접 만든다
+    # exe="" 는 falsy 라 settings.nuclei_bin() 로 넘어간다. 부재 조건을 직접 생성
     monkeypatch.setattr(runner.settings, "nuclei_bin", lambda: None)
     with pytest.raises(RuntimeError):
         runner.build_command(runner.RunOptions(targets=["h"]), exe="")

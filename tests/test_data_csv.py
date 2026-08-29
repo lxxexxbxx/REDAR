@@ -1,6 +1,6 @@
-"""SQLite 초기 데이터는 data/*.csv 에서만 들어온다.
+"""SQLite 초기 데이터는 data/*.csv 에서만 들어옴
 
-코드·SQL 에 값을 두면 DB 의 값이 어디서 왔는지 추적할 수 없고 재적재 경로가 갈라진다
+코드·SQL 에 값을 두면 DB 의 값이 어디서 왔는지 추적할 수 없고 재적재 경로가 갈라짐
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from app.repository.db import session
 
 ROOT = settings.SCHEMA_PATH.parents[1]
 
-# schema_version 은 마이그레이션 장부이며 데이터가 아니다
+# schema_version 은 마이그레이션 장부이며 데이터가 아님
 _ALLOWED_SEED_TABLES = {"schema_version"}
 
 
@@ -45,7 +45,7 @@ def _fresh_db(tmp_path):
 
 
 def test_schema_sql_has_no_seed_data():
-    """스키마 파일에 초기 데이터를 두면 CSV 와 값이 갈라진다"""
+    """스키마 파일에 초기 데이터를 두면 CSV 와 값이 갈라짐"""
     sql = settings.SCHEMA_PATH.read_text(encoding="utf-8")
     tables = set(re.findall(r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+(\w+)", sql, re.I))
     assert tables <= _ALLOWED_SEED_TABLES, f"SQL 하드코딩 초기 데이터: {tables}"
@@ -90,7 +90,7 @@ def test_reload_is_idempotent(tmp_path):
 
 
 def test_unknown_column_is_rejected(tmp_path):
-    """오타 컬럼을 조용히 버리면 값이 누락된 채 적재가 성공한다"""
+    """오타 컬럼을 조용히 버리면 값이 누락된 채 적재가 성공"""
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     for load in _CSV_LOADS:
@@ -122,7 +122,7 @@ def test_note_column_is_allowed():
 
 
 def test_bundled_csv_passes_tool_validation(capsys):
-    """tools/build_data_csv.py 의 검증을 CI 에서 그대로 돌린다"""
+    """tools/build_data_csv.py 의 검증을 CI 에서 그대로 돌림"""
     _load_tool().validate(settings.DATA_DIR, None)
     assert "검증 통과" in capsys.readouterr().out
 
@@ -135,7 +135,7 @@ def test_vuln_type_values_are_enum_members():
 
 
 def test_external_endpoint_keys_are_code_controlled():
-    """통신 지점 목록은 코드가 통제한다. CSV 로 4번째 지점을 추가할 수 없어야 함 (절대규칙 5)"""
+    """통신 지점 목록은 코드가 통제. CSV 로 4번째 지점을 추가할 수 없어야 함 (절대규칙 5)"""
     assert settings_repo.EXTERNAL_ENDPOINT_KEYS == (
         "template_sync", "llm_api", "cve_lookup", "dependency_install",
     )
@@ -145,7 +145,7 @@ def test_external_endpoint_keys_are_code_controlled():
 
 
 def test_derived_csv_regenerates_without_hardcoded_values():
-    """도구가 매핑 값을 상수로 들고 있으면 CSV 와 코드 두 곳에 값이 생긴다"""
+    """도구가 매핑 값을 상수로 들고 있으면 CSV 와 코드 두 곳에 값이 생김"""
     source = (ROOT / "tools" / "build_data_csv.py").read_text(encoding="utf-8")
     for symbol in ("CWE_VT", "TAG_VT", "CWE_GUIDE", "EXPOSURE_GUIDE", "VT_GUIDE"):
         assert f"{symbol} = " not in source, f"{symbol} 하드코딩 잔존"
@@ -205,7 +205,7 @@ def test_import_guide_fills_items_images_and_fts(tmp_path):
     items, images = _write_guide(tmp_path)
     result = import_guide(items, images, db)
 
-    # 반환 형식은 docs/00 §6 의 POST /guide/import 응답과 동일하다
+    # 반환 형식은 docs/00 §6 의 POST /guide/import 응답과 동일
     assert result["imported"] is True
     assert (result["item_count"], result["image_count"]) == (2, 2)
     assert result["errors"] == []
@@ -216,7 +216,7 @@ def test_import_guide_fills_items_images_and_fts(tmp_path):
         assert status["imported"] is True
         assert status["item_count"] == 2
         assert status["version"] == "2026"
-        # FTS 는 트리거가 없어 임포터가 채운다. 누락 시 조용히 0건
+        # FTS 는 트리거가 없어 임포터가 채움. 누락 시 조용히 0건
         hit = conn.execute(
             "SELECT item_code FROM guide_items_fts WHERE guide_items_fts MATCH '사례'"
         ).fetchall()
@@ -264,7 +264,7 @@ def test_part_a_works_without_guide(tmp_path):
         status = guide_repo.status(conn)
     assert status["imported"] is False
     assert status["mapping_count"] == 454      # 매핑은 번들이라 항상 존재
-    # 본문 없이도 커버리지 고지는 나온다. 단 "382개 중" 대신 미탑재를 명시 (절대규칙 10)
+    # 본문 없이도 커버리지 고지는 나옴. 단 "382개 중" 대신 미탑재를 명시 (절대규칙 10)
     notice = status["coverage_notice"]
     assert "36개" in notice and "미탑재" in notice
     assert "탐지되지 않음이 양호를 의미하지 않습니다" in notice

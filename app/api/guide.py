@@ -1,6 +1,6 @@
 """가이드 데이터 라우터 (docs/00 §6).
 
-본문 미탑재가 정상 상태다. 매핑 테이블은 번들이라 항상 존재한다 (절대규칙 3)
+본문 미탑재가 정상 상태. 매핑 테이블은 번들이라 항상 존재 (절대규칙 3)
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ async def guide_import(
     file: Annotated[UploadFile, File()],
     images: Annotated[UploadFile | None, File()] = None,
 ) -> dict[str, Any]:
-    """본문 CSV 업로드. 전체 삭제 후 재적재하며 매핑 결과는 보존된다"""
+    """본문 CSV 업로드. 전체 삭제 후 재적재하며 매핑 결과는 보존됨"""
     payload = await file.read(_MAX_UPLOAD_BYTES + 1)
     if len(payload) > _MAX_UPLOAD_BYTES:
         raise ScanError("INVALID_REQUEST", "파일이 너무 큽니다.")
@@ -68,7 +68,7 @@ def guide_items(
 
 @router.get("/scans/{scan_id}/guide")
 def scan_guide(scan_id: str) -> dict[str, Any]:
-    """스캔의 점검항목 판정. 0건 항목도 사라지지 않는다 (절대규칙 4)"""
+    """스캔의 점검항목 판정. 0건 항목도 사라지지 않음 (절대규칙 4)"""
     with session() as conn:
         from app.repository import scans as scan_repo
 
@@ -92,9 +92,9 @@ def scan_guide(scan_id: str) -> dict[str, Any]:
                 "verdict": v.verdict.value,
                 "basis": v.basis,
                 "finding_count": v.finding_count,
-                # 본문 미탑재면 이름·중요도가 비어 있다. 항목 자체는 사라지지 않는다
+                # 본문 미탑재면 이름·중요도가 비어 있다. 항목 자체는 사라지지 않음
                 "item_name": (detail.get(v.item_code) or {}).get("item_name"),
-                # 점검항목 중요도는 가이드 원문 값. findings.severity_guide 로 덮지 않는다
+                # 점검항목 중요도는 가이드 원문 값. findings.severity_guide 로 덮지 않음
                 "severity_guide": (detail.get(v.item_code) or {}).get("severity_guide"),
                 "category": (detail.get(v.item_code) or {}).get("category"),
             }

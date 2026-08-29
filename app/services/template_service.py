@@ -1,8 +1,8 @@
 """템플릿 관리 흐름 제어 (docs/00 §3).
 
-official 템플릿은 수정·삭제 불가. fork 로 custom 사본을 만들어 편집한다.
-파일 쓰기는 templates/custom/ 안으로 제한된다 - template_id 정규식이 1차 방어이고
-경로 해석 결과 확인이 2차 방어다 (M5 보안)
+official 템플릿은 수정·삭제 불가. fork 로 custom 사본을 만들어 편집함
+파일 쓰기는 templates/custom/ 안으로 제한됨 - template_id 정규식이 1차 방어이고
+경로 해석 결과 확인이 2차 방어 (M5 보안)
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def custom_path(template_id: str) -> Path:
     root = settings.CUSTOM_DIR.resolve()
     path = (root / f"{template_id}.yaml").resolve()
     if path.parent != root:
-        # 정규식을 통과해도 경로 해석 결과를 다시 확인한다
+        # 정규식을 통과해도 경로 해석 결과를 다시 확인함
         raise ScanError("INVALID_REQUEST", "허용되지 않은 템플릿 경로입니다.")
     return path
 
@@ -62,7 +62,7 @@ def custom_path(template_id: str) -> Path:
 # ────────────────────────────────────────────── 색인
 
 def index_all(conn: sqlite3.Connection) -> dict[str, int]:
-    """templates/ 트리를 훑어 DB 색인 갱신. 파일이 정본이고 DB 는 색인이다"""
+    """templates/ 트리를 훑어 DB 색인 갱신. 파일이 정본이고 DB 는 색인"""
     rules = load_vuln_type_rules(conn)
     counts = {"official": 0, "custom": 0}
     rows: list[dict[str, Any]] = []
@@ -86,7 +86,7 @@ def _index_row(path: Path, source: str, rules) -> dict[str, Any] | None:
     try:
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
-        # 깨진 템플릿 하나가 색인 전체를 막지 않는다
+        # 깨진 템플릿 하나가 색인 전체를 막지 않음
         logger.warning("템플릿 읽기 실패: %s", path)
         return None
     if not isinstance(document, dict) or not document.get("id"):
@@ -282,7 +282,7 @@ def sync(conn: sqlite3.Connection, *, runner=None) -> dict[str, Any]:
     return {
         "updated": len(before & after),
         "added": len(after - before),
-        # 파일이 사라진 템플릿은 색인에 남는다. 삭제는 별도 정리 대상이며 여기서는 보고만
+        # 파일이 사라진 템플릿은 색인에 남음. 삭제는 별도 정리 대상이며 여기서는 보고만
         "removed": len(before - after),
         "revision": template_repo.revision(conn),
         "indexed": counts,
@@ -318,10 +318,10 @@ def dryrun(
     timeout_sec: int = 10,
     runner=None,
 ) -> dict[str, Any]:
-    """대상 1개에 실제 요청. matcher 별 결과를 돌려준다.
+    """대상 1개에 실제 요청. matcher 별 결과를 돌려줌
 
-    matcher 를 하나만 남긴 변형 템플릿을 함께 실행해 실패 지점을 특정한다.
-    nuclei 는 매칭된 결과만 출력하므로 원본만으로는 어느 matcher 가 걸렸는지 알 수 없다
+    matcher 를 하나만 남긴 변형 템플릿을 함께 실행해 실패 지점을 특정함
+    nuclei 는 매칭된 결과만 출력하므로 원본만으로는 어느 matcher 가 걸렸는지 알 수 없음
     """
     allowlist = settings_repo.target_allowlist(conn)
     if rejected_targets([target], allowlist):
@@ -405,7 +405,7 @@ def _first_matchers(document: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _single_matcher_document(document: dict[str, Any], keep: int) -> dict[str, Any]:
-    """matcher 하나만 남긴 사본. 원본을 변형하지 않는다"""
+    """matcher 하나만 남긴 사본. 원본을 변형하지 않음"""
     copy = json.loads(json.dumps(document, default=str))
     requests = copy.get("http") or copy.get("requests") or []
     for entry in requests:

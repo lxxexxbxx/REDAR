@@ -116,7 +116,7 @@ export function vulnTypeAxis(counts) {
 }
 
 /* 커버리지 고지. 접기 불가 (절대규칙 10)
- * 문장은 GET /guide/status 가 내려준 것을 그대로 쓴다. 사본을 두면 보고서와 갈라진다
+ * 문장은 GET /guide/status 가 내려준 것을 그대로 사용. 사본을 두면 보고서와 갈라짐
  */
 export function coverageNotice(guide) {
   const notice = guide?.coverage_notice;
@@ -199,8 +199,8 @@ export function toast(message, kind = "ok") {
   toastTimer = setTimeout(() => node.remove(), 3600);
 }
 
-/* environment_driven 선별 근거. 보고서 부록의 "N개 중 M개" 와 같은 값을 쓴다.
- * 인벤토리 미탑재(총 0개) 상태를 감추지 않는다 - 감추면 수치가 거짓이 된다 */
+/* environment_driven 선별 근거. 보고서 부록의 "N개 중 M개" 와 같은 값을 사용
+ * 인벤토리 미탑재(총 0개) 상태를 감추지 않음 - 감추면 수치가 거짓이 된다 */
 export function selectionBasis(basis) {
   if (!basis) return "";
   const total = basis.total_available ?? 0;

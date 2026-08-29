@@ -1,7 +1,7 @@
 """Apache httpd 수집기. 버전 + 원격에서 보이는 모듈 흔적.
 
 모듈 목록은 원격에서 완전히 알 수 없다. 흔적만 medium/low 로 남기고
-확정 목록으로 표기하지 않는다 (M4 규칙 3)
+확정 목록으로 표기하지 않음 (M4 규칙 3)
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ class ApacheCollector:
     order = ORDER_MIDDLEWARE
 
     def applicable(self, ctx: TargetContext) -> bool:
-        """generic-http 가 이미 읽은 Server 헤더를 참조한다 (docs/01 §4.1)"""
+        """generic-http 가 이미 읽은 Server 헤더를 참조 (docs/01 §4.1)"""
         upstream = ctx.collected.get("generic-http")
         if upstream and upstream.web_server and upstream.web_server.product:
             return "apache" in upstream.web_server.product.lower()
@@ -62,7 +62,7 @@ class ApacheCollector:
                     ComponentFinding(
                         type="apache_module",
                         slug=module,
-                        # 헤더 흔적은 정황이다. 모듈 목록 조회가 아니므로 low
+                        # 헤더 흔적은 정황. 모듈 목록 조회가 아니므로 low
                         confidence=Confidence.LOW,
                         evidence=f"{header}: {value[:80]}",
                     )

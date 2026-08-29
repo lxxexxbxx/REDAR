@@ -1,7 +1,7 @@
 """M6 완료 조건 검증 (IMPLEMENTATION_BRIEF.md M6).
 
-목 데이터도 실제 항목 코드를 쓴다 (WA-02, WEB-25 등). 가짜 코드로 테스트하면
-매핑 테이블의 실제 코드와 어긋나는 것을 못 잡는다
+목 데이터도 실제 항목 코드를 사용 (WA-02, WEB-25 등). 가짜 코드로 테스트하면
+매핑 테이블의 실제 코드와 어긋나는 것을 못 잡음
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def scan(conn):
         ("fnd_cve", "fp2", "CVE-2026-63030", "rce", "critical",
          '["CVE-2026-63030"]', '["CWE-94"]', "contact-form-7"),
         ("fnd_only_type", "fp3", "unknown-template", "misconfig", "low", None, None, None),
-        # template_id 계층에 실제 매핑이 있는 템플릿. CWE-79 도 함께 두어 우선순위를 본다
+        # template_id 계층에 실제 매핑이 있는 템플릿. CWE-79 도 함께 두어 우선순위를 봄
         ("fnd_tpl", "fp4", "CVE-2016-10033", "other", "medium", None, '["CWE-79"]', None),
         ("fnd_detect", "fp5", "wp-plugin-detect", "other", "info", None, None, None),
     ]
@@ -75,12 +75,12 @@ def _refs(conn, finding_id):
 # ─────────────────────────────────────── 우선순위 (완료 조건 1)
 
 def test_template_id_wins_over_cwe(conn, scan, rules):
-    """상위 층에서 매칭되면 하위는 적용하지 않는다"""
+    """상위 층에서 매칭되면 하위는 적용하지 않음"""
     guide_service.map_scan(conn, scan)
     refs = _refs(conn, "fnd_tpl")
     assert refs, "template_id 매핑이 있어야 한다"
     assert all(r["matched_by"].startswith("template_id:") for r in refs.values())
-    # CWE-79 는 WA-06 으로 가는데, template_id 층이 이겼으므로 붙지 않는다
+    # CWE-79 는 WA-06 으로 가는데, template_id 층이 이겼으므로 붙지 않음
     assert "WA-06" not in refs
     assert "WA-01" in refs
 
@@ -119,7 +119,7 @@ def test_cve_finding_gets_web25_as_secondary(conn, scan):
 
     primary = [code for code, r in refs.items() if r["is_primary"] == 1]
     assert primary, "대표 항목이 있어야 한다"
-    # WEB-25 를 대표로 삼으면 모든 CVE 가 패치 항목 하나로 수렴한다
+    # WEB-25 를 대표로 삼으면 모든 CVE 가 패치 항목 하나로 수렴함
     assert "WEB-25" not in primary
 
 
@@ -148,7 +148,7 @@ def test_false_positive_excluded(conn, scan):
 # ─────────────────────────────────────── 본문 미탑재 동작 (완료 조건 2·3)
 
 def test_refs_written_without_guide_body(conn, scan):
-    """본문이 없어도 매핑은 저장된다. item_code 에 FK 가 없는 이유 (절대규칙 3)"""
+    """본문이 없어도 매핑은 저장됨. item_code 에 FK 가 없는 이유 (절대규칙 3)"""
     assert conn.execute("SELECT COUNT(*) FROM guide_items").fetchone()[0] == 0
     result = guide_service.map_scan(conn, scan)
     assert result.refs_written > 0
@@ -191,7 +191,7 @@ def _add_environment(conn, scan_id, exposures, product="WordPress"):
 
 
 def test_unchecked_item_is_not_applicable_not_safe(conn, scan):
-    """점검 근거가 없으면 not_applicable. safe 로 두면 미점검이 양호로 둔갑한다"""
+    """점검 근거가 없으면 not_applicable. safe 로 두면 미점검이 양호로 둔갑"""
     guide_service.map_scan(conn, scan)
     results = {v.item_code: v for v in guide_service.verdicts(conn, scan)}
 
@@ -230,7 +230,7 @@ def test_verdict_summary_keeps_all_keys(conn, scan):
 
 
 def test_all_mapped_items_get_a_verdict(conn, scan):
-    """0건 항목이 사라지면 보고서 목차가 대상마다 달라진다 (절대규칙 4)"""
+    """0건 항목이 사라지면 보고서 목차가 대상마다 달라짐 (절대규칙 4)"""
     guide_service.map_scan(conn, scan)
     verdicts = guide_service.verdicts(conn, scan)
     assert len(verdicts) == len(guide_repo.mapped_item_codes(conn)) == 36
@@ -258,7 +258,7 @@ def test_import_loads_all_21_columns(conn):
     row = conn.execute(
         "SELECT * FROM guide_items WHERE item_code = 'WA-02'"
     ).fetchone()
-    # case_text·page_start 가 비면 보고서 A-6 조치 사항과 근거 페이지가 사라진다
+    # case_text·page_start 가 비면 보고서 A-6 조치 사항과 근거 페이지가 사라짐
     assert row["case_text"] == "사례 본문 WA-02 조치 절차"
     assert row["page_start"] == 684
     assert row["page_end"] == 686
@@ -297,7 +297,7 @@ def test_import_reports_mixed_versions(conn):
 
 
 def test_item_severity_comes_from_guide_not_finding(conn, scan):
-    """점검항목 중요도는 가이드 원문 값. 탐지 심각도 환산값으로 덮지 않는다"""
+    """점검항목 중요도는 가이드 원문 값. 탐지 심각도 환산값으로 덮지 않음"""
     guide_importer.import_text(conn, MOCK_CSV.read_text(encoding="utf-8"))
     guide_service.map_scan(conn, scan)
 

@@ -106,7 +106,7 @@ class LlmPreviewRequest(BaseModel):
 
 @router.post("/settings/llm/preview")
 def llm_preview(body: LlmPreviewRequest) -> dict[str, Any]:
-    """전송 데이터 미리보기. 응답 본문·추출값은 포함되지 않는다 (docs/01 §7.4)"""
+    """전송 데이터 미리보기. 응답 본문·추출값은 포함되지 않음 (docs/01 §7.4)"""
     from app.domain.ids import new_id
     from app.report import builder
     from app.repository import reports as report_repo
@@ -128,7 +128,7 @@ def llm_preview(body: LlmPreviewRequest) -> dict[str, Any]:
 
 @router.post("/settings/llm/test")
 def llm_test() -> dict[str, Any]:
-    """연결 테스트. 오프라인 모드에서는 호출하지 않는다 (절대규칙 5)"""
+    """연결 테스트. 오프라인 모드에서는 호출하지 않음 (절대규칙 5)"""
     from app.adapters.llm import get_provider
     from app.adapters.llm.base import LlmError
 
@@ -155,7 +155,7 @@ def llm_test() -> dict[str, Any]:
         return {"ok": False, "reason": str(exc), "provider": provider.name}
     return {
         "ok": bool(text), "provider": provider.name, "model": provider.model,
-        # 응답 본문을 그대로 돌려주지 않는다. 길이만 보고
+        # 응답 본문을 그대로 돌려주지 않음. 길이만 보고
         "response_length": len(text or ""),
     }
 

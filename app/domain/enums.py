@@ -80,7 +80,7 @@ class GuideVerdict(StrEnum):
 
 
 class CompareState(StrEnum):
-    """fixed / still_vulnerable 아님.
+    """fixed / still_vulnerable 아님
 
     스캐너는 '조치 성공' 판정 불가. '이번엔 탐지되지 않음'만 표현 가능
     """

@@ -1,6 +1,6 @@
 """의존성 관리 라우터 (nuclei 등).
 
-세 경로를 제공한다. 폐쇄망에서도 도구를 쓸 수 있어야 한다.
+세 경로를 제공. 폐쇄망에서도 도구를 쓸 수 있어야 함
   GET    /dependencies               상태 조회
   POST   /dependencies/{key}/import  파일 반입 (통신 없음)
   PUT    /dependencies/{key}/path    경로 지정 (통신 없음)
@@ -25,14 +25,14 @@ _MAX_UPLOAD_BYTES = 512 * 1024 * 1024
 class PathRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # None 이면 지정 해제 후 자동 탐색으로 되돌린다
+    # None 이면 지정 해제 후 자동 탐색으로 되돌림
     path: str | None = None
 
 
 class InstallRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # 설정만으로 자동 실행되지 않는다. 요청마다 사용자가 동의한다
+    # 설정만으로 자동 실행되지 않음. 요청마다 사용자가 동의함
     confirm: bool = False
 
 

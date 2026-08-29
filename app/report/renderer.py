@@ -1,9 +1,9 @@
 """Jinja2 -> 자체 완결형 HTML (docs/04 §3.1).
 
-WeasyPrint 를 쓰지 않는다. PDF 는 WebView 인쇄로 파생시킨다 (절대규칙 4-1).
+WeasyPrint 를 쓰지 않음. PDF 는 WebView 인쇄로 파생 (절대규칙 4-1).
 외부 CSS·폰트·이미지 참조 0. 전부 인라인 / base64 임베딩
 
-폰트 base64 는 캐시한다. 보고서마다 재인코딩하면 1.1MB 를 매번 인코딩하게 된다
+폰트 base64 는 캐시. 보고서마다 재인코딩하면 1.1MB 를 매번 인코딩하게 됨
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from app.config import settings
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
-# 본문 400/700 을 각각 등록한다. 하나만 등록하면 굵은 글씨가 fake bold 가 된다
+# 본문 400/700 을 각각 등록. 하나만 등록하면 굵은 글씨가 fake bold 가 됨
 _FONTS = (
     ("NanumGothic", 400, "normal", "NanumGothic.woff2"),
     ("NanumGothic", 700, "normal", "NanumGothicBold.woff2"),
@@ -35,7 +35,7 @@ _EXTERNAL_REF = re.compile(
 
 @lru_cache(maxsize=1)
 def font_faces() -> str:
-    """@font-face 블록. local() 을 쓰지 않는다 - 시스템 폰트 의존 금지"""
+    """@font-face 블록. local() 을 쓰지 않음 - 시스템 폰트 의존 금지"""
     blocks = []
     for family, weight, style, filename in _FONTS:
         path = settings.FONTS_DIR / filename
@@ -71,7 +71,7 @@ def _env() -> Environment:
 
 
 def render_html(report: dict[str, Any]) -> str:
-    """Report JSON -> HTML. 렌더러는 JSON 밖 DB 를 조회하지 않는다"""
+    """Report JSON -> HTML. 렌더러는 JSON 밖 DB 를 조회하지 않음"""
     template = _env().get_template("report.html.j2")
     return template.render(
         r=report,
