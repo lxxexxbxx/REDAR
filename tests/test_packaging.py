@@ -288,3 +288,106 @@ def test_pdf_is_derived_not_generated():
     text = (ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
     for banned in ("weasyprint", "wkhtmltopdf", "pdfkit", "reportlab", "fpdf"):
         assert banned not in text, banned
+
+
+# ─────────────────────────────── nuclei 설치 스크립트 (tools/install_nuclei.py)
+
+INSTALLER = ROOT / "tools" / "install_nuclei.py"
+
+
+def _load_installer():
+    spec = importlib.util.spec_from_file_location("redar_install_nuclei", INSTALLER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_installer_uses_go_install_not_bundled_binary():
+    """저장소·번들에 바이너리를 넣지 않는다. go install 로 사용자가 빌드한다"""
+    installer = _load_installer()
+    assert installer.NUCLEI_PKG == (
+        "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+    )
+    # go install 로 빌드한다. 미리 컴파일된 바이너리를 받아오지 않는다
+    assert '"install", "-v", NUCLEI_PKG' in INSTALLER.read_text(encoding="utf-8")
+
+
+def test_installer_is_not_reachable_from_app():
+    """앱이 설치를 트리거하면 아웃바운드 통신 지점이 4개가 된다 (절대규칙 5).
+
+    주석의 경로 언급은 문서이므로 허용한다. 금지 대상은 실행 경로다
+    """
+    for path in (ROOT / "app").rglob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        assert "import install_nuclei" not in source, path
+        assert "from tools" not in source, path
+        # 설치 스크립트가 쓰는 외부 주소·명령이 앱에 있으면 안 된다
+        assert "go.dev/dl" not in source, path
+        assert "cmd/nuclei@latest" not in source, path
+
+
+def test_installer_verifies_checksum_before_extracting():
+    """검증 실패한 아카이브를 풀지 않는다"""
+    source = INSTALLER.read_text(encoding="utf-8")
+    download = source.split("def download(")[1].split("def extract(")[0]
+    assert "sha256" in download
+    assert "체크섬 불일치" in download
+    assert "unlink" in download
+
+
+def test_installer_extract_blocks_path_traversal():
+    source = INSTALLER.read_text(encoding="utf-8")
+    assert 'filter="data"' in source
+
+
+def test_installer_install_path_matches_app_lookup():
+    """설치 경로와 앱 탐색 경로가 어긋나면 설치해도 찾지 못한다"""
+    installer = _load_installer()
+    expected = settings.platform_home() / "bin"
+    assert installer.BIN_DIR == expected
+
+
+def test_version_of_skips_warning_lines():
+    """nuclei 는 환경에 따라 경고를 먼저 낸다. 첫 줄만 보면 버전 대신 경고가 나온다"""
+    installer = _load_installer()
+    sample = (
+        "WARNING: sonic/ast only supports (go1.17~1.26 and amd64 CPU)\n"
+        "\x1b[34m[INF]\x1b[0m Nuclei Engine Version: v3.11.1\n"
+    )
+    lines = [
+        installer._ANSI.sub("", line).strip()
+        for line in sample.splitlines() if line.strip()
+    ]
+    picked = next(
+        line for line in lines
+        if not line.upper().startswith("WARNING")
+        and installer._VERSION_LINE.search(line)
+    )
+    assert "v3.11.1" in picked
+    assert "WARNING" not in picked
+
+
+def test_nuclei_invocations_close_stdin():
+    """대상 인자가 없으면 nuclei 가 stdin 을 읽으려 대기한다. 파이프면 무한 대기"""
+    targets = [
+        ROOT / "app" / "services" / "template_validator.py",
+        ROOT / "app" / "services" / "template_service.py",
+        ROOT / "app" / "adapters" / "nuclei" / "version_check.py",
+        ROOT / "app" / "adapters" / "nuclei" / "runner.py",
+    ]
+    for path in targets:
+        assert "stdin=subprocess.DEVNULL" in path.read_text(encoding="utf-8"), path
+
+
+def test_builder_requires_author_field():
+    """nuclei 는 info.author 를 필수로 요구한다 (no template author field provided)"""
+    from app.services import template_builder
+
+    author = next(
+        field
+        for section in template_builder.FORM_SCHEMA["sections"]
+        if section["key"] == "info"
+        for field in section["fields"]
+        if field["key"] == "author"
+    )
+    assert author["required"] is True

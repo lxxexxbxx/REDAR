@@ -49,7 +49,9 @@ FORM_SCHEMA: dict[str, Any] = {
                 {"key": "severity", "label": "심각도", "type": "enum", "required": True,
                  "options": [s.value for s in Severity]},
                 {"key": "description", "label": "설명", "type": "text"},
-                {"key": "author", "label": "작성자", "type": "string"},
+                # nuclei 가 필수로 요구한다. 없으면 'no template author field provided'
+                # 로 로드 자체가 실패한다
+                {"key": "author", "label": "작성자", "type": "string", "required": True},
                 {"key": "tags", "label": "태그", "type": "list"},
             ],
         },
@@ -128,9 +130,11 @@ def build(form: dict[str, Any]) -> str:
     if severity not in {s.value for s in Severity}:
         raise BuildError("info.severity", "severity 값이 유효하지 않습니다.")
 
-    info: dict[str, Any] = {"name": name, "severity": severity}
-    if info_in.get("author"):
-        info["author"] = str(info_in["author"])
+    author = str(info_in.get("author") or "").strip()
+    if not author:
+        raise BuildError("info.author", "작성자가 없습니다. nuclei 가 필수로 요구합니다.")
+
+    info: dict[str, Any] = {"name": name, "author": author, "severity": severity}
     if info_in.get("description"):
         info["description"] = str(info_in["description"])
     if info_in.get("tags"):

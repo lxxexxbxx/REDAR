@@ -18,7 +18,9 @@ def version() -> str | None:
         return None
     try:
         proc = subprocess.run(
-            [exe, "-version"], capture_output=True, text=True, timeout=10
+            [exe, "-version"], capture_output=True, text=True, timeout=10,
+            # 대상 없이 실행하면 stdin 대기에 걸릴 수 있다
+            stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.SubprocessError):
         return None

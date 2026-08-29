@@ -18,8 +18,9 @@ from app.services import template_validator as validator
 from app.services.scan_service import ScanError
 
 VALID_FORM = {
+    # author 는 nuclei 필수 필드다. 없으면 템플릿 로드 자체가 실패한다
     "info": {"id": "demo-rce", "name": "Demo RCE", "severity": "critical",
-             "tags": ["wordpress", "rce"]},
+             "author": "redred", "tags": ["wordpress", "rce"]},
     "classification": {"cve_id": "CVE-2026-63030", "cwe_id": "CWE-94",
                        "cvss_score": 9.8},
     "http": [{"method": "POST", "path": "{{BaseURL}}/wp-json/xyz/v1/run",
@@ -108,8 +109,11 @@ def test_form_builds_valid_yaml_and_passes_policy():
     result = validator.validate(text)
     assert result["policy"]["valid"] is True
     assert result["policy"]["errors"] == []
-    # nuclei 미설치는 검증 실패가 아니다. 건너뜀으로 보고한다
-    assert result["syntax"]["skipped"] is True
+    # nuclei 가 있으면 실제 문법 검증을 통과하고, 없으면 건너뜀으로 보고한다.
+    # 어느 쪽이든 '실패' 는 아니다
+    assert result["syntax"]["valid"] in (True, None)
+    if result["syntax"]["valid"] is None:
+        assert result["syntax"]["skipped"] is True
     assert result["valid"] is True
 
 
@@ -170,8 +174,12 @@ def test_classification_format_enforced(field, value):
 
 
 @pytest.mark.parametrize("form,field", [
-    ({"info": {"id": "x", "name": "n", "severity": "urgent"}}, "info.severity"),
-    ({"info": {"id": "x", "name": "", "severity": "high"}}, "info.name"),
+    ({"info": {"id": "x", "name": "n", "severity": "urgent", "author": "a"}},
+     "info.severity"),
+    ({"info": {"id": "x", "name": "", "severity": "high", "author": "a"}},
+     "info.name"),
+    # nuclei 가 요구하는 필드. 빠지면 'no template author field provided'
+    ({"info": {"id": "x", "name": "n", "severity": "high"}}, "info.author"),
 ])
 def test_required_fields_enforced(form, field):
     with pytest.raises(builder.BuildError) as exc:

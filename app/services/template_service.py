@@ -300,6 +300,7 @@ def _run_update() -> None:
         subprocess.run(
             [binary, "-update-templates", "-ud", str(settings.OFFICIAL_DIR), "-silent"],
             capture_output=True, text=True, timeout=_SYNC_TIMEOUT_SEC, check=True,
+            stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise ScanError(
@@ -429,6 +430,7 @@ def _run_dryrun(root: Path, target: str, timeout_sec: int) -> list[str]:
         proc = subprocess.run(
             command, capture_output=True, text=True,
             timeout=_DRYRUN_TIMEOUT_SEC, encoding="utf-8", errors="replace",
+            stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ScanError("INTERNAL_ERROR", f"드라이런 실행 실패: {exc}") from exc

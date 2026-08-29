@@ -21,7 +21,9 @@ from app.services import template_builder as builder
 
 logger = logging.getLogger(__name__)
 
-_SYNTAX_TIMEOUT_SEC = 20
+# 첫 실행은 nuclei 가 설정 디렉터리를 만드느라 20 초를 넘긴다.
+# 이후 호출은 0.2 초 수준 (실측)
+_SYNTAX_TIMEOUT_SEC = 60
 
 LOOSE_MATCHER = {
     "code": "LOOSE_MATCHER",
@@ -60,6 +62,9 @@ def check_syntax(yaml_text: str) -> dict[str, Any]:
                 [binary, "-validate", "-t", str(path), "-duc", "-silent"],
                 capture_output=True, text=True, timeout=_SYNTAX_TIMEOUT_SEC,
                 encoding="utf-8", errors="replace",
+                # 대상 인자가 없으면 nuclei 가 stdin 을 읽으려 대기한다.
+                # 파이프로 실행되면 무한 대기가 된다
+                stdin=subprocess.DEVNULL,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             logger.warning("nuclei -validate 실행 실패: %s", exc)

@@ -25,6 +25,17 @@ def resource_path(rel: str) -> Path:
     return ROOT / rel
 
 
+def platform_home() -> Path:
+    """OS 표준 사용자 경로. 개발·번들 무관하게 같은 위치를 가리킨다.
+
+    tools/install_nuclei.py 가 여기에 설치하므로 개발 실행에서도 찾아야 한다
+    """
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home())
+        return Path(base) / "REDAR"
+    return Path.home() / ".redar"
+
+
 def user_data_dir() -> Path:
     """쓰기 가능 경로. DB·보고서·로그.
 
@@ -35,10 +46,7 @@ def user_data_dir() -> Path:
         return Path(override).expanduser().resolve()
     if not FROZEN:
         return Path(__file__).resolve().parents[2]
-    if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA") or str(Path.home())
-        return Path(base) / "REDAR"
-    return Path.home() / ".redar"
+    return platform_home()
 
 
 HOME = user_data_dir()
@@ -70,9 +78,17 @@ def nuclei_bin() -> str | None:
     override = os.environ.get("REDAR_NUCLEI")
     if override:
         return override
+
+    name = "nuclei.exe" if sys.platform == "win32" else "nuclei"
+    # 탐색 순서: 명시 지정 -> 번들 -> 사용자 홈 -> PATH.
+    # 번들이 앞서는 이유: 패키지된 앱은 동봉본이 함께 검증된 조합이다.
+    # 사용자 홈은 tools/install_nuclei.py 가 설치하는 위치이며, 개발 실행에서는
+    # HOME 이 저장소 루트라 OS 표준 경로도 함께 본다
     if FROZEN:
-        name = "nuclei.exe" if sys.platform == "win32" else "nuclei"
         bundled = resource_path(f"bin/{name}")
         if bundled.is_file():
             return str(bundled)
+    for candidate in (HOME / "bin" / name, platform_home() / "bin" / name):
+        if candidate.is_file():
+            return str(candidate)
     return shutil.which("nuclei")

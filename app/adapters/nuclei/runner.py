@@ -98,6 +98,8 @@ def run(
         list(command),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        # -target 으로 대상을 넘기므로 stdin 은 쓰지 않는다. 열어두면 대기 위험
+        stdin=subprocess.DEVNULL,
         text=True,
         bufsize=1,
         encoding="utf-8",

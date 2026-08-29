@@ -101,13 +101,43 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 ### 5. nuclei 설치
 
-[ProjectDiscovery 릴리스](https://github.com/projectdiscovery/nuclei/releases)에서
-플랫폼용 압축 파일을 받아 `PATH` 에 두거나, 경로를 환경변수로 지정한다.
+스크립트가 Go 툴체인 확인 → 없으면 설치 → nuclei 빌드까지 처리한다.
+Windows / macOS / Linux 공통이며 **관리자 권한이 필요 없다.**
+
+```bash
+python3 tools/install_nuclei.py
+```
+
+| 옵션 | 동작 |
+|---|---|
+| (없음) | 확인 후 없으면 설치 |
+| `--check` | 확인만. 설치되어 있으면 종료 코드 0 |
+| `--force` | 이미 있어도 재설치 |
+
+설치 위치는 사용자 홈이며 REDAR 이 자동으로 찾는다. **환경변수 설정은 필요 없다.**
+
+```
+macOS / Linux   ~/.redar/bin/nuclei          툴체인: ~/.redar/toolchain/go
+Windows         %LOCALAPPDATA%\REDAR\bin\nuclei.exe
+```
+
+내부적으로는 아래를 실행한다. Go 는 [공식 배포 목록](https://go.dev/dl/)에서
+현재 OS·아키텍처에 맞는 안정판을 받아 **sha256 을 검증한 뒤** 설치한다.
+
+```bash
+go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+```
+
+> 이 스크립트는 **손으로 실행하는 설치 도구**다. 앱은 nuclei 를 내려받지 않는다.
+> 앱에서 설치를 트리거하면 아웃바운드 통신 지점이 늘어나 오프라인 우선 원칙이 깨진다.
+
+직접 설치한 nuclei 를 쓰려면 경로를 지정한다.
 
 ```bash
 export REDAR_NUCLEI=/path/to/nuclei      # Windows: set REDAR_NUCLEI=C:\tools\nuclei.exe
 ```
 
+탐색 순서는 `REDAR_NUCLEI` → 사용자 홈 `bin/` → 번들 → `PATH` 다.
 설치 여부는 화면 상단 상태 띠와 `GET /api/v1/health` 에서 확인할 수 있다.
 **nuclei 가 없어도 결과 조회·임포트·설정은 정상 동작한다.**
 
