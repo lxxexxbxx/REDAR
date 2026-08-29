@@ -18,12 +18,17 @@ Nuclei 기반 웹 취약점 **진단** 도구. 스캔 실행, 결과 정리, 보
 | M3 | 스캔 API · SSE 진행률 · 결과 조회 · 설정 | 완료 |
 | — | GUI (대시보드 · 스캔 · 결과 · 설정) | 완료 |
 | M4 | 환경 수집기 (제품·버전·플러그인 식별 · 노출 11종) | 완료 |
-| M5 | 템플릿 관리 · 폼 빌더 · 검증 · 드라이런 | 완료 (API) |
-| M6 | 가이드 매핑 엔진 | 예정 |
-| M7 | 보고서 생성 (HTML → PDF) | 예정 |
-| M8~M10 | 스캔 비교 · LLM 서술 · 데스크톱 패키징 | 예정 |
+| M5 | 템플릿 관리 · 폼 빌더 · 검증 · 드라이런 | 완료 |
+| M6 | 가이드 매핑 엔진 (2트랙 · 판정) | 완료 |
+| M7 | 보고서 생성 (자체 완결형 HTML) | 완료 |
+| M8 | 스캔 비교 (재진단 차이 보고) | 완료 |
+| M9 | LLM 서술 레이어 (기본 비활성) | 완료 |
+| M10 | 데스크톱 패키징 | 백엔드 번들 완료 · 셸 빌드 |
 
-GUI 의 **템플릿 · 보고서** 화면은 아직 안내 문구만 표시한다. 템플릿은 API 로 사용 가능하다.
+화면 6종(대시보드 · 스캔 실행 · 탐지 결과 · 템플릿 · 보고서 · 설정) 전부 동작한다.
+
+**PDF 는 서버가 만들지 않는다.** 보고서 HTML 을 브라우저·앱에서 인쇄(Ctrl/Cmd+P)해
+"PDF 로 저장" 을 선택한다. HTML 이 폰트를 포함한 자체 완결형 파일이라 그대로 공유해도 된다.
 
 가이드 본문(점검항목 382개)은 저작권상 저장소에 없다. 파일을 받은 뒤 임포트한다.
 
@@ -90,7 +95,9 @@ component_advisories   951행    플러그인·테마별 패치 목표 버전
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-브라우저에서 **http://127.0.0.1:8000** 을 연다. (데스크톱 앱 셸은 M10 에서 제공)
+브라우저에서 **http://127.0.0.1:8000** 을 연다.
+
+데스크톱 앱으로 쓰려면 아래 **데스크톱 앱 빌드** 를 따른다.
 
 ### 5. nuclei 설치
 
@@ -108,6 +115,67 @@ export REDAR_NUCLEI=/path/to/nuclei      # Windows: set REDAR_NUCLEI=C:\tools\nu
 > `[WinError 4551] 응용 프로그램 제어 정책에 의해 차단` 이 나오면
 > Smart App Control 이 서명 없는 실행 파일을 막은 것이다.
 > 직접 빌드한 바이너리에서 주로 발생하며, 공식 릴리스 파일로 교체하면 대부분 해결된다.
+
+---
+
+## 데스크톱 앱 빌드
+
+배포용 바이너리는 저장소에 포함하지 않는다. 소스를 받아 직접 빌드한다.
+
+### 요구사항 (빌드 전용)
+
+| 항목 | 용도 | 비고 |
+|---|---|---|
+| Python 3.11+ | 백엔드 번들 | `pip install -r requirements.txt` |
+| Rust (rustup) | Tauri 셸 | <https://rustup.rs> |
+| Node.js 18+ | Tauri CLI (`npx`) | |
+| Xcode CLT / MSVC 빌드 도구 | 플랫폼 링커 | macOS `xcode-select --install` |
+
+### 빌드
+
+```bash
+python3 packaging/build.py --tauri
+```
+
+세 단계가 순서대로 돈다.
+
+```
+[1] PyInstaller --onedir  ->  dist/redar-backend/        약 63MB
+[2] sidecar 배치          ->  src-tauri/binaries/redar-backend-<타깃트리플>
+[3] Tauri 번들            ->  src-tauri/target/release/bundle/
+```
+
+백엔드만 확인하려면 `--tauri` 를 빼고 실행한다.
+
+```bash
+python3 packaging/build.py
+./dist/redar-backend/redar-backend
+```
+
+첫 줄에 `REDAR_READY {"port": …}` 가 출력되면 정상이다. 포트는 매 실행마다
+비어 있는 것을 골라 잡으므로 두 번 실행해도 충돌하지 않는다.
+
+### 크로스 컴파일은 되지 않는다
+
+PyInstaller 는 실행 중인 OS 용 바이너리만 만든다.
+**Windows 배포본은 Windows 에서, macOS 배포본은 macOS 에서 빌드해야 한다.**
+
+### 데이터 저장 위치
+
+번들 실행 시 읽기 전용 리소스와 쓰기 경로가 분리된다.
+
+| 구분 | 위치 |
+|---|---|
+| 번들 리소스 (스키마·CSV·폰트·화면) | 실행 파일 내부 |
+| DB·보고서·템플릿 | Windows `%LOCALAPPDATA%\REDAR` · 그 외 `~/.redar` |
+
+`REDAR_HOME` 으로 쓰기 경로를 바꿀 수 있다. 개발 실행(`uvicorn`)에서는 저장소
+루트를 그대로 쓴다.
+
+### nuclei 는 동봉하지 않는다
+
+플랫폼별 바이너리 관리 부담과 백신 오탐 때문에 번들에 넣지 않는다.
+사용자가 직접 설치하며, 번들 옆 `bin/nuclei` 에 두면 그쪽을 먼저 찾는다.
 
 ---
 

@@ -36,6 +36,13 @@ hiddenimports = [
     "uvicorn.lifespan.on",
 ]
 
+# Tauri sidecar 는 파일 하나만 번들된다 (externalBin). onedir 의 _internal 이
+# .app 에 들어가지 않으므로 셸 빌드용으로는 onefile 이 필요하다.
+# REDAR_ONEFILE=1 로 전환한다
+import os
+
+ONEFILE = os.environ.get("REDAR_ONEFILE") == "1"
+
 a = Analysis(
     [str(ROOT / "packaging" / "entrypoint.py")],
     pathex=[str(ROOT)],
@@ -49,22 +56,32 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name="redar-backend",
-    debug=False,
-    strip=False,
-    upx=False,          # UPX 압축은 백신 오탐을 늘린다
-    console=True,
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=False,
-    name="redar-backend",
-)
+if ONEFILE:
+    exe = EXE(
+        pyz, a.scripts, a.binaries, a.datas, [],
+        name="redar-backend",
+        debug=False,
+        strip=False,
+        upx=False,      # UPX 압축은 백신 오탐을 늘린다
+        console=True,
+    )
+else:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],
+        exclude_binaries=True,
+        name="redar-backend",
+        debug=False,
+        strip=False,
+        upx=False,
+        console=True,
+    )
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=False,
+        name="redar-backend",
+    )
