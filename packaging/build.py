@@ -8,13 +8,12 @@
 감싸는 것뿐이고, Python 을 실행 파일로 묶는 과정에서 리소스 경로·동적 import 가 터진다
 
 [1] PyInstaller --onedir 로 백엔드 빌드
-[2] sidecar 파일명에 타깃 트리플 부여
+[2] 산출물 구조 확인
 [3] Tauri 번들
 """
 from __future__ import annotations
 
 import argparse
-import os
 import platform
 import shutil
 import subprocess
@@ -24,31 +23,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 BUILD = ROOT / "build"
-SIDECAR_DIR = ROOT / "src-tauri" / "binaries"
 BACKEND_NAME = "redar-backend"
-
-
-def target_triple() -> str:
-    """sidecar 파일명에 붙는 타깃 트리플. 없으면 Tauri 가 sidecar 를 못 찾는다"""
-    probe = shutil.which("rustc")
-    if probe:
-        out = subprocess.run(
-            [probe, "-vV"], capture_output=True, text=True, check=False
-        ).stdout
-        for line in out.splitlines():
-            if line.startswith("host:"):
-                return line.split(":", 1)[1].strip()
-    # rustc 가 없을 때의 대체값. 정확도가 낮으므로 경고를 남긴다
-    machine = {"x86_64": "x86_64", "AMD64": "x86_64", "arm64": "aarch64"}.get(
-        platform.machine(), platform.machine()
-    )
-    system = {
-        "Darwin": "apple-darwin",
-        "Windows": "pc-windows-msvc",
-        "Linux": "unknown-linux-gnu",
-    }[platform.system()]
-    print(f"  [경고] rustc 없음. 트리플 추정: {machine}-{system}")
-    return f"{machine}-{system}"
+# Tauri 리소스로 들어가는 복사본. 심볼릭 링크가 풀린 상태
+STAGE_DIR = ROOT / "src-tauri" / "backend"
 
 
 def run(command: list[str], **kwargs) -> None:
@@ -82,31 +59,28 @@ def _module_exists(name: str) -> bool:
     return importlib.util.find_spec(name) is not None
 
 
-def stage_sidecar(bundle: Path) -> Path:
-    """[2] Tauri 가 찾는 이름으로 실행 파일을 복사한다.
+def stage_backend(bundle: Path) -> Path:
+    """[2] Tauri 리소스로 넣을 복사본 생성. 심볼릭 링크를 푼다.
 
-    --onedir 산출물은 디렉터리이므로 실행 파일과 의존 파일을 함께 옮긴다
+    externalBin(sidecar)을 쓰지 않는 이유: 파일 하나만 복사되어 --onedir 의
+    _internal 이 빠진다. onefile 로 바꾸면 실행마다 9~18초가 걸린다 (실측)
+
+    링크를 푸는 이유: Python.framework 안의 심볼릭 링크에서 Tauri 리소스 복사가
+    'Not a directory' 로 실패한다. 해제 비용은 약 +6MB
     """
-    triple = target_triple()
     suffix = ".exe" if platform.system() == "Windows" else ""
-    SIDECAR_DIR.mkdir(parents=True, exist_ok=True)
+    executable = bundle / f"{BACKEND_NAME}{suffix}"
+    if not executable.is_file():
+        sys.exit(f"실행 파일을 찾을 수 없습니다: {executable}")
+    if not (bundle / "_internal").is_dir():
+        sys.exit(f"의존 파일 디렉터리가 없습니다: {bundle / '_internal'}")
 
-    source = bundle / f"{BACKEND_NAME}{suffix}"
-    if not source.is_file():
-        sys.exit(f"실행 파일을 찾을 수 없습니다: {source}")
-
-    # _internal 디렉터리(의존 파일)를 sidecar 옆에 둔다
-    internal = bundle / "_internal"
-    if internal.is_dir():
-        destination = SIDECAR_DIR / "_internal"
-        shutil.rmtree(destination, ignore_errors=True)
-        shutil.copytree(internal, destination)
-
-    target = SIDECAR_DIR / f"{BACKEND_NAME}-{triple}{suffix}"
-    shutil.copy2(source, target)
-    os.chmod(target, 0o755)
-    print(f"  sidecar: {target.name}")
-    return target
+    shutil.rmtree(STAGE_DIR, ignore_errors=True)
+    shutil.copytree(bundle, STAGE_DIR, symlinks=False)
+    staged = STAGE_DIR / f"{BACKEND_NAME}{suffix}"
+    staged.chmod(0o755)
+    print(f"  staged: {STAGE_DIR}")
+    return staged
 
 
 def build_tauri() -> None:
@@ -137,8 +111,8 @@ def main() -> None:
     bundle = build_backend(clean=not args.no_clean)
     report_size(bundle)
 
-    print("[2] sidecar 배치")
-    stage_sidecar(bundle)
+    print("[2] 백엔드 산출물 확인")
+    stage_backend(bundle)
 
     if args.tauri:
         print("[3] 데스크톱 셸 빌드 (Tauri)")

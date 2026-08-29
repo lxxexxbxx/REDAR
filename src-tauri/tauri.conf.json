@@ -14,10 +14,18 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "msi", "nsis"],
-    "icon": ["icons/icon.png"],
-    "externalBin": ["binaries/redar-backend"],
-    "resources": [],
+    "targets": [
+      "app",
+      "dmg",
+      "msi",
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ],
+    "resources": [
+      "backend/**/*"
+    ],
     "copyright": "team REDRED",
     "shortDescription": "웹 취약점 진단 도구",
     "longDescription": "Nuclei 기반 웹 취약점 진단. 모든 처리는 로컬에서 끝난다."

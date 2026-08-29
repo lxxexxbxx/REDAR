@@ -62,6 +62,7 @@ dist/
 
 src-tauri/target/
 src-tauri/binaries/
+src-tauri/backend/
 src-tauri/gen/
 
 frontend/node_modules/

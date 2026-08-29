@@ -15,7 +15,18 @@ ROOT = Path(SPECPATH).resolve().parent
 datas = [
     (str(ROOT / "db" / "schema.sql"), "db"),
     (str(ROOT / "db" / "migrations"), "db/migrations"),
-    (str(ROOT / "data"), "data"),
+    # data/ 를 통째로 넣지 않는다. guide_items*.csv 와 guide_images/ 는
+    # 저작권 대상이라 배포물에 포함할 수 없다 (절대규칙 8)
+    *[
+        (str(ROOT / "data" / name), "data")
+        for name in (
+            "vuln_type_rules.csv",
+            "guide_mappings.csv",
+            "guide_mappings.templates.csv",
+            "component_advisories.csv",
+            "settings_defaults.csv",
+        )
+    ],
     (str(ROOT / "assets" / "fonts"), "assets/fonts"),
     (str(ROOT / "frontend"), "frontend"),
     (str(ROOT / "app" / "report" / "templates"), "app/report/templates"),
@@ -36,13 +47,6 @@ hiddenimports = [
     "uvicorn.lifespan.on",
 ]
 
-# Tauri sidecar 는 파일 하나만 번들된다 (externalBin). onedir 의 _internal 이
-# .app 에 들어가지 않으므로 셸 빌드용으로는 onefile 이 필요하다.
-# REDAR_ONEFILE=1 로 전환한다
-import os
-
-ONEFILE = os.environ.get("REDAR_ONEFILE") == "1"
-
 a = Analysis(
     [str(ROOT / "packaging" / "entrypoint.py")],
     pathex=[str(ROOT)],
@@ -56,32 +60,24 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
-if ONEFILE:
-    exe = EXE(
-        pyz, a.scripts, a.binaries, a.datas, [],
-        name="redar-backend",
-        debug=False,
-        strip=False,
-        upx=False,      # UPX 압축은 백신 오탐을 늘린다
-        console=True,
-    )
-else:
-    exe = EXE(
-        pyz,
-        a.scripts,
-        [],
-        exclude_binaries=True,
-        name="redar-backend",
-        debug=False,
-        strip=False,
-        upx=False,
-        console=True,
-    )
-    coll = COLLECT(
-        exe,
-        a.binaries,
-        a.datas,
-        strip=False,
-        upx=False,
-        name="redar-backend",
-    )
+# onefile 은 실행마다 압축을 풀어 9~18초가 걸린다 (onedir 0.3초. 2026-08-29 실측).
+# Tauri 에는 externalBin 대신 디렉터리 리소스로 넣는다 (src-tauri/tauri.conf.json)
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name="redar-backend",
+    debug=False,
+    strip=False,
+    upx=False,          # UPX 압축은 백신 오탐을 늘린다
+    console=True,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    name="redar-backend",
+)

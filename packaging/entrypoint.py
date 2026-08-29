@@ -6,8 +6,10 @@ Tauri 셸이 이 stdout 한 줄을 읽어 WebView 를 띄운다
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sys
+import threading
 from pathlib import Path
 
 # 번들 루트를 import 경로에 넣는다. PyInstaller 는 _MEIPASS 를 sys.path 에 넣지만
@@ -26,6 +28,23 @@ def free_port() -> int:
         return sock.getsockname()[1]
 
 
+def watch_parent() -> None:
+    """부모(셸) 종료 감지. 남으면 포트와 DB 락이 유지된다 (M10 완료 조건 4).
+
+    셸이 SIGTERM 등으로 죽으면 창 이벤트가 돌지 않아 Rust 쪽 정리가 못 돈다.
+    부모가 사라지면 stdin 의 쓰기 끝이 닫혀 EOF 가 되므로 그것을 기다린다
+    """
+    def wait() -> None:
+        try:
+            while sys.stdin.readline():
+                pass
+        except (OSError, ValueError):
+            pass
+        os._exit(0)
+
+    threading.Thread(target=wait, daemon=True).start()
+
+
 def main() -> None:
     import uvicorn
 
@@ -36,6 +55,7 @@ def main() -> None:
     # 첫 실행 시 사용자 데이터 경로에 DB 를 만든다. init-db 를 따로 돌리지 않아도 된다
     init_db(settings.DB_PATH)
 
+    watch_parent()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else free_port()
     print(
         READY_PREFIX

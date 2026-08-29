@@ -15,10 +15,17 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let handle = app.handle().clone();
-            let (mut rx, child) = app
-                .shell()
-                .sidecar("redar-backend")?
-                .spawn()?;
+            // sidecar 대신 리소스 경로로 실행한다. externalBin 은 파일 하나만 복사하므로
+            // PyInstaller --onedir 의 _internal 이 빠진다. onedir 을 유지하는 이유는
+            // onefile 이 실행마다 압축을 풀어 9~18초가 걸리기 때문 (실측)
+            let exe = if cfg!(windows) { "redar-backend.exe" } else { "redar-backend" };
+            let backend = app
+                .path()
+                .resource_dir()?
+                // resources 배열이 상대 경로를 보존하므로 backend/ 그대로 들어간다
+                .join("backend")
+                .join(exe);
+            let (mut rx, child) = app.shell().command(backend).spawn()?;
             // 앱 종료 시 sidecar 를 함께 내린다. 남기면 포트와 DB 락이 유지된다
             app.manage(SidecarGuard(std::sync::Mutex::new(Some(child))));
 
@@ -59,8 +66,18 @@ fn main() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("REDAR 실행 실패");
+        .build(tauri::generate_context!())
+        .expect("REDAR 실행 실패")
+        .run(|handle, event| {
+            // 창 파괴 이벤트가 돌지 않는 종료 경로(Cmd+Q 등)도 여기서 정리한다
+            if let tauri::RunEvent::Exit = event {
+                if let Some(guard) = handle.try_state::<SidecarGuard>() {
+                    if let Some(child) = guard.0.lock().unwrap().take() {
+                        let _ = child.kill();
+                    }
+                }
+            }
+        });
 }
 
 struct SidecarGuard(std::sync::Mutex<Option<CommandChild>>);

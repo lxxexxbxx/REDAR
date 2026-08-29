@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import importlib.util
-import re
+import json
 from pathlib import Path
 
 import pytest
@@ -93,6 +93,22 @@ def test_spec_uses_onedir_not_onefile():
     text = SPEC.read_text(encoding="utf-8")
     assert "COLLECT(" in text
     assert "exclude_binaries=True" in text
+
+
+def test_spec_excludes_copyrighted_guide_data():
+    """가이드 본문·캡처는 저작권 대상이라 배포물에 넣지 않는다 (절대규칙 8)"""
+    # 주석은 근거이므로 본문 전체가 아니라 실제 항목만 본다
+    entries = [
+        line.strip() for line in SPEC.read_text(encoding="utf-8").splitlines()
+        if line.strip().startswith(("(str(ROOT", '"'))
+    ]
+    joined = " ".join(entries)
+    assert 'ROOT / "data"), "data"' not in joined     # 통째 포함 금지
+    assert "guide_items" not in joined
+    assert "guide_images" not in joined
+    for bundled in ("vuln_type_rules.csv", "guide_mappings.csv",
+                    "component_advisories.csv", "settings_defaults.csv"):
+        assert bundled in joined, bundled
 
 
 def test_spec_bundles_read_only_resources():
@@ -186,8 +202,17 @@ def test_two_runs_get_different_ports():
 def test_tauri_kills_sidecar_on_exit():
     """앱 종료 후 redar-backend 프로세스가 남으면 포트와 DB 락이 유지된다"""
     text = TAURI_MAIN.read_text(encoding="utf-8")
-    assert "child.kill()" in text
+    assert text.count("child.kill()") == 2       # 창 파괴 + 앱 종료 양쪽
     assert "WindowEvent::Destroyed" in text
+    assert "RunEvent::Exit" in text
+
+
+def test_backend_exits_when_parent_dies():
+    """셸이 강제 종료되면 창 이벤트가 돌지 않는다. 백엔드가 스스로 빠져야 한다"""
+    text = ENTRYPOINT.read_text(encoding="utf-8")
+    assert "watch_parent()" in text
+    assert "sys.stdin.readline()" in text
+    assert "os._exit(0)" in text
 
 
 def test_tauri_reads_port_from_sidecar_stdout():
@@ -197,26 +222,58 @@ def test_tauri_reads_port_from_sidecar_stdout():
     assert "127.0.0.1" in text
 
 
-def test_tauri_sidecar_name_matches_build_script():
-    conf = TAURI_CONF.read_text(encoding="utf-8")
-    assert "binaries/redar-backend" in conf
+def test_backend_bundled_as_directory_resource():
+    """externalBin 은 파일 하나만 복사해 --onedir 의 _internal 이 빠진다"""
+    conf = json.loads(TAURI_CONF.read_text(encoding="utf-8"))
+    assert "externalBin" not in conf["bundle"]
+    # 심볼릭 링크를 푼 복사본을 넣는다 (packaging/build.py stage_backend)
+    # 배열 형태여야 상대 경로 구조가 보존된다. 맵 형태는 평탄화한다
+    assert conf["bundle"]["resources"] == ["backend/**/*"]
     assert _load_build().BACKEND_NAME == "redar-backend"
 
 
-def test_target_triple_is_appended_to_sidecar_name():
-    """트리플이 없으면 Tauri 가 sidecar 를 찾지 못한다"""
+def test_tauri_resolves_backend_from_resource_dir():
+    text = TAURI_MAIN.read_text(encoding="utf-8")
+    assert "resource_dir()" in text
+    assert '.join("backend")' in text           # resources 배열이 보존하는 경로
+    assert "redar-backend.exe" in text          # Windows 확장자 분기
+    assert ".sidecar(" not in text
+
+
+def test_stage_backend_dereferences_symlinks(tmp_path, monkeypatch):
+    """Python.framework 의 심볼릭 링크에서 Tauri 리소스 복사가 실패한다"""
     build = _load_build()
-    triple = build.target_triple()
-    assert re.match(r"^[\w]+-[\w.-]+$", triple), triple
-    assert "-" in triple
+    source = tmp_path / "dist" / "redar-backend"
+    (source / "_internal" / "Python.framework").mkdir(parents=True)
+    (source / "redar-backend").write_text("#!/bin/sh\n")
+    versions = source / "_internal" / "Python.framework" / "Versions"
+    (versions / "3.12").mkdir(parents=True)
+    (versions / "3.12" / "Python").write_text("lib")
+    # Current -> 3.12. 자기 참조가 아니라 형제 디렉터리를 가리킨다
+    (versions / "Current").symlink_to(versions / "3.12", target_is_directory=True)
+
+    stage = tmp_path / "stage"
+    monkeypatch.setattr(build, "STAGE_DIR", stage)
+    monkeypatch.setattr(build.platform, "system", lambda: "Darwin")
+    build.stage_backend(source)
+
+    assert (stage / "redar-backend").is_file()
+    assert [p for p in stage.rglob("*") if p.is_symlink()] == []
+
+
+def test_spec_has_no_onefile_branch():
+    """onefile 은 실행마다 9~18초가 걸린다 (onedir 0.3초. 실측)"""
+    text = SPEC.read_text(encoding="utf-8")
+    assert "ONEFILE" not in text
+    assert "COLLECT(" in text
 
 
 # ─────────────────────────────── 빌드 스크립트 (완료 조건 1)
 
 def test_build_script_runs_three_stages_in_order():
     text = BUILD.read_text(encoding="utf-8")
-    assert text.index("build_backend") < text.index("stage_sidecar")
-    assert text.index("stage_sidecar") < text.index("build_tauri")
+    assert text.index("build_backend") < text.index("stage_backend")
+    assert text.index("stage_backend") < text.index("build_tauri")
 
 
 def test_build_script_fails_loudly_without_toolchain(monkeypatch):
