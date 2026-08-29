@@ -401,7 +401,8 @@ def test_settings_roundtrip(client):
     initial = client.get(f"{API}/settings").json()
     assert initial["offline_mode"] is True
     assert initial["target_allowlist"] == []
-    assert len(initial["external_endpoints"]) == 3
+    # 통신 지점 4곳: 템플릿 갱신 · LLM · CVE 조회 · 의존성 자동 설치
+    assert len(initial["external_endpoints"]) == 4
 
     updated = client.put(
         f"{API}/settings",

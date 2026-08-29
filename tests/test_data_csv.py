@@ -137,7 +137,7 @@ def test_vuln_type_values_are_enum_members():
 def test_external_endpoint_keys_are_code_controlled():
     """통신 지점 목록은 코드가 통제한다. CSV 로 4번째 지점을 추가할 수 없어야 함 (절대규칙 5)"""
     assert settings_repo.EXTERNAL_ENDPOINT_KEYS == (
-        "template_sync", "llm_api", "cve_lookup"
+        "template_sync", "llm_api", "cve_lookup", "dependency_install",
     )
     csv_keys = {r["key"] for r in _read("settings_defaults.csv")}
     extra = {k for k in csv_keys if k.startswith("ext_") and k.endswith("_url")}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -9,14 +10,31 @@ from fastapi.staticfiles import StaticFiles
 from app import __version__
 from app.adapters.nuclei import version as nuclei_version
 from app.api import (
-    compare, errors, guide, reports, scans, settings_api, templates,
+    compare, dependencies, errors, guide, reports, scans, settings_api,
+    templates,
 )
 from app.config import settings
 from app.repository.db import session
 
 API_PREFIX = "/api/v1"
 
-app = FastAPI(title="REDAR", version=__version__, docs_url=f"{API_PREFIX}/docs")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """설정에 지정·반입된 도구 경로를 읽어 둔다. 실패해도 기동은 계속한다"""
+    try:
+        from app.services import dependency_service
+
+        with session() as conn:
+            dependency_service.sync_configured_paths(conn)
+    except sqlite3.Error:
+        pass
+    yield
+
+
+app = FastAPI(
+    title="REDAR", version=__version__, docs_url=f"{API_PREFIX}/docs",
+    lifespan=lifespan,
+)
 
 errors.register(app)
 # /scans/compare 를 /scans/{scan_id} 보다 먼저 등록한다.
@@ -27,6 +45,7 @@ app.include_router(settings_api.router, prefix=API_PREFIX)
 app.include_router(guide.router, prefix=API_PREFIX)
 app.include_router(templates.router, prefix=API_PREFIX)
 app.include_router(reports.router, prefix=API_PREFIX)
+app.include_router(dependencies.router, prefix=API_PREFIX)
 
 
 @app.get(f"{API_PREFIX}/health")

@@ -74,6 +74,23 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  dependencies: () => request("/dependencies"),
+  setDependencyPath: (key, path) =>
+    request(`/dependencies/${encodeURIComponent(key)}/path`, {
+      method: "PUT", body: JSON.stringify({ path }),
+    }),
+  installDependency: (key, confirm) =>
+    request(`/dependencies/${encodeURIComponent(key)}/install`, {
+      method: "POST", body: JSON.stringify({ confirm }),
+    }),
+  importDependency: (key, file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request(`/dependencies/${encodeURIComponent(key)}/import`, {
+      method: "POST", body: form,
+    });
+  },
+
   listReports: (params = {}) => request("/reports" + query(params)),
   getReport: (id) => request(`/reports/${encodeURIComponent(id)}`),
   createReport: (scanId, options) =>

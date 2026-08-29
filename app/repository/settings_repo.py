@@ -14,7 +14,12 @@ from typing import Any
 # 키 목록만 코드에 둔다. CSV 로 내리면 네 번째 지점을 데이터로 추가할 수 있게 되어
 # 통제가 무너진다. URL 기본값은 데이터이므로 data/settings_defaults.csv 의
 # ext_<key>_url 이 출처
-EXTERNAL_ENDPOINT_KEYS = ("template_sync", "llm_api", "cve_lookup")
+EXTERNAL_ENDPOINT_KEYS = (
+    "template_sync", "llm_api", "cve_lookup",
+    # 의존성(nuclei 등) 자동 설치. 기본 비활성이며 요청마다 명시적 동의가 필요하다.
+    # 폐쇄망에서는 켜지 않고 파일 반입으로 등록한다 (docs/01 §7.1)
+    "dependency_install",
+)
 
 _TRUE = {"true", "1", "yes", "on"}
 

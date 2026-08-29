@@ -277,10 +277,28 @@ def test_build_script_runs_three_stages_in_order():
 
 
 def test_build_script_fails_loudly_without_toolchain(monkeypatch):
+    """자동 설치를 요청하지 않았으면 OS 별 설치 방법을 안내하고 멈춘다"""
     build = _load_build()
-    monkeypatch.setattr(build.shutil, "which", lambda name: None)
-    with pytest.raises(SystemExit, match="cargo"):
-        build.build_tauri()
+    monkeypatch.setattr(build, "cargo_path", lambda: None)
+    with pytest.raises(SystemExit) as exc:
+        build.build_tauri(False)
+    message = str(exc.value)
+    assert "rustup" in message
+    for platform_name in ("Windows", "macOS", "Linux"):
+        assert platform_name in message
+    assert "--install-rust" in message
+
+
+def test_build_script_installs_rust_only_when_asked(monkeypatch):
+    """빌드가 임의로 툴체인을 설치하지 않는다. 옵션이 있어야 한다"""
+    build = _load_build()
+    calls: list[str] = []
+    monkeypatch.setattr(build, "cargo_path", lambda: None)
+    monkeypatch.setattr(build, "install_rust", lambda: calls.append("install") or "")
+
+    with pytest.raises(SystemExit):
+        build.build_tauri(False)
+    assert calls == []
 
 
 def test_pdf_is_derived_not_generated():
@@ -312,18 +330,11 @@ def test_installer_uses_go_install_not_bundled_binary():
     assert '"install", "-v", NUCLEI_PKG' in INSTALLER.read_text(encoding="utf-8")
 
 
-def test_installer_is_not_reachable_from_app():
-    """앱이 설치를 트리거하면 아웃바운드 통신 지점이 4개가 된다 (절대규칙 5).
+def test_install_path_is_registered_as_outbound_endpoint():
+    """자동 설치는 외부 통신 지점 4번이다. 목록에 없으면 통제 밖에서 통신한다"""
+    from app.repository import settings_repo
 
-    주석의 경로 언급은 문서이므로 허용한다. 금지 대상은 실행 경로다
-    """
-    for path in (ROOT / "app").rglob("*.py"):
-        source = path.read_text(encoding="utf-8")
-        assert "import install_nuclei" not in source, path
-        assert "from tools" not in source, path
-        # 설치 스크립트가 쓰는 외부 주소·명령이 앱에 있으면 안 된다
-        assert "go.dev/dl" not in source, path
-        assert "cmd/nuclei@latest" not in source, path
+    assert "dependency_install" in settings_repo.EXTERNAL_ENDPOINT_KEYS
 
 
 def test_installer_verifies_checksum_before_extracting():

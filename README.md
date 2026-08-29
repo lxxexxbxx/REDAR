@@ -99,10 +99,19 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 데스크톱 앱으로 쓰려면 아래 **데스크톱 앱 빌드** 를 따른다.
 
-### 5. nuclei 설치
+### 5. nuclei 준비
 
-스크립트가 Go 툴체인 확인 → 없으면 설치 → nuclei 빌드까지 처리한다.
-Windows / macOS / Linux 공통이며 **관리자 권한이 필요 없다.**
+nuclei 는 탐지의 전제 조건이다. 없으면 결과 조회·보고서는 되지만 스캔이 안 된다.
+**GUI 를 열면 없을 때 안내가 뜨고**, 설정 → **의존성** 에서 세 방법 중 하나를 쓴다.
+
+| 방법 | 통신 | 쓰는 경우 |
+|---|---|---|
+| 자동 설치 | 발생 | 일반 환경. 설정에서 지점을 켜고 확인을 누른다 |
+| 파일 반입 | 없음 | **폐쇄망.** 다른 PC 에서 받아온 바이너리를 올린다 |
+| 경로 지정 | 없음 | 이미 설치된 특정 버전을 고정할 때 |
+
+터미널에서 준비하려면 스크립트를 쓴다. Go 툴체인 확인 → 없으면 설치 →
+nuclei 빌드까지 하며, **관리자 권한이 필요 없다.**
 
 ```bash
 python3 tools/install_nuclei.py
@@ -157,15 +166,48 @@ export REDAR_NUCLEI=/path/to/nuclei      # Windows: set REDAR_NUCLEI=C:\tools\nu
 | 항목 | 용도 | 비고 |
 |---|---|---|
 | Python 3.11+ | 백엔드 번들 | `pip install -r requirements.txt` |
-| Rust (rustup) | Tauri 셸 | <https://rustup.rs> |
-| Node.js 18+ | Tauri CLI (`npx`) | |
+| Rust (rustup) | Tauri 셸 | 아래 설치 방법 참조 |
+| Node.js 18+ | Tauri CLI (`npx`) | <https://nodejs.org> |
 | Xcode CLT / MSVC 빌드 도구 | 플랫폼 링커 | macOS `xcode-select --install` |
+
+### Rust 설치
+
+OS 별로 아래 중 하나를 쓴다. 설치 후 **새 터미널**에서 빌드한다.
+
+```bash
+# Windows (PowerShell)
+winget install Rustlang.Rustup
+#   또는 https://rustup.rs 에서 rustup-init.exe 실행
+
+# macOS
+brew install rustup && rustup-init
+#   또는
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Linux
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+설치 확인:
+
+```bash
+cargo --version
+```
 
 ### 빌드
 
 ```bash
 python3 packaging/build.py --tauri
 ```
+
+Rust 를 직접 설치하지 않고 빌드에 맡기려면 옵션을 붙인다.
+**rustup 을 내려받아 실행하므로 외부 통신이 발생한다.**
+
+```bash
+python3 packaging/build.py --tauri --install-rust
+```
+
+옵션 없이 Rust 가 없으면 빌드는 진행하지 않고 위 설치 방법을 안내한다.
 
 세 단계가 순서대로 돈다.
 
@@ -302,15 +344,16 @@ python -m app.cli import-scan result.jsonl --target http://target.local:8080 --n
 
 ## 외부 통신
 
-REDAR 의 아웃바운드 통신은 아래 세 곳뿐이며 전부 기본 비활성이다.
+REDAR 의 아웃바운드 통신은 아래 네 곳뿐이며 전부 기본 비활성이다.
 
 | 지점 | 기본값 | 용도 |
 |---|---|---|
 | nuclei 템플릿 갱신 | 비활성 | 공식 템플릿 동기화. 수동 실행만 |
 | LLM API | 비활성 | 보고서 서술문 생성 (선택) |
 | CVE 정보 조회 | 비활성 | 부가 정보 (선택) |
+| 의존성 자동 설치 | 비활성 | nuclei·Go 설치. 요청마다 확인을 받는다 |
 
-오프라인 모드를 켜면 개별 설정과 무관하게 세 곳이 전부 차단된다.
+오프라인 모드를 켜면 개별 설정과 무관하게 네 곳이 전부 차단된다.
 스캔 실행 시 nuclei 의 자동 업데이트 확인도 `-duc` 로 차단한다.
 
 템플릿은 두 방법으로 준비할 수 있다.

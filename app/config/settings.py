@@ -70,6 +70,15 @@ FRONTEND_DIR = resource_path("frontend")
 REPORTS_DIR = _path("REDAR_REPORTS_DIR", HOME / "reports")
 
 
+# 설정에 지정된 nuclei 경로. repository 계층이 DB 에서 읽어 넣는다.
+# settings 모듈이 DB 를 조회하면 계층 방향이 뒤집힌다 (docs/01 §2.1)
+_CONFIGURED_NUCLEI: dict[str, str | None] = {"path": None}
+
+
+def set_configured_nuclei(path: str | None) -> None:
+    _CONFIGURED_NUCLEI["path"] = path or None
+
+
 def nuclei_bin() -> str | None:
     """nuclei 실행 파일 경로. 미설치 시 None (docs/01 §5.5).
 
@@ -78,6 +87,10 @@ def nuclei_bin() -> str | None:
     override = os.environ.get("REDAR_NUCLEI")
     if override:
         return override
+    # 설정에서 지정·반입한 경로. DB 를 여기서 읽지 않기 위해 서비스가 넣어준다
+    configured = _CONFIGURED_NUCLEI.get("path")
+    if configured and Path(configured).is_file():
+        return configured
 
     name = "nuclei.exe" if sys.platform == "win32" else "nuclei"
     # 탐색 순서: 명시 지정 -> 번들 -> 사용자 홈 -> PATH.

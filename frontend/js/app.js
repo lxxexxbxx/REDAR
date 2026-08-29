@@ -6,6 +6,10 @@ import {
 } from "./templates.js";
 import { handleReportClick, viewReport } from "./reports.js";
 import {
+  dependencyPanel, handleDependencyChange, handleDependencyClick,
+  missingDependencyNotice,
+} from "./dependencies.js";
+import {
   FINDING_STATUS_LABEL, SCAN_STATUS_LABEL, SEVERITY_ORDER, SEVERITY_LABEL,
   VULN_TYPE_LABEL, VULN_TYPE_ORDER,
   coverageNotice, dash, emptyState, esc, fmtDuration, fmtTime,
@@ -113,6 +117,7 @@ async function viewDashboard() {
   }
 
   view().innerHTML = `
+    ${missingDependencyNotice(state.dependencies)}
     <div class="view-head">
       <div class="eyebrow">진단 현황</div>
       <h1>대시보드</h1>
@@ -801,7 +806,7 @@ function viewSettings() {
         <input type="checkbox" id="offline" ${s.offline_mode ? "checked" : ""}>
         <span class="t-body">
           <b>오프라인 모드</b>
-          <small>켜면 아래 세 지점이 개별 설정과 무관하게 전부 차단됩니다.</small>
+          <small>켜면 아래 네 지점이 개별 설정과 무관하게 전부 차단됩니다.</small>
         </span>
       </div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)">
@@ -817,8 +822,8 @@ function viewSettings() {
           </div>`).join("")}
       </div>
       <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-        이 세 곳이 REDAR 의 아웃바운드 통신 전부입니다. 템플릿 갱신은 이 항목을 켜고
-        직접 실행할 때만 일어나며, 스캔 중 자동 갱신은 하지 않습니다.
+        이 네 곳이 REDAR 의 아웃바운드 통신 전부입니다. 템플릿 갱신·의존성 설치는
+        이 항목을 켜고 직접 실행할 때만 일어나며, 자동으로 실행되지 않습니다.
       </p>
       <div class="actions">
         <button class="primary" data-save="network">통신 설정 저장</button>
@@ -841,6 +846,14 @@ function viewSettings() {
       <div class="actions">
         <button class="primary" data-save="defaults">기본값 저장</button>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="eyebrow">필수 도구</div>
+        <h2>의존성</h2>
+      </div>
+      ${dependencyPanel(state.dependencies)}
     </div>
 
     <div class="panel">
@@ -890,6 +903,7 @@ const ENDPOINT_LABEL = {
   template_sync: "nuclei 템플릿 갱신",
   llm_api: "LLM API",
   cve_lookup: "CVE 정보 조회",
+  dependency_install: "의존성 자동 설치 (nuclei · Go)",
 };
 
 async function saveSettings(kind) {
@@ -939,12 +953,18 @@ function showApiError(error) {
 
 async function refreshContext() {
   const results = await Promise.allSettled([
-    api.health(), api.guideStatus(), api.settings(),
+    api.health(), api.guideStatus(), api.settings(), api.dependencies(),
   ]);
-  [state.health, state.guide, state.settings] = results.map((r) =>
-    r.status === "fulfilled" ? r.value : null);
+  [state.health, state.guide, state.settings, state.dependencies] =
+    results.map((r) => (r.status === "fulfilled" ? r.value : null));
   renderStateStrip();
 }
+
+async function refreshAndRender() {
+  await refreshContext();
+  await render();
+}
+
 
 async function render() {
   const { path, params } = route();
@@ -1016,6 +1036,7 @@ document.addEventListener("click", async (event) => {
 
   // 템플릿 화면은 자기 이벤트를 스스로 처리한다. 처리했으면 true
   try {
+    if (await handleDependencyClick(t, refreshAndRender)) return;
     if (await handleTemplateClick(t)) return;
     if (await handleReportClick(t)) return;
   } catch (error) { showApiError(error); }
@@ -1023,6 +1044,7 @@ document.addEventListener("click", async (event) => {
 
 document.addEventListener("change", async (event) => {
   try {
+    if (await handleDependencyChange(event.target, refreshAndRender)) return;
     if (await handleTemplateChange(event.target)) return;
   } catch (error) { showApiError(error); }
 
