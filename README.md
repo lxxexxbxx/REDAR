@@ -23,7 +23,7 @@ Nuclei 기반 웹 취약점 **진단** 도구. 스캔 실행, 결과 정리, 보
 | M7 | 보고서 생성 (자체 완결형 HTML) | 완료 |
 | M8 | 스캔 비교 (재진단 차이 보고) | 완료 |
 | M9 | LLM 서술 레이어 (기본 비활성) | 완료 |
-| M10 | 데스크톱 패키징 | 백엔드 번들 완료 · 셸 빌드 |
+| M10 | 데스크톱 패키징 (원클릭 빌드 · Tauri 번들) | 완료 |
 
 화면 6종(대시보드 · 스캔 실행 · 탐지 결과 · 템플릿 · 보고서 · 설정) 전부 동작
 
@@ -46,8 +46,8 @@ python -m app.cli import-guide data/guide_items_2026.csv \
 | 항목 | 버전 | 비고 |
 |---|---|---|
 | Python | 3.11 이상 | 시스템 파이썬이면 충분. 가상환경은 빌드가 만듦 |
-| Node.js | 18 이상 | Tauri CLI 실행용 |
-| Rust | 최신 안정판 | 없으면 빌드가 안내. `--install-rust` 로 자동 설치 가능 |
+| Node.js | 18 이상 | 없으면 빌드가 공식 배포본 설치 |
+| Rust | 최신 안정판 | 없으면 빌드가 rustup 으로 설치 |
 | OS | Windows / macOS / Linux | |
 
 ### 한 줄 빌드
@@ -61,24 +61,27 @@ python3 packaging/build.py
 아래가 순서대로 자동 진행되고 **마지막에 앱이 실행됨.**
 
 ```
-[1] 가상환경 생성 (.venv) · 의존성 설치
+[1] 가상환경(.venv) · 의존성 · 툴체인 (Node · nuclei)
 [2] 백엔드 번들 (PyInstaller --onedir)
 [3] 산출물 스테이징
-[4] 데스크톱 셸 빌드 (Tauri)
+[4] 데스크톱 셸 빌드 (Tauri. 없으면 Rust 설치)
 [5] 앱 실행
 ```
 
-DB 초기화도 앱 첫 실행이 알아서 처리. `init-db` 를 따로 돌릴 필요 없음
+DB 초기화도 앱 첫 실행이 알아서 처리. `init-db` 를 따로 돌릴 필요 없음.
+Node · Rust · nuclei 가 없으면 **같은 실행 안에서** 확보. 두 번 실행할 필요 없음
 
 | 옵션 | 동작 |
 |---|---|
-| `--install-rust` | Rust 가 없으면 rustup 으로 설치 (외부 통신 발생) |
+| `--no-auto-install` | 툴체인을 설치하지 않고 OS 별 설치 방법만 출력 (외부 통신 없음) |
+| `--headless` | 데스크톱 셸 없이 서버 모드로 기동 (원격 서버용) |
+| `--port` | 서버 모드 포트 (기본 8000) |
 | `--backend-only` | 백엔드 번들까지만 |
 | `--no-launch` | 빌드만 하고 실행 안 함 |
 | `--no-clean` | 이전 산출물 유지 |
 
-Rust 가 없고 `--install-rust` 도 없으면 빌드를 진행하지 않고 OS 별 설치 방법을 출력.
-직접 설치할 경우 아래 참조.
+자동 설치는 외부 통신을 발생시킴. 폐쇄망이나 직접 설치를 원하면 `--no-auto-install`.
+Rust 직접 설치는 아래 참조.
 
 ```bash
 # Windows (PowerShell)
@@ -165,7 +168,7 @@ python -m app.cli import-guide data/guide_items_2026.csv \
 
 | 단계 | 내용 | 산출물 |
 |---|---|---|
-| [1] | 가상환경 생성 · `pip install -r requirements.txt` | `.venv/` |
+| [1] | 가상환경 · `pip install -r requirements.txt` · Node · nuclei | `.venv/` `~/.redar/` |
 | [2] | PyInstaller `--onedir` 백엔드 번들 | `dist/redar-backend/` |
 | [3] | Tauri 리소스로 스테이징 | `src-tauri/backend/` |
 | [4] | Tauri 번들 | `src-tauri/target/release/bundle/` |
@@ -178,8 +181,8 @@ python -m app.cli import-guide data/guide_items_2026.csv \
 | 항목 | 용도 | 비고 |
 |---|---|---|
 | Python 3.11+ | 백엔드 번들 | 가상환경은 빌드가 생성 |
-| Rust (rustup) | Tauri 셸 | `--install-rust` 로 자동 설치 가능 |
-| Node.js 18+ | Tauri CLI (`npx`) | <https://nodejs.org> |
+| Rust (rustup) | Tauri 셸 | 없으면 빌드가 설치 |
+| Node.js 18+ | Tauri CLI (`npx`) | 없으면 빌드가 공식 배포본 설치 |
 | Xcode CLT / MSVC 빌드 도구 | 플랫폼 링커 | macOS `xcode-select --install` |
 
 ### 백엔드만 확인
@@ -191,6 +194,26 @@ python3 packaging/build.py --backend-only --no-launch
 
 첫 줄에 `REDAR_READY {"port": …}` 가 출력되면 정상. 포트는 매 실행마다
 비어 있는 것을 골라 잡으므로 두 번 실행해도 충돌 없음
+
+### 원격 서버(EC2 등)에서 사용
+
+디스플레이가 없는 서버는 데스크톱 셸을 띄울 수 없음. 빌드가 이를 감지해
+[4] 를 건너뛰고 백엔드만 기동 (`--headless` 로 강제 가능)
+
+```bash
+python3 packaging/build.py           # 서버에서 실행
+```
+
+로컬 PC 에서 SSH 포트 포워딩 후 브라우저로 접속. 화면은 데스크톱 앱과 동일
+
+```bash
+ssh -L 8000:127.0.0.1:8000 <사용자>@<서버주소>
+```
+
+접속 주소는 `http://127.0.0.1:8000`. 포워딩이라 서버의 보안 그룹을 열 필요 없음
+
+> 데스크톱 앱 자체를 원격에서 띄우려면 X11 포워딩(`ssh -X`)이 필요하지만
+> WebView·GPU 의존성 때문에 권장하지 않음. 포트 포워딩이 정상 경로
 
 ### 크로스 컴파일 불가
 
@@ -269,7 +292,7 @@ localhost
 
 | 항목 | 초기값 |
 |---|---|
-| 오프라인 모드 | 활성 (외부 통신 3곳 전부 차단) |
+| 오프라인 모드 | 활성 (외부 통신 4곳 전부 차단) |
 | 스캔 허용 대상 | **비어 있음 = 전부 차단** |
 | LLM | 비활성 |
 | 가이드 본문 | 미탑재 (정상 상태) |

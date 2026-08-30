@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -286,7 +287,7 @@ def test_build_script_fails_loudly_without_toolchain(monkeypatch):
     assert "rustup" in message
     for platform_name in ("Windows", "macOS", "Linux"):
         assert platform_name in message
-    assert "--install-rust" in message
+    assert "--no-auto-install" in message
 
 
 def test_build_script_installs_rust_only_when_asked(monkeypatch):
@@ -415,12 +416,105 @@ def test_build_bootstraps_venv_and_reexecutes():
     assert "in_target_venv()" in text
 
 
-def test_build_reexec_does_not_recurse():
+def test_build_reexec_does_not_recurse(monkeypatch):
     """재실행된 자식이 다시 재실행하면 무한 루프"""
     build = _load_build()
+    calls: list[list[str]] = []
+    monkeypatch.setattr(build.subprocess, "run",
+                        lambda cmd, **kw: calls.append(cmd))
+    monkeypatch.setattr(build, "ensure_deps", lambda python: None)
     assert build.in_target_venv() is True        # 테스트는 venv 안에서 돔
-    # venv 안이면 ensure_venv 가 아무것도 하지 않고 반환
     build.ensure_venv()
+    assert calls == []                           # 재실행하지 않음
+
+
+def test_build_installs_deps_even_inside_venv(monkeypatch):
+    """가상환경을 먼저 활성화하고 실행하면 설치가 통째로 빠져
+    'PyInstaller 가 없습니다' 로 끝났음"""
+    build = _load_build()
+    installed: list[str] = []
+    monkeypatch.setattr(build, "ensure_deps",
+                        lambda python: installed.append(python))
+    build.ensure_venv()
+    assert installed == [sys.executable]
+
+
+def test_headless_only_when_no_display(monkeypatch):
+    """원격 리눅스 서버에는 디스플레이가 없어 데스크톱 셸을 띄울 수 없음"""
+    build = _load_build()
+    monkeypatch.setattr(build.platform, "system", lambda: "Linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    assert build.headless() is True
+    monkeypatch.setenv("DISPLAY", ":0")
+    assert build.headless() is False
+    monkeypatch.setattr(build.platform, "system", lambda: "Darwin")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    assert build.headless() is False
+
+
+def test_headless_prints_port_forward_guide(monkeypatch, tmp_path, capsys):
+    """번들이 없어도 접속 방법은 알려줘야 함"""
+    build = _load_build()
+    monkeypatch.setattr(build, "DIST", tmp_path)
+    build.serve_headless(8000)
+    out = capsys.readouterr().out
+    assert "ssh -L 8000:127.0.0.1:8000" in out
+    assert "http://127.0.0.1:8000" in out
+
+
+def test_node_installed_in_one_run(monkeypatch):
+    """node 가 없다고 빌드가 끝나면 사용자가 두 번 실행해야 함"""
+    build = _load_build()
+    monkeypatch.setattr(build, "npx_path", lambda: None)
+    monkeypatch.setattr(build, "install_node", lambda: "/tmp/npx")
+    assert build.ensure_node(True) == "/tmp/npx"
+    with pytest.raises(SystemExit) as exc:
+        build.ensure_node(False)
+    assert "nodejs.org" in str(exc.value)
+
+
+def test_node_archive_checksum_verified_before_extract():
+    """검증 없이 풀면 변조된 아카이브가 그대로 실행됨"""
+    text = BUILD.read_text(encoding="utf-8")
+    body = text.split("def install_node()")[1].split("def ensure_node")[0]
+    assert body.index("SHASUMS256.txt") < body.index("extractall")
+    assert body.index("체크섬 불일치") < body.index("extractall")
+    assert 'filter="data"' in body            # tar 경로 탈출 차단
+
+
+def test_nuclei_bundled_into_same_run(monkeypatch):
+    """nuclei 설치를 따로 실행하게 두면 원클릭이 아님"""
+    build = _load_build()
+    text = BUILD.read_text(encoding="utf-8")
+    main = text.split("def main()")[1]
+    assert "ensure_nuclei(" in main
+
+    calls: list[list[str]] = []
+
+    class _Done:
+        returncode = 1
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        return _Done()
+
+    monkeypatch.setattr(build.subprocess, "run", fake_run)
+    build.ensure_nuclei(True)
+    assert len(calls) == 2                    # --check 후 설치
+    assert "--check" in calls[0]
+    assert "--check" not in calls[1]
+
+
+def test_nuclei_not_installed_without_auto(monkeypatch, capsys):
+    build = _load_build()
+
+    class _Done:
+        returncode = 1
+
+    monkeypatch.setattr(build.subprocess, "run", lambda cmd, **kw: _Done())
+    build.ensure_nuclei(False)
+    assert "install_nuclei.py" in capsys.readouterr().out
 
 
 def test_build_runs_full_pipeline_by_default():
