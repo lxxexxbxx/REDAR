@@ -9,8 +9,6 @@
 전 과정 = 가상환경 · 의존성 · 툴체인(Node · Rust · nuclei) · 번들 · 실행.
 시스템 파이썬으로 실행해도 됨. 가상환경 준비 후 그 파이썬으로 자기 자신을 재실행
 
-디스플레이가 없는 서버(EC2 등)에서는 데스크톱 셸을 건너뛰고 백엔드만 기동.
-SSH 포트 포워딩으로 로컬 브라우저에서 같은 GUI 사용
 
 순서 고정. [2] 가 [4] 보다 어려움 - Tauri 는 만들어진 실행 파일을 감쌀 뿐이고,
 Python 을 실행 파일로 묶는 과정에서 리소스 경로·동적 import 가 터짐
@@ -106,13 +104,6 @@ MANUAL_NODE_GUIDE = """Node.js 가 없습니다. 아래 중 하나로 설치하�
             https://nodejs.org 에서 LTS 내려받기
 
 자동 설치는 기본 동작. --no-auto-install 를 뺀 채 실행하면 됨 (외부 통신 발생)."""
-
-
-def headless() -> bool:
-    """GUI 를 띄울 수 없는 환경. EC2 같은 원격 리눅스 서버가 여기 해당"""
-    if platform.system() != "Linux":
-        return False
-    return not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
 RUSTUP_UNIX = "https://sh.rustup.rs"
@@ -389,42 +380,8 @@ def launch() -> None:
     print(f"  {APP_NAME} 실행")
 
 
-def serve_headless(port: int) -> None:
-    """[5] GUI 없는 서버에서 백엔드만 기동.
-
-    EC2 같은 원격 리눅스에는 디스플레이가 없어 데스크톱 셸을 띄울 수 없음.
-    SSH 포트 포워딩으로 로컬 브라우저에서 같은 GUI 를 사용
-    """
-    # 접속 방법을 먼저 출력. 번들을 못 찾아도 다음 행동은 알아야 함
-    print("")
-    print("  GUI 를 띄울 수 없는 환경(디스플레이 없음). 서버 모드로 기동")
-    print("  로컬 PC 에서 아래를 실행한 뒤 브라우저로 접속")
-    print("")
-    print(f"    ssh -L {port}:127.0.0.1:{port} <사용자>@<서버주소>")
-    print(f"    브라우저에서 http://127.0.0.1:{port}")
-    print("")
-
-    suffix = ".exe" if _windows() else ""
-    backend = DIST / BACKEND_NAME / f"{BACKEND_NAME}{suffix}"
-    if not backend.is_file():
-        print(f"  [경고] 백엔드를 찾지 못함: {backend}")
-        return
-
-    print("  종료: Ctrl+C")
-    print("")
-    # 백엔드는 stdin EOF 를 부모 종료 신호로 씀 (packaging/entrypoint.py).
-    # 파이프를 열어둔 채 대기해야 nohup·리다이렉션 환경에서 즉시 죽지 않음
-    process = subprocess.Popen([str(backend), str(port)], cwd=ROOT,
-                               stdin=subprocess.PIPE)
-    try:
-        process.wait()
-    except KeyboardInterrupt:
-        process.terminate()
-        print("\n  종료")
-
-
 def main() -> None:
-    # 로그 리다이렉션 시 부모 출력이 버퍼에 묶여 접속 안내가 자식 로그 뒤로 밀림
+    # 로그 리다이렉션 시 부모 출력이 버퍼에 묶여 자식 로그 뒤로 밀림
     sys.stdout.reconfigure(line_buffering=True)
 
     parser = argparse.ArgumentParser(description="REDAR 빌드")
@@ -437,16 +394,8 @@ def main() -> None:
         "--no-auto-install", action="store_true",
         help="누락된 툴체인을 설치하지 않고 안내만 (외부 통신 없음)",
     )
-    parser.add_argument(
-        "--headless", action="store_true",
-        help="데스크톱 셸 없이 서버 모드로 기동 (원격 서버용)",
-    )
-    parser.add_argument(
-        "--port", type=int, default=8000, help="서버 모드 포트 (기본 8000)",
-    )
     args = parser.parse_args()
     auto = not args.no_auto_install
-    server_mode = args.headless or headless()
 
     print("[1] 툴체인 확인")
     ensure_venv()
@@ -461,9 +410,6 @@ def main() -> None:
 
     if args.backend_only:
         print("[4] 생략 (--backend-only)")
-    elif server_mode:
-        # 디스플레이가 없으면 Tauri 를 빌드해도 띄울 수 없음
-        print("[4] 생략 (디스플레이 없음. 서버 모드)")
     else:
         print("[4] 데스크톱 셸 (Tauri)")
         build_tauri(auto)
@@ -475,9 +421,6 @@ def main() -> None:
         print("[5] 생략 (--no-launch)")
     elif args.backend_only:
         print("[5] 생략 (--backend-only)")
-    elif server_mode:
-        print("[5] 서버 모드 기동")
-        serve_headless(args.port)
     else:
         print("[5] 앱 실행")
         launch()

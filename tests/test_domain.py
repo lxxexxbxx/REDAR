@@ -8,6 +8,7 @@ import pytest
 
 from app.config import settings
 from app.domain import fingerprint as fp
+from app.domain import models
 from app.domain import version as ver
 from app.domain.enums import (
     CompareState,
@@ -32,6 +33,10 @@ from app.repository.rules import load_vuln_type_rules
 
 # ------------------------------------------------------------------ Enum
 
+
+def _notice_tail() -> str:
+    """고지 문구의 고정부. 표현이 바뀌어도 존재 여부는 계속 검증"""
+    return models.COVERAGE_NOTICE_TEMPLATE.split("{scope}")[-1].strip()
 
 def test_enum_values_match_api_spec():
     """docs/00_API_SPEC.md §0.4 와 정확히 일치"""
@@ -321,7 +326,7 @@ def test_coverage_notice_is_required():
 def test_coverage_notice_text():
     notice = format_coverage_notice(382, 36)
     assert "382개 점검항목 중 36개만" in notice
-    assert "탐지되지 않음이 양호를 의미하지 않습니다" in notice
+    assert _notice_tail() in notice
 
 
 def test_guide_mapping_defaults_to_unavailable():

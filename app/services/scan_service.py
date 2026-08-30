@@ -91,13 +91,13 @@ class ScanService:
 
     def create(self, req: ScanRequest) -> dict[str, Any]:
         if not req.targets:
-            raise ScanError("INVALID_REQUEST", "스캔 대상이 비어 있습니다.")
+            raise ScanError("INVALID_REQUEST", "스캔 대상 비어 있음")
         if req.mode == "environment_driven" and not req.collect_environment:
             # 환경 조사 없이 환경 기반 선별은 성립하지 않음. 조용히 filter 로
             # 대체하면 보고서의 선별 근거가 사라짐
             raise ScanError(
                 "INVALID_REQUEST",
-                "environment_driven 모드는 환경 조사(collect_environment)가 필요합니다.",
+                "environment_driven 모드는 환경 조사(collect_environment) 필요",
                 details=[{"field": "collect_environment", "reason": "required"}],
             )
         if req.mode not in ("explicit", "filter", "environment_driven"):
@@ -109,7 +109,7 @@ class ScanService:
             if rejected:
                 raise ScanError(
                     "INVALID_REQUEST",
-                    "allowlist 에 없는 대상입니다. 설정에서 대상을 먼저 등록하세요.",
+                    "허용 목록에 없는 대상. 설정에서 대상 등록 필요",
                     details=[
                         {"field": "targets", "reason": f"not allowed: {t}"}
                         for t in rejected
@@ -121,7 +121,7 @@ class ScanService:
                         and self._active.thread.is_alive():
                     raise ScanError(
                         "SCAN_ALREADY_RUNNING",
-                        "이미 실행 중인 스캔이 있습니다.",
+                        "이미 실행 중인 스캔 있음",
                         status_code=409,
                     )
 

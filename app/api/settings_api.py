@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.adapters.nuclei import version as nuclei_version
+from app.domain import allowlist
 from app.repository import settings_repo
 from app.repository.db import session
 
@@ -117,12 +118,12 @@ def llm_preview(body: LlmPreviewRequest) -> dict[str, Any]:
         if body.report_id:
             view = report_repo.get(conn, body.report_id)
             if view is None or view["report"] is None:
-                raise ScanError("NOT_FOUND", "보고서를 찾을 수 없습니다.", status_code=404)
+                raise ScanError("NOT_FOUND", "보고서 없음", status_code=404)
             report = view["report"]
         elif body.scan_id:
             report = builder.build(conn, body.scan_id, report_id=new_id("rpt"))
         else:
-            raise ScanError("INVALID_REQUEST", "scan_id 또는 report_id 가 필요합니다.")
+            raise ScanError("INVALID_REQUEST", "scan_id 또는 report_id 필요")
         return narrative_service.preview(conn, report)
 
 
@@ -138,7 +139,7 @@ def llm_test() -> dict[str, Any]:
         enabled = settings_repo.as_bool(raw.get("ext_llm_api_enabled"))
 
     if offline:
-        return {"ok": False, "reason": "오프라인 모드에서는 LLM 을 호출하지 않습니다."}
+        return {"ok": False, "reason": "오프라인 모드. LLM 호출 안 함"}
     if not enabled:
         return {"ok": False, "reason": "LLM 통신 지점이 비활성 상태입니다."}
 
@@ -148,7 +149,7 @@ def llm_test() -> dict[str, Any]:
         "model": raw.get("llm_model"),
     })
     if provider.name == "null":
-        return {"ok": False, "reason": "Provider 가 설정되지 않았습니다 (NullProvider)."}
+        return {"ok": False, "reason": "Provider 미설정 · NullProvider"}
     try:
         text = provider.narrate("executive_summary", {"total_findings": 0})
     except LlmError as exc:
@@ -172,7 +173,9 @@ def update_settings(body: UpdateSettingsRequest) -> dict[str, Any]:
     if body.offline_mode is not None:
         values["offline_mode"] = body.offline_mode
     if body.target_allowlist is not None:
-        values["target_allowlist"] = [t.strip() for t in body.target_allowlist if t.strip()]
+        # URL 로 입력해도 등록되도록 호스트로 정규화 (절대규칙 6)
+        entries = [allowlist.normalize_entry(t) for t in body.target_allowlist]
+        values["target_allowlist"] = list(dict.fromkeys(t for t in entries if t))
     if body.llm is not None:
         for field_name, value in body.llm.model_dump(exclude_none=True).items():
             values[f"llm_{field_name}"] = value

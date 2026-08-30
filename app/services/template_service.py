@@ -48,7 +48,7 @@ def custom_path(template_id: str) -> Path:
     if not builder.TEMPLATE_ID_RE.match(template_id):
         raise ScanError(
             "INVALID_REQUEST",
-            "템플릿 ID 는 소문자·숫자·하이픈만 가능합니다.",
+            "템플릿 ID 는 소문자·숫자·하이픈만 허용",
             details=[{"field": "template_id", "reason": template_id}],
         )
     root = settings.CUSTOM_DIR.resolve()
@@ -140,7 +140,7 @@ def _listify(value: Any) -> list[str]:
 def detail(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
     row = template_repo.get(conn, template_id)
     if row is None:
-        raise ScanError("NOT_FOUND", "템플릿을 찾을 수 없습니다.", status_code=404)
+        raise ScanError("NOT_FOUND", "템플릿 없음", status_code=404)
     path = Path(row["file_path"])
     text = path.read_text(encoding="utf-8") if path.is_file() else ""
     parsed = builder.parse(text) if text else {"form": None, "unsupported_fields": []}
@@ -153,7 +153,7 @@ def create(conn: sqlite3.Connection, form: dict[str, Any]) -> dict[str, Any]:
     yaml_text, template_id = _render(form)
     if template_repo.get(conn, template_id) is not None:
         raise ScanError(
-            "CONFLICT", "같은 ID 의 템플릿이 이미 있습니다.", status_code=409,
+            "CONFLICT", "같은 ID 의 템플릿 존재", status_code=409,
             details=[{"field": "info.id", "reason": template_id}],
         )
     return _write(conn, template_id, yaml_text, form)
@@ -166,7 +166,7 @@ def update(
     yaml_text, new_id = _render(form)
     if new_id != template_id:
         raise ScanError(
-            "INVALID_REQUEST", "템플릿 ID 는 변경할 수 없습니다. fork 를 사용하세요.",
+            "INVALID_REQUEST", "템플릿 ID 변경 불가. fork 사용",
             details=[{"field": "info.id", "reason": new_id}],
         )
     del existing
@@ -184,11 +184,11 @@ def fork(conn: sqlite3.Connection, template_id: str, new_id: str) -> dict[str, A
     """official 사본을 custom 으로. 수정 불가 템플릿을 편집하는 유일한 경로"""
     source = detail(conn, template_id)
     if template_repo.get(conn, new_id) is not None:
-        raise ScanError("CONFLICT", "같은 ID 의 템플릿이 이미 있습니다.", status_code=409)
+        raise ScanError("CONFLICT", "같은 ID 의 템플릿 존재", status_code=409)
 
     document = yaml.safe_load(source["yaml"]) or {}
     if not builder.TEMPLATE_ID_RE.match(new_id):
-        raise ScanError("INVALID_REQUEST", "템플릿 ID 는 소문자·숫자·하이픈만 가능합니다.")
+        raise ScanError("INVALID_REQUEST", "템플릿 ID 는 소문자·숫자·하이픈만 허용")
     document["id"] = new_id
     yaml_text = yaml.safe_dump(
         document, sort_keys=False, allow_unicode=True, default_flow_style=False
@@ -216,7 +216,7 @@ def _write(
     checked = validator.validate(yaml_text)
     if not checked["policy"]["valid"]:
         raise ScanError(
-            "INVALID_REQUEST", "정책 검증에 실패했습니다.",
+            "INVALID_REQUEST", "정책 검증 실패",
             details=[
                 {"field": e["field"], "reason": e["message"]}
                 for e in checked["policy"]["errors"]
@@ -245,11 +245,11 @@ def _write(
 def _require_editable(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
     row = template_repo.get(conn, template_id)
     if row is None:
-        raise ScanError("NOT_FOUND", "템플릿을 찾을 수 없습니다.", status_code=404)
+        raise ScanError("NOT_FOUND", "템플릿 없음", status_code=404)
     if row["source"] == _SOURCE_OFFICIAL:
         raise ScanError(
             "FORBIDDEN",
-            "공식 템플릿은 수정·삭제할 수 없습니다. fork 로 사본을 만드세요.",
+            "공식 템플릿은 수정·삭제 불가. fork 로 사본 생성",
             status_code=403,
         )
     return row
@@ -262,7 +262,7 @@ def sync(conn: sqlite3.Connection, *, runner=None) -> dict[str, Any]:
     if settings_repo.offline_mode(conn):
         raise ScanError(
             "OFFLINE_MODE_BLOCKED",
-            "오프라인 모드에서는 템플릿 갱신을 할 수 없습니다.",
+            "오프라인 모드. 템플릿 갱신 불가",
             status_code=403,
         )
     raw = settings_repo.get_all(conn)
@@ -293,7 +293,7 @@ def _run_update() -> None:
     binary = settings.nuclei_bin()
     if not binary:
         raise ScanError(
-            "NUCLEI_UNAVAILABLE", "nuclei 실행 파일을 찾을 수 없습니다.", status_code=503
+            "NUCLEI_UNAVAILABLE", "nuclei 실행 파일 없음", status_code=503
         )
     settings.OFFICIAL_DIR.mkdir(parents=True, exist_ok=True)
     try:
@@ -327,7 +327,7 @@ def dryrun(
     if rejected_targets([target], allowlist):
         raise ScanError(
             "INVALID_REQUEST",
-            "allowlist 에 없는 대상입니다. 설정에서 대상을 먼저 등록하세요.",
+            "허용 목록에 없는 대상. 설정에서 대상 등록 필요",
             details=[{"field": "target", "reason": target}],
         )
     urlmod.parse(target)                       # 형식 오류는 여기서 걸린다
@@ -338,7 +338,7 @@ def dryrun(
     base_id = str(document.get("id") or "dryrun")
     matchers = _first_matchers(document)
     if not matchers:
-        raise ScanError("INVALID_REQUEST", "탐지 조건이 없습니다.")
+        raise ScanError("INVALID_REQUEST", "탐지 조건 없음")
 
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="redar-dryrun-") as tmp:
@@ -420,7 +420,7 @@ def _run_dryrun(root: Path, target: str, timeout_sec: int) -> list[str]:
     binary = settings.nuclei_bin()
     if not binary:
         raise ScanError(
-            "NUCLEI_UNAVAILABLE", "nuclei 실행 파일을 찾을 수 없습니다.", status_code=503
+            "NUCLEI_UNAVAILABLE", "nuclei 실행 파일 없음", status_code=503
         )
     command = [
         binary, "-t", str(root), "-target", target, "-jsonl", "-silent", "-nc",

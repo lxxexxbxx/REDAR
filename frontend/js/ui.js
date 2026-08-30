@@ -124,7 +124,7 @@ export function coverageNotice(guide) {
   return `<div class="coverage">
     ${esc(notice)}
     <div style="margin-top:6px;color:var(--faint)">
-      계정 관리·파일 권한·서비스 데몬 설정은 원격 스캐너가 접근할 수 없는 영역입니다.
+      계정 관리·파일 권한·서비스 데몬 설정은 원격 스캐너가 볼 수 없는 영역
     </div>
   </div>`;
 }

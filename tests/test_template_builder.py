@@ -397,7 +397,7 @@ def test_dryrun_enforces_allowlist(conn, allowlisted):
             runner=_dryrun_runner(set()),
         )
     assert exc.value.code == "INVALID_REQUEST"
-    assert "allowlist" in exc.value.message
+    assert "허용 목록" in exc.value.message
 
 
 # ─────────────────────────────────────────── sync (완료 조건 5)

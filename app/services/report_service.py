@@ -45,7 +45,7 @@ def create(
 ) -> dict[str, Any]:
     """보고서 생성. 실패해도 reports 행에 사유가 남음"""
     if scan_repo.get_scan(conn, scan_id) is None:
-        raise ScanError("NOT_FOUND", "스캔을 찾을 수 없습니다.", status_code=404)
+        raise ScanError("NOT_FOUND", "스캔 없음", status_code=404)
 
     opts = {**DEFAULT_OPTIONS, **(options or {})}
     report_id = new_id("rpt")
@@ -107,7 +107,7 @@ def _write_files(conn: sqlite3.Connection, report: dict[str, Any]) -> None:
 def get(conn: sqlite3.Connection, report_id: str) -> dict[str, Any]:
     view = report_repo.get(conn, report_id)
     if view is None:
-        raise ScanError("NOT_FOUND", "보고서를 찾을 수 없습니다.", status_code=404)
+        raise ScanError("NOT_FOUND", "보고서 없음", status_code=404)
     return view
 
 
@@ -119,13 +119,13 @@ def download(
     if fmt == "pdf":
         raise ScanError(
             "NOT_SUPPORTED",
-            f"PDF 직접 생성은 지원하지 않습니다. {PDF_NOTE}",
+            f"PDF 직접 생성 미지원. {PDF_NOTE}",
             status_code=501,
         )
     if fmt not in FORMATS:
         raise ScanError("INVALID_REQUEST", f"지원하지 않는 형식: {fmt}")
     if view["report"] is None:
-        raise ScanError("INVALID_REQUEST", "보고서가 완성되지 않았습니다.")
+        raise ScanError("INVALID_REQUEST", "보고서 미완성")
 
     report = view["report"]
     if fmt == "json":

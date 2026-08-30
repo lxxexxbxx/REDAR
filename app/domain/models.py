@@ -27,16 +27,16 @@ NarrativeSource = Literal["llm", "template"]
 # findings 테이블에 절단 플래그 컬럼 없음 + db/schema.sql 동결.
 # 별도 컬럼 대신 본문 말미 마커로 표시. 마커 존재 = 절단됨. M2 파서에서 사용
 EVIDENCE_MAX_BYTES = 32 * 1024
-EVIDENCE_TRUNCATED_MARKER = "\n...[REDAR] 응답 본문이 32KB 를 초과해 절단되었습니다."
+EVIDENCE_TRUNCATED_MARKER = "\n...[REDAR] 응답 본문 32KB 초과로 절단됨"
 
 # 자동 점검 커버리지 고지. 누락 시 '점검하지 않은 것'이 '양호'로 오독
 # (절대규칙 10, docs/04 B-1). 숫자는 실제 guide_coverage 값 사용
 COVERAGE_NOTICE_TEMPLATE = (
-    "본 점검은 원격 스캔 기반이며, {scope}만 자동 점검 대상입니다. "
-    "탐지되지 않음이 양호를 의미하지 않습니다."
+    "본 점검은 원격 스캔 기반. {scope}만 자동 점검 대상. "
+    "탐지되지 않음은 양호를 뜻하지 않음"
 )
 _SCOPE_WITH_GUIDE = "가이드 전체 {items_total}개 점검항목 중 {items_covered}개"
-# 본문 미탑재 시 전체 항목 수를 알 수 없다. 0개로 표기하면 커버리지가 완전한 것처럼 읽힘
+# 본문 미탑재 시 전체 항목 수를 알 수 없음. 0개로 표기하면 커버리지가 완전한 것처럼 읽힘
 _SCOPE_WITHOUT_GUIDE = "자동 점검 가능 항목 {items_covered}개(가이드 본문 미탑재)"
 
 

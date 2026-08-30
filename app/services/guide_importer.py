@@ -47,7 +47,7 @@ def import_text(
     """CSV 문자열 임포트. 업로드·CLI 양쪽이 이 경로를 사용"""
     rows = read_rows(items_csv)
     if not rows:
-        raise ImportError_("본문 CSV 가 비어 있습니다.")
+        raise ImportError_("본문 CSV 비어 있음")
 
     missing = [c for c in _REQUIRED_COLUMNS if c not in rows[0]]
     if missing:

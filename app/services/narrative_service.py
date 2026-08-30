@@ -50,10 +50,10 @@ def apply(conn: sqlite3.Connection, report: dict[str, Any]) -> dict[str, Any]:
 
     blocked_reason = None
     if not enabled:
-        blocked_reason = "LLM 설정이 꺼져 있습니다."
+        blocked_reason = "LLM 설정 꺼짐"
     elif offline:
         # 오프라인 모드는 개별 설정과 무관하게 전부 차단 (절대규칙 5)
-        blocked_reason = "오프라인 모드에서는 LLM 을 호출하지 않습니다."
+        blocked_reason = "오프라인 모드. LLM 호출 안 함"
     elif not endpoint_on:
         blocked_reason = "LLM 통신 지점이 비활성 상태입니다."
 

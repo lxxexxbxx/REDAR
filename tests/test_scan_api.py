@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.domain.allowlist import host_allowed, target_allowed
+from app.domain.allowlist import host_allowed, normalize_entry, target_allowed
 from app.main import app
 from app.repository.db import session
 from app.services import scan_service
@@ -121,6 +121,38 @@ def test_allowlist_empty_blocks_everything():
 )
 def test_allowlist_matching(target, allowed):
     assert target_allowed(target, ["localhost", "192.168.1.0/24"]) is allowed
+
+
+@pytest.mark.parametrize(
+    "entry,target",
+    [
+        ("http://localhost", "localhost"),
+        ("http://localhost", "http://localhost:7860/x"),
+        ("https://target.local:8443/admin", "target.local"),
+        ("  HTTP://Target.Local/  ", "http://target.local:9000"),
+    ],
+)
+def test_url_shaped_allowlist_entry_matches(entry, target):
+    """사용자는 URL 을 그대로 붙여넣음. 호스트로 정규화하지 않으면 영영 매칭 안 됨"""
+    assert target_allowed(target, [entry]) is True
+
+
+def test_normalize_keeps_cidr_and_rejects_garbage():
+    assert normalize_entry("192.168.1.0/24") == "192.168.1.0/24"
+    assert normalize_entry("  ") == ""
+    # 해석 불가 값은 통과시키지 않음
+    assert target_allowed("evil.com", [normalize_entry("!!!")]) is False
+
+
+def test_allowlist_save_normalizes_and_dedupes(client):
+    """저장 시점에 정규화. 같은 호스트를 다른 표기로 넣어도 한 줄"""
+    saved = client.put(
+        f"{API}/settings",
+        json={"target_allowlist": ["http://localhost:7860", "LOCALHOST", " "]},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["target_allowlist"] == ["localhost"]
+    client.put(f"{API}/settings", json={"target_allowlist": []})
 
 
 def test_hostname_not_resolved_to_ip():

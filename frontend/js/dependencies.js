@@ -17,14 +17,14 @@ const SOURCE_LABEL = {
 /* 설정 화면의 의존성 패널 */
 export function dependencyPanel(state) {
   if (!state) {
-    return `<p class="empty" style="margin:0">의존성 정보를 불러오지 못했습니다.</p>`;
+    return `<p class="empty" style="margin:0">의존성 정보 불러오기 실패</p>`;
   }
   return `
     ${state.items.map(dependencyRow).join("")}
     <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-      자동 설치는 Go 툴체인을 내려받아 <span class="mono">go install</span> 로 빌드합니다.
+      자동 설치는 Go 툴체인을 내려받아 <span class="mono">go install</span> 로 빌드.
       외부 통신이 발생하므로 설정에서 <strong>의존성 자동 설치</strong> 지점을 켜야 하며,
-      오프라인 모드에서는 차단됩니다. 폐쇄망에서는 <strong>파일 반입</strong>을 쓰세요.
+      오프라인 모드에서는 차단. 인터넷이 없는 환경이면 <strong>파일 반입</strong> 사용
     </p>`;
 }
 
@@ -48,7 +48,7 @@ function dependencyRow(item) {
       </dl>
 
       <label class="field">
-        <span>경로 직접 지정 (특정 버전 고정)</span>
+        <span>경로 직접 지정 · 특정 버전 고정</span>
         <input type="text" data-dep-path="${esc(item.key)}"
                value="${esc(item.source === "configured" ? item.path : "")}"
                placeholder="${esc(item.import_dir)}/${esc(item.label)}">
@@ -63,7 +63,7 @@ function dependencyRow(item) {
       </div>
       <p style="color:var(--faint);font-size:12px;margin:6px 0 0">
         직접 받으려면 <span class="mono">${esc(item.manual_url)}</span> 에서 내려받아
-        <span class="mono">${esc(item.import_dir)}</span> 에 두거나 위에서 반입하세요.
+        <span class="mono">${esc(item.import_dir)}</span> 에 두거나 위에서 반입
       </p>
     </div>`;
 }
@@ -76,11 +76,11 @@ export function missingDependencyNotice(state) {
 
   return `
     <div class="coverage" style="border-left-color:var(--brand)">
-      <strong>${esc(missing.map((m) => m.label).join(", "))} 이(가) 없습니다.</strong>
-      탐지를 실행하려면 먼저 준비해야 합니다.
+      <strong>${esc(missing.map((m) => m.label).join(", "))} 없음</strong>
+      탐지에 반드시 필요하므로 먼저 준비 필요
       <div style="margin-top:8px;color:var(--faint)">
         ${state.install_allowed
-          ? "자동 설치하거나, 직접 내려받아 반입할 수 있습니다."
+          ? "자동 설치 또는 직접 내려받아 반입 가능"
           : esc(state.blocked_reason || "")}
       </div>
       <div class="actions">
@@ -103,13 +103,13 @@ export async function handleDependencyClick(target, refresh) {
   if (save) {
     const value = document.querySelector(`[data-dep-path="${save}"]`).value.trim();
     await api.setDependencyPath(save, value || null);
-    toast(value ? "경로를 지정했습니다" : "지정을 해제했습니다");
+    toast(value ? "경로 지정됨" : "지정 해제됨");
     await refresh();
     return true;
   }
   if (clear) {
     await api.setDependencyPath(clear, null);
-    toast("지정을 해제했습니다");
+    toast("지정 해제됨");
     await refresh();
     return true;
   }
@@ -120,12 +120,12 @@ export async function handleDependencyClick(target, refresh) {
   if (install) {
     // 설정만으로 자동 실행되지 않음. 사용자가 매번 동의함
     const agreed = confirm(
-      `${install} 을(를) 자동 설치합니다.\n\n` +
+      `${install} 자동 설치 진행.\n\n` +
       "Go 툴체인을 내려받아 빌드하므로 외부 통신이 발생하고 수 분 걸립니다.\n" +
       "계속할까요?"
     );
     if (!agreed) return true;
-    toast("설치를 시작합니다. 수 분 걸립니다");
+    toast("설치 시작. 수 분 소요");
     await api.installDependency(install, true);
     toast(`${install} 설치 완료`);
     await refresh();

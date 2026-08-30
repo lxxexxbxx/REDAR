@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from app.domain import models
+
 from app.domain.enums import Severity, VulnType
 from app.report import builder, fallback, renderer
 from app.repository.db import session
@@ -40,6 +42,10 @@ EXPECTED_SECTIONS = [
 
 _HEADINGS = re.compile(r"<h[12][^>]*>(.*?)</h[12]>", re.S)
 
+
+def _notice_tail() -> str:
+    """고지 문구의 고정부. 표현이 바뀌어도 존재 여부는 계속 검증"""
+    return models.COVERAGE_NOTICE_TEMPLATE.split("{scope}")[-1].strip()
 
 def _sections(html: str) -> list[str]:
     return [
@@ -181,7 +187,7 @@ def test_tc_r05_zero_findings_keeps_all_sections(conn, empty_scan):
     assert _sections(html) == EXPECTED_SECTIONS
     assert "해당 없음" in html
     # 0건 문구가 '양호' 로 표현되지 않아야 한다 (절대규칙 10)
-    assert "탐지되지 않음이 양호를 의미하지 않습니다" in html
+    assert _notice_tail() in html
 
 
 # ─────────────────────────────── TC-R07 (두 대상 목차 일치)
@@ -276,7 +282,7 @@ def test_tc_r10_coverage_notice_in_part_b(conn, guide_loaded, scan_with_findings
     report = _report(conn, scan_with_findings)
     notice = report["guide_mapping"]["coverage_notice"]
     assert "자동 점검 대상" in notice
-    assert "탐지되지 않음이 양호를 의미하지 않습니다" in notice
+    assert _notice_tail() in notice
     assert notice in renderer.render_html(report)
 
 

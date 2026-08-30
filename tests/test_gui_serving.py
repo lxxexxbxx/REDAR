@@ -5,12 +5,18 @@ import re
 from pathlib import Path
 
 import pytest
+
+from app.domain import models
 from fastapi.testclient import TestClient
 
 from app.main import app
 
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
 
+
+def _notice_tail() -> str:
+    """고지 문구의 고정부. 표현이 바뀌어도 존재 여부는 계속 검증"""
+    return models.COVERAGE_NOTICE_TEMPLATE.split("{scope}")[-1].strip()
 
 @pytest.fixture(scope="module")
 def client(request):
@@ -78,7 +84,7 @@ def test_frontend_loads_no_external_resources():
 def test_coverage_notice_has_single_source(client):
     """고지 문장 사본이 프론트에 생기면 보고서와 갈라짐 (절대규칙 10)."""
     served = client.get("/api/v1/guide/status").json()["coverage_notice"]
-    assert "탐지되지 않음이 양호를 의미하지 않습니다" in served
+    assert _notice_tail() in served
 
     frontend_text = "".join(
         f.read_text(encoding="utf-8")

@@ -33,10 +33,10 @@ def compare(
     for scan_id, scan in ((base_id, base), (target_id, target)):
         if scan is None:
             raise ScanError(
-                "NOT_FOUND", f"스캔을 찾을 수 없습니다: {scan_id}", status_code=404
+                "NOT_FOUND", f"스캔 없음: {scan_id}", status_code=404
             )
     if base_id == target_id:
-        raise ScanError("INVALID_REQUEST", "같은 스캔끼리는 비교할 수 없습니다.")
+        raise ScanError("INVALID_REQUEST", "같은 스캔끼리는 비교 불가")
 
     base_rows = _by_fingerprint(conn, base_id)
     target_rows = _by_fingerprint(conn, target_id)

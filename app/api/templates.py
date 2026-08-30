@@ -85,7 +85,7 @@ def parse_template(body: ParseRequest) -> dict[str, Any]:
     parsed = builder.parse(body.yaml)
     return {
         **parsed,
-        "note": "빌더가 지원하지 않는 필드는 YAML 직접 편집 모드에서 확인하세요.",
+        "note": "빌더 미지원 필드는 YAML 직접 편집 모드에서 확인",
     }
 
 
@@ -94,7 +94,7 @@ def validate_template(body: ValidateRequest) -> dict[str, Any]:
     text = body.yaml
     if text is None:
         if body.form is None:
-            raise service.ScanError("INVALID_REQUEST", "yaml 또는 form 이 필요합니다.")
+            raise service.ScanError("INVALID_REQUEST", "yaml 또는 form 필요")
         text = builder.build(body.form)
     # 검증한 YAML 을 함께 돌려줌. 프론트가 YAML 을 조립하면 조립 규칙이 두 곳에 생김
     return {**validator.validate(text), "yaml": text}

@@ -19,7 +19,7 @@ import {
 
 const NAV = [
   { path: "dashboard", label: "대시보드" },
-  { path: "scan", label: "스캔 실행" },
+  { path: "scan", label: "스캔" },
   { path: "results", label: "탐지 결과" },
   { path: "templates", label: "템플릿" },
   { path: "report", label: "보고서" },
@@ -111,7 +111,7 @@ async function viewDashboard() {
     [aggregations, detail, environment] = await Promise.all([
       api.listFindings(latest.scan_id, { size: 1 }).then((r) => r.aggregations),
       api.getScan(latest.scan_id),
-      // 환경 조사는 스캔마다 있을 수도 없을 수도 있다. 실패해도 대시보드는 뜬다
+      // 환경 조사는 스캔마다 있을 수도 없을 수도 있음. 실패해도 대시보드는 뜸
       api.scanEnvironment(latest.scan_id).then((r) => r.items[0] || null, () => null),
     ]);
   }
@@ -121,8 +121,7 @@ async function viewDashboard() {
     <div class="view-head">
       <div class="eyebrow">진단 현황</div>
       <h1>대시보드</h1>
-      <p>가장 최근 스캔의 심각도·유형 분포입니다. 각 축은 탐지 건수와 무관하게
-         항상 전체 항목을 표시합니다.</p>
+      <p>가장 최근 스캔의 심각도·유형 분포. 탐지가 0건인 항목도 사라지지 않고 그대로 표시</p>
     </div>
 
     <div class="grid-2">
@@ -152,7 +151,7 @@ async function viewDashboard() {
             <button class="primary" data-open="${esc(latest.scan_id)}">결과 보기</button>
           </div>` : `
           <p style="color:var(--muted);margin:0">
-            아직 실행한 스캔이 없습니다. 스캔 실행 화면에서 대상을 지정하세요.
+            아직 실행한 스캔 없음. 스캔 화면에서 대상 지정 필요
           </p>
           <div class="actions">
             <button class="primary" data-go="scan">스캔 실행</button>
@@ -167,7 +166,7 @@ async function viewDashboard() {
           <h2>실행 환경</h2>
         </div>
         ${detail ? runEnvironment(detail) : `
-          <p style="color:var(--muted);margin:0">스캔 기록이 없습니다.</p>`}
+          <p style="color:var(--muted);margin:0">스캔 기록 없음</p>`}
       </div>
       <div class="panel">
         <div class="panel-head">
@@ -182,7 +181,7 @@ async function viewDashboard() {
               ? ` · 실패 ${esc(environment.collectors_failed.join(", "))}` : ""}
           </p>` : `
           <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-            환경 조사를 수행한 스캔이 없습니다. 스캔 실행 시 환경 조사를 켜세요.
+            환경 조사를 수행한 스캔 없음. 스캔 실행 시 <b>대상 환경 먼저 조사</b> 체크 필요
           </p>`}
       </div>
     </div>
@@ -203,8 +202,8 @@ async function viewDashboard() {
       </div>
       ${items.length ? scanTable(items) : emptyState({
         eyebrow: "기록 없음",
-        title: "스캔 이력이 비어 있습니다",
-        body: "스캔을 실행하면 이 목록에 남습니다.",
+        title: "스캔 이력 없음",
+        body: "스캔을 실행하면 여기에 기록됨",
       })}
     </div>`;
 }
@@ -240,82 +239,99 @@ function viewScan() {
   view().innerHTML = `
     <div class="view-head">
       <div class="eyebrow">스캔 설정</div>
-      <h1>스캔 실행</h1>
-      <p>대상은 설정에 등록된 허용 목록 안에서만 지정할 수 있습니다.</p>
+      <h1>스캔</h1>
+      <p>대상 주소를 넣고 진단 방식을 고르면 끝. 잘 모르겠으면 기본값 그대로 두고
+         <b>스캔 시작</b> 을 누르면 됨</p>
     </div>
 
     ${blocked ? `<div class="coverage" style="border-left-color:var(--brand)">
-      <strong>허용된 스캔 대상이 없습니다.</strong>
-      기본값은 전부 차단이며, 설정에서 대상을 등록해야 스캔을 시작할 수 있습니다.
+      <strong>아직 스캔할 수 있는 대상이 없음</strong>
+      허락 없이 남의 서버를 스캔하지 않도록, 등록한 대상만 진단하는 구조.
+      설정에서 내 대상을 먼저 등록 필요
       <div class="cta">
-        <button class="sm" data-go="settings">설정으로 이동</button>
+        <button class="sm" data-go="settings">설정에서 대상 등록</button>
       </div>
     </div>` : ""}
 
-    <div class="grid-2">
-      <div class="panel">
-        <div class="panel-head">
-          <div class="eyebrow">1 · 대상</div>
-          <h2>스캔 대상</h2>
-        </div>
-        <label class="field">
-          <span>대상 목록 (줄바꿈 구분)</span>
-          <textarea id="targets" placeholder="http://192.168.1.50&#10;http://target.local:8080"></textarea>
-          <small>허용 목록: ${allowlist.length
-            ? allowlist.map((h) => `<span class="chip">${esc(h)}</span>`).join(" ")
-            : "없음"}</small>
-        </label>
-        <div class="row">
-          <input type="file" id="target-file" accept=".txt,.csv" class="sr-only">
-          <button class="sm ghost" id="pick-file">파일에서 불러오기</button>
-        </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="eyebrow">1단계</div>
+        <h2>진단 대상</h2>
       </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <div class="eyebrow">2 · 템플릿 선별</div>
-          <h2>실행할 진단 항목</h2>
-        </div>
-        <label class="field">
-          <span>선별 방식</span>
-          <select id="mode">
-            <option value="filter">조건 필터 — 태그·심각도로 선별</option>
-            <option value="explicit">직접 지정 — 템플릿 ID 목록</option>
-            <option value="environment_driven" disabled>환경 기반 자동 선별 (M4)</option>
-          </select>
-        </label>
-        <div id="mode-fields"></div>
+      <label class="field">
+        <span>대상 주소 · 여러 개면 줄바꿈</span>
+        <textarea id="targets" placeholder="http://192.168.1.50&#10;http://target.local:8080"></textarea>
+        <small>주소 형태로 넣어도 되고 <span class="mono">192.168.1.50</span> 처럼 이름만 넣어도 됨</small>
+      </label>
+      <div class="hintbox">
+        <b>등록된 대상</b>
+        ${allowlist.length
+          ? `<div class="chips">${allowlist.map((h) =>
+              `<button type="button" class="chip pick" data-pick="${esc(h)}">${esc(h)}</button>`
+            ).join(" ")}</div>
+             <small>누르면 위 칸에 자동 입력</small>`
+          : `<small>없음. 설정에서 등록 필요</small>`}
+      </div>
+      <div class="actions">
+        <input type="file" id="target-file" accept=".txt,.csv" class="sr-only">
+        <button class="sm ghost" id="pick-file">파일에서 불러오기</button>
+        <span style="color:var(--faint);font-size:12px">한 줄에 하나씩 적힌 txt·csv</span>
       </div>
     </div>
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">3 · 실행 옵션</div>
-        <h2>동작 설정</h2>
+        <div class="eyebrow">2단계</div>
+        <h2>진단 항목 선별</h2>
+        <p class="lede">nuclei 는 "이런 취약점이 있는지 확인하는 방법"을 적어둔 파일(템플릿)을
+           하나씩 실행해서 진단. 그 파일을 몇 개나, 어떤 기준으로 고를지 선택</p>
+      </div>
+      <div class="choices" id="mode">
+        ${SCAN_MODES.map((m, i) => `
+          <label class="choice">
+            <input type="radio" name="mode" value="${m.value}" ${i === 0 ? "checked" : ""}>
+            <span class="c-body">
+              <b>${esc(m.title)}${m.badge ? ` <em class="badge">${esc(m.badge)}</em>` : ""}</b>
+              <small>${m.body}</small>
+            </span>
+          </label>`).join("")}
+      </div>
+      <div id="mode-fields"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="eyebrow">3단계</div>
+        <h2>실행 옵션</h2>
+        <p class="lede">그대로 둬도 무방. 대상 서버가 느리거나 부하를 줄이고 싶을 때만 조정</p>
       </div>
       <div class="row" style="align-items:flex-start;gap:20px">
-        <label class="field" style="flex:1;min-width:120px">
+        <label class="field" style="flex:1;min-width:150px">
           <span>동시 실행</span>
           <input type="number" id="threads" value="${state.settings?.scan_defaults?.threads ?? 20}" min="1" max="200">
+          <small>한 번에 보낼 요청 수. 낮출수록 느리지만 부하 적음</small>
         </label>
-        <label class="field" style="flex:1;min-width:120px">
-          <span>타임아웃 (초)</span>
+        <label class="field" style="flex:1;min-width:150px">
+          <span>응답 대기 · 초</span>
           <input type="number" id="timeout" value="${state.settings?.scan_defaults?.timeout_sec ?? 10}" min="1" max="300">
+          <small>이 시간 안에 답이 없으면 넘어감</small>
         </label>
-        <label class="field" style="flex:1;min-width:120px">
+        <label class="field" style="flex:1;min-width:150px">
           <span>재시도</span>
           <input type="number" id="retries" value="${state.settings?.scan_defaults?.retries ?? 1}" min="0" max="10">
+          <small>실패한 요청을 다시 보낼 횟수</small>
         </label>
-        <label class="field" style="flex:1;min-width:120px">
+        <label class="field" style="flex:1;min-width:150px">
           <span>초당 요청 상한</span>
           <input type="number" id="ratelimit" placeholder="제한 없음" min="1">
+          <small>운영 중인 서버라면 지정 권장</small>
         </label>
       </div>
       <div class="toggle">
-        <input type="checkbox" id="collect-env">
+        <input type="checkbox" id="collect-env" checked>
         <span class="t-body">
-          <b>환경 조사 수행</b>
-          <small>제품·버전·플러그인을 먼저 식별합니다. 수집기는 M4에서 구현됩니다.</small>
+          <b>대상 환경 먼저 조사</b>
+          <small>어떤 웹서버·CMS·플러그인을 쓰는지 확인. 보고서에 대상 정보가 함께 실림</small>
         </span>
       </div>
       <div class="actions">
@@ -350,31 +366,111 @@ function viewScan() {
   document.getElementById("mode").addEventListener("change", renderModeFields);
 }
 
+/* 선별 방식. 화면 문구와 API mode 값의 단일 출처 (docs/00 §TemplateSelection) */
+const SCAN_MODES = [
+  {
+    value: "environment_driven",
+    title: "환경 기반 자동 선별",
+    badge: "권장",
+    body: "대상이 무엇으로 만들어졌는지 먼저 살펴본 뒤, 그 환경에 해당하는 항목만 검사. "
+        + "쓸데없는 요청이 적어 빠르고 부하도 적음",
+  },
+  {
+    value: "filter",
+    title: "조건 필터 선별",
+    body: "주제(태그)와 심각도로 범위 지정. 예를 들어 워드프레스 관련 항목만, "
+        + "또는 위험도가 높은 것만 검사",
+  },
+  {
+    value: "explicit",
+    title: "템플릿 직접 지정",
+    body: "검사할 템플릿 ID 를 직접 입력. 특정 취약점 하나를 다시 확인할 때 사용",
+  },
+];
+
+/* 태그 추천. 자유 입력이 막막하다는 피드백. 값은 nuclei 표준 태그 */
+const TAG_PRESETS = [
+  { tag: "cve", label: "알려진 취약점 (CVE)" },
+  { tag: "wordpress", label: "워드프레스" },
+  { tag: "apache", label: "Apache 웹서버" },
+  { tag: "nginx", label: "nginx 웹서버" },
+  { tag: "exposure", label: "노출된 파일·설정" },
+  { tag: "misconfig", label: "설정 실수" },
+];
+
+function scanMode() {
+  return document.querySelector('input[name="mode"]:checked')?.value || "environment_driven";
+}
+
 function renderModeFields() {
-  const mode = document.getElementById("mode").value;
   const host = document.getElementById("mode-fields");
+  const mode = scanMode();
+
+  // 환경 기반 선별은 조사 결과가 입력. 끄면 백엔드가 400 으로 거부하므로 미리 고정
+  const env = document.getElementById("collect-env");
+  if (env) {
+    const required = mode === "environment_driven";
+    if (required) env.checked = true;
+    env.disabled = required;
+    env.closest(".toggle").querySelector("small").textContent = required
+      ? "어떤 웹서버·CMS·플러그인을 쓰는지 확인. 환경 기반 선별에 필요해 항상 켜짐"
+      : "어떤 웹서버·CMS·플러그인을 쓰는지 확인. 보고서에 대상 정보가 함께 실림";
+  }
+
+  if (mode === "environment_driven") {
+    host.innerHTML = `
+      <div class="hintbox">
+        <b>추가 입력 없음</b>
+        <small>대상 조사 결과에 따라 검사 항목이 정해짐. 조사에서 아무것도 못 찾으면
+          검사 항목이 0개가 될 수 있으며, 이때는 <b>조건 필터 선별</b> 사용</small>
+      </div>`;
+    return;
+  }
+
   if (mode === "explicit") {
     host.innerHTML = `
       <label class="field">
-        <span>템플릿 ID (쉼표 구분)</span>
-        <input type="text" id="template-ids" placeholder="CVE-2026-33017, langflow-detect">
-        <small>내려받거나 직접 작성한 템플릿의 ID를 지정합니다.</small>
+        <span>템플릿 ID · 쉼표 구분</span>
+        <input type="text" id="template-ids" placeholder="CVE-2026-33017, wordpress-detect">
+        <small>템플릿 화면 목록에서 ID 확인 가능</small>
       </label>`;
-  } else {
-    host.innerHTML = `
-      <label class="field">
-        <span>태그 (쉼표 구분)</span>
-        <input type="text" id="tags" placeholder="cve, wordpress">
-      </label>
-      <label class="field">
-        <span>심각도</span>
-        <select id="severities" multiple size="5">
-          ${SEVERITY_ORDER.map((key) =>
-            `<option value="${key}">${esc(SEVERITY_LABEL[key])}</option>`).join("")}
-        </select>
-        <small>선택하지 않으면 전체 심각도를 대상으로 합니다.</small>
-      </label>`;
+    return;
   }
+
+  host.innerHTML = `
+    <label class="field">
+      <span>주제</span>
+      <input type="text" id="tags" placeholder="비워두면 주제 제한 없음">
+      <div class="chips" style="margin-top:8px">
+        ${TAG_PRESETS.map((p) =>
+          `<button type="button" class="chip pick" data-tag="${esc(p.tag)}">${esc(p.label)}</button>`
+        ).join(" ")}
+      </div>
+      <small>눌러서 추가. 여러 개면 쉼표로 구분되며 하나라도 맞으면 검사 대상</small>
+    </label>
+    <label class="field">
+      <span>심각도</span>
+      <div class="chips" id="sev-picks">
+        ${SEVERITY_ORDER.map((key) =>
+          `<button type="button" class="chip pick sev-pick" data-sev="${key}">${esc(SEVERITY_LABEL[key])}</button>`
+        ).join(" ")}
+      </div>
+      <small>아무것도 고르지 않으면 전체 심각도 검사</small>
+    </label>`;
+}
+
+function appendLine(id, value) {
+  const box = document.getElementById(id);
+  const lines = splitList(box.value);
+  if (!lines.includes(value)) lines.push(value);
+  box.value = lines.join("\n");
+}
+
+function appendToken(id, value) {
+  const box = document.getElementById(id);
+  const tokens = splitList(box.value);
+  if (!tokens.includes(value)) tokens.push(value);
+  box.value = tokens.join(", ");
 }
 
 const splitList = (value) =>
@@ -383,18 +479,18 @@ const splitList = (value) =>
 async function startScan() {
   const targets = splitList(document.getElementById("targets").value);
   if (!targets.length) {
-    toast("스캔 대상을 입력하세요.", "err");
+    toast("스캔 대상 입력 필요", "err");
     return;
   }
-  const mode = document.getElementById("mode").value;
+  const mode = scanMode();
   const selection = { mode };
   if (mode === "explicit") {
     selection.template_ids = splitList(document.getElementById("template-ids")?.value);
-  } else {
+  } else if (mode === "filter") {
     selection.tags = splitList(document.getElementById("tags")?.value);
     selection.severity = Array.from(
-      document.getElementById("severities")?.selectedOptions || []
-    ).map((option) => option.value);
+      document.querySelectorAll("#sev-picks .on")
+    ).map((node) => node.dataset.sev);
   }
 
   const rateLimit = Number(document.getElementById("ratelimit").value);
@@ -494,13 +590,13 @@ async function viewResults(params) {
       <div class="view-head">
         <div class="eyebrow">결과 조회</div>
         <h1>탐지 결과</h1>
-        <p>스캔을 선택하세요.</p>
+        <p>조회할 스캔 선택 필요</p>
       </div>
       <div class="panel">
         ${items.length ? scanTable(items) : emptyState({
           eyebrow: "기록 없음",
-          title: "조회할 스캔이 없습니다",
-          body: "스캔을 먼저 실행하세요.",
+          title: "조회할 스캔 없음",
+          body: "스캔을 먼저 실행 필요",
           cta: '<button class="primary" data-go="scan">스캔 실행</button>',
         })}
       </div>`;
@@ -619,8 +715,8 @@ async function viewResults(params) {
       </div>
       ${data.items.length ? findingTable(data.items) : emptyState({
         eyebrow: "해당 없음",
-        title: "조건에 맞는 탐지 결과가 없습니다",
-        body: "필터를 해제하거나 다른 스캔을 선택하세요. 탐지 0건이 곧 안전을 의미하지는 않습니다.",
+        title: "조건에 맞는 결과 없음",
+        body: "필터 해제 또는 다른 스캔 선택. 탐지 0건이 곧 안전을 뜻하지는 않음",
       })}
     </div>`;
 }
@@ -687,8 +783,8 @@ async function openFinding(findingId) {
         ${f.guide_items.length
           ? f.guide_items.map((item) => `<div class="chip strong">${esc(item.item_code)}</div>`).join(" ")
           : `<p style="color:var(--muted);margin:0;font-size:13px">
-               가이드 본문이 탑재되지 않아 조치 문구를 표시할 수 없습니다.
-               매핑은 M6에서 연결됩니다.
+               가이드 본문 미탑재. 조치 문구 표시 불가.
+               가이드 파일을 임포트하면 이 자리에 원문 그대로 표시
              </p>`}
       </section>
 
@@ -723,7 +819,7 @@ async function openFinding(findingId) {
       <section>
         <h3>판정</h3>
         <p style="color:var(--faint);font-size:12.5px;margin:0 0 10px">
-          오탐으로 표시하면 집계에서 제외되고 보고서 부록에 사유가 기록됩니다.
+          오탐으로 표시하면 집계에서 빠지고, 보고서 부록에 사유가 남음
         </p>
         <label class="field">
           <span>사유</span>
@@ -745,7 +841,7 @@ async function openFinding(findingId) {
     const copy = event.target.closest("[data-copy]");
     if (copy) {
       await navigator.clipboard?.writeText(f.evidence.curl_command);
-      toast("명령을 복사했습니다");
+      toast("명령 복사됨");
       return;
     }
     const status = event.target.closest("[data-status]")?.dataset.status;
@@ -755,7 +851,7 @@ async function openFinding(findingId) {
           status,
           note: drawer.querySelector("#fp-note").value || null,
         });
-        toast(`상태를 '${FINDING_STATUS_LABEL[status]}'로 변경했습니다`);
+        toast(`상태 변경됨 · ${FINDING_STATUS_LABEL[status]}`);
         drawer.remove();
         render();
       } catch (error) {
@@ -775,7 +871,7 @@ function viewSettings() {
     <div class="view-head">
       <div class="eyebrow">환경 설정</div>
       <h1>설정</h1>
-      <p>스캔 대상과 외부 통신을 통제합니다. 기본값은 전부 차단입니다.</p>
+      <p>어디를 스캔할 수 있는지, 어디로 통신할 수 있는지 지정. 처음 상태는 전부 차단</p>
     </div>
 
     <div class="panel">
@@ -784,12 +880,13 @@ function viewSettings() {
         <h2>스캔 허용 대상</h2>
       </div>
       <label class="field">
-        <span>호스트 또는 CIDR (줄바꿈 구분)</span>
-        <textarea id="allowlist">${esc((s.target_allowlist || []).join("\n"))}</textarea>
+        <span>진단할 대상 · 한 줄에 하나</span>
+        <textarea id="allowlist" placeholder="192.168.1.50&#10;target.local&#10;192.168.1.0/24">${esc((s.target_allowlist || []).join("\n"))}</textarea>
         <small>
-          여기에 없는 대상은 400으로 거부됩니다. 호스트명은 정확히 일치해야 하며
-          DNS 로 해석하지 않습니다. IP 범위를 허용하려면 <span class="mono">192.168.1.0/24</span>
-          처럼 CIDR 로 등록하세요.
+          주소를 통째로 붙여넣어도 됨. <span class="mono">http://192.168.1.50:8080/admin</span> 은
+          저장할 때 <span class="mono">192.168.1.50</span> 으로 정리됨.
+          한 대역을 통째로 허용하려면 <span class="mono">192.168.1.0/24</span> 처럼 입력.
+          여기 없는 대상은 스캔이 거부되며, 이름은 그대로 비교하고 DNS 조회는 하지 않음
         </small>
       </label>
       <div class="actions">
@@ -806,9 +903,12 @@ function viewSettings() {
         <input type="checkbox" id="offline" ${s.offline_mode ? "checked" : ""}>
         <span class="t-body">
           <b>오프라인 모드</b>
-          <small>켜면 아래 네 지점이 개별 설정과 무관하게 전부 차단됩니다.</small>
+          <small>켜면 아래 네 곳을 개별 설정과 무관하게 전부 차단. 끄면 아래에서 하나씩 선택 가능</small>
         </span>
       </div>
+      <p id="endpoint-note" style="color:var(--warn);font-size:12px;margin:4px 0 0">${
+        s.offline_mode ? "오프라인 모드가 켜져 있어 아래 항목은 잠김. 끄면 개별 선택 가능" : ""
+      }</p>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)">
         ${(s.external_endpoints || []).map((endpoint) => `
           <div class="toggle">
@@ -822,8 +922,8 @@ function viewSettings() {
           </div>`).join("")}
       </div>
       <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-        이 네 곳이 REDAR 의 아웃바운드 통신 전부입니다. 템플릿 갱신·의존성 설치는
-        이 항목을 켜고 직접 실행할 때만 일어나며, 자동으로 실행되지 않습니다.
+        REDAR 가 바깥으로 나가는 통신은 이 네 곳뿐. 켜두더라도 사용자가 직접 실행할 때만
+        통신하며 저절로 나가지 않음
       </p>
       <div class="actions">
         <button class="primary" data-save="network">통신 설정 저장</button>
@@ -838,7 +938,7 @@ function viewSettings() {
       <div class="row" style="align-items:flex-start;gap:20px">
         <label class="field" style="flex:1"><span>동시 실행</span>
           <input type="number" id="d-threads" value="${s.scan_defaults?.threads ?? 20}" min="1" max="200"></label>
-        <label class="field" style="flex:1"><span>타임아웃 (초)</span>
+        <label class="field" style="flex:1"><span>응답 대기 · 초</span>
           <input type="number" id="d-timeout" value="${s.scan_defaults?.timeout_sec ?? 10}" min="1" max="300"></label>
         <label class="field" style="flex:1"><span>재시도</span>
           <input type="number" id="d-retries" value="${s.scan_defaults?.retries ?? 1}" min="0" max="10"></label>
@@ -865,18 +965,18 @@ function viewSettings() {
         <input type="checkbox" id="llm-enabled" ${s.llm?.enabled ? "checked" : ""}>
         <span class="t-body">
           <b>보고서 서술문 생성에 LLM 사용</b>
-          <small>끄면 사전 정의 문장을 씁니다. 판정·조치 문구는 LLM 이 만들지 않습니다.</small>
+          <small>끄면 미리 정해둔 문장 사용. 취약점 판정과 조치 문구는 어떤 경우에도 LLM 이 만들지 않음</small>
         </span>
       </div>
       <div class="toggle">
         <input type="checkbox" id="llm-mask" ${s.llm?.mask_identifiers !== false ? "checked" : ""}>
         <span class="t-body">
           <b>식별자 마스킹</b>
-          <small>호스트·IP·경로를 TARGET_1 형태로 치환해 전송합니다.</small>
+          <small>주소·IP·경로를 TARGET_1 같은 가짜 이름으로 바꿔 전송</small>
         </span>
       </div>
       <p style="color:var(--faint);font-size:12px;margin:10px 0 14px">
-        요청·응답 원문과 추출값은 어떤 경우에도 전송하지 않습니다. 서술 레이어는 M9 에서 구현됩니다.
+        요청·응답 원문과 추출값은 어떤 경우에도 전송하지 않음. 보고서의 설명 문장에만 사용
       </p>
       <div class="actions">
         <button class="primary" data-save="llm">LLM 설정 저장</button>
@@ -931,7 +1031,7 @@ async function saveSettings(kind) {
   try {
     state.settings = await api.saveSettings(patch);
     renderStateStrip();
-    toast("저장했습니다");
+    toast("저장됨");
     if (kind === "network" || kind === "allowlist") render();
   } catch (error) {
     showApiError(error);
@@ -947,7 +1047,7 @@ function showApiError(error) {
     const detail = error.details?.[0]?.reason;
     toast(detail ? `${error.message} (${detail})` : error.message, "err");
   } else {
-    toast("요청을 처리하지 못했습니다.", "err");
+    toast("요청 처리 실패", "err");
   }
 }
 
@@ -985,7 +1085,7 @@ async function render() {
   } catch (error) {
     view().innerHTML = emptyState({
       eyebrow: "오류",
-      title: "화면을 불러오지 못했습니다",
+      title: "화면을 불러오지 못함",
       body: esc(error.message || "알 수 없는 오류"),
       cta: '<button class="primary" data-reload>다시 시도</button>',
     });
@@ -995,6 +1095,15 @@ async function render() {
 document.addEventListener("click", async (event) => {
   const t = event.target;
 
+  // 칩 입력. 자유 입력만 두면 무엇을 적어야 할지 알 수 없다는 피드백
+  const pick = t.closest(".pick");
+  if (pick) {
+    if (pick.dataset.pick) appendLine("targets", pick.dataset.pick);
+    else if (pick.dataset.tag) appendToken("tags", pick.dataset.tag);
+    else if (pick.dataset.sev) pick.classList.toggle("on");
+    return;
+  }
+
   const goTarget = t.closest("[data-go]")?.dataset.go;
   if (goTarget) { go(goTarget); return; }
 
@@ -1003,11 +1112,11 @@ document.addEventListener("click", async (event) => {
   const deleteId = t.closest("[data-delete]")?.dataset.delete;
   if (deleteId) {
     event.stopPropagation();
-    if (!confirm("스캔과 탐지 결과·보고서를 함께 삭제합니다. 계속할까요?")) return;
+    if (!confirm("이 스캔의 탐지 결과·보고서까지 함께 삭제됨. 계속할까요?")) return;
     try {
       await api.deleteScan(deleteId);
       if (state.scanId === deleteId) state.scanId = null;
-      toast("삭제했습니다");
+      toast("삭제됨");
       render();
     } catch (error) { showApiError(error); }
     return;
@@ -1024,7 +1133,7 @@ document.addEventListener("click", async (event) => {
   if (t.closest("#cancel")) {
     try {
       await api.cancelScan(state.scanId);
-      toast("중단을 요청했습니다");
+      toast("중단 요청됨");
     } catch (error) { showApiError(error); }
     return;
   }
@@ -1047,6 +1156,19 @@ document.addEventListener("change", async (event) => {
     if (await handleDependencyChange(event.target, refreshAndRender)) return;
     if (await handleTemplateChange(event.target)) return;
   } catch (error) { showApiError(error); }
+
+  // 오프라인 모드는 개별 지점을 덮어씀. 저장 후 재렌더까지 기다리면
+  // 체크박스가 잠긴 채로 보여 '체크가 안 된다' 로 읽힘
+  if (event.target.id === "offline") {
+    const locked = event.target.checked;
+    document.querySelectorAll("[data-endpoint]").forEach((node) => {
+      node.disabled = locked;
+    });
+    document.getElementById("endpoint-note").textContent = locked
+      ? "오프라인 모드가 켜져 있어 아래 항목은 잠김. 끄면 개별 선택 가능"
+      : "";
+    return;
+  }
 
   const filterKey = event.target.dataset?.filter;
   if (filterKey) {

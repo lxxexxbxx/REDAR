@@ -23,7 +23,7 @@ async function request(path, options = {}) {
       ...options,
     });
   } catch (cause) {
-    throw new ApiError(0, "OFFLINE", "백엔드에 연결할 수 없습니다.");
+    throw new ApiError(0, "OFFLINE", "백엔드 연결 실패");
   }
 
   if (response.status === 204) return null;
@@ -101,12 +101,12 @@ export const api = {
   deleteReport: (id) =>
     request(`/reports/${encodeURIComponent(id)}`, { method: "DELETE" }),
   downloadReport: async (id, format) => {
-    // 파일 본문은 JSON 이 아니라 원문이다. request() 를 쓰지 않고 직접 읽음
+    // 파일 본문은 JSON 이 아니라 원문. request() 를 쓰지 않고 직접 읽음
     const response = await fetch(
       `${BASE}/reports/${encodeURIComponent(id)}/download?format=${format}`
     );
     if (!response.ok) throw new ApiError(response.status, "DOWNLOAD_FAILED",
-      "보고서를 내려받지 못했습니다.");
+      "보고서 내려받기 실패");
     const disposition = response.headers.get("content-disposition") || "";
     const match = disposition.match(/filename="([^"]+)"/);
     return { text: await response.text(), filename: match?.[1] || `report.${format}` };

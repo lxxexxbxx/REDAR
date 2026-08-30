@@ -621,3 +621,49 @@ pre.evidence .trunc { color: var(--warn); }
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* 선택 카드. 드롭다운은 선택지가 한 번에 안 보여 초보자가 비교하지 못함 */
+.choices { display: flex; flex-direction: column; gap: 8px; }
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.choice:hover { border-color: var(--muted); }
+.choice:has(input:checked) { border-color: var(--brand); background: var(--ink-700); }
+.choice input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--brand); flex: none; }
+.choice .c-body { min-width: 0; }
+.choice .c-body b { display: block; font-weight: 400; margin-bottom: 3px; }
+.choice .c-body small { color: var(--faint); line-height: 1.55; display: block; }
+.badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  color: var(--brand);
+  border: 1px solid var(--brand);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 6px;
+}
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+button.chip.pick { cursor: pointer; font-family: var(--sans); }
+button.chip.pick:hover { border-color: var(--muted); color: var(--text); }
+button.chip.pick.on { border-color: var(--brand); color: var(--text); }
+
+.hintbox {
+  border-left: 2px solid var(--line);
+  padding: 10px 0 10px 14px;
+  margin-top: var(--gap);
+}
+.hintbox b { display: block; font-weight: 400; font-size: 13px; margin-bottom: 5px; }
+.hintbox small { color: var(--faint); line-height: 1.6; display: block; }
+.hintbox .chips { margin-bottom: 6px; }
+
+.panel-head .lede { color: var(--muted); margin: 8px 0 0; max-width: 68ch; font-size: 13px; line-height: 1.65; }
+.field small { line-height: 1.6; }

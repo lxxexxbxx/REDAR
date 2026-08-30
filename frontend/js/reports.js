@@ -26,8 +26,8 @@ export async function viewReport() {
     <div class="view-head">
       <div class="eyebrow">산출물</div>
       <h1>보고서</h1>
-      <p>보고서는 대상과 무관하게 항상 같은 목차로 생성됩니다. 탐지 0건인 항목도
-         사라지지 않고 "해당 없음" 으로 남습니다.</p>
+      <p>보고서는 대상이 무엇이든 항상 같은 목차로 생성. 탐지 0건인 항목도 사라지지 않고
+         "해당 없음" 으로 남음</p>
     </div>
 
     <div class="panel">
@@ -47,24 +47,24 @@ export async function viewReport() {
         <div class="toggle">
           <input type="checkbox" id="rpt-evidence" checked>
           <span class="t-body"><b>탐지 근거 포함</b>
-            <small>요청·응답 원문을 보고서에 싣습니다. 민감 정보가 섞일 수 있습니다.</small></span>
+            <small>요청·응답 원문을 보고서에 포함. 민감 정보가 섞일 수 있어 공유 전 확인 권장</small></span>
         </div>
         <div class="toggle">
           <input type="checkbox" id="rpt-cases" checked>
           <span class="t-body"><b>가이드 조치 사례 포함</b>
-            <small>항목당 최대 8천 자입니다. 대량 탐지 시 끄면 보고서가 짧아집니다.</small></span>
+            <small>항목당 최대 8천 자. 탐지가 많으면 끄는 편이 읽기 편함</small></span>
         </div>
         <div class="toggle">
           <input type="checkbox" id="rpt-llm">
           <span class="t-body"><b>LLM 서술 사용</b>
-            <small>끄면 사전 정의 문장을 씁니다. 판정·조치 문구는 LLM 이 만들지 않습니다.</small></span>
+            <small>끄면 미리 정해둔 문장 사용. 취약점 판정과 조치 문구는 어떤 경우에도 LLM 이 만들지 않음</small></span>
         </div>
         <div class="actions">
           <button class="primary" data-rpt="create">보고서 생성</button>
         </div>` : `
         <div class="empty">
           <div class="eyebrow">스캔 없음</div>
-          <h2>생성할 스캔이 없습니다</h2>
+          <h2>보고서를 만들 스캔 없음</h2>
           <p>스캔을 먼저 실행하거나 외부 결과를 가져오세요.</p>
           <div class="cta"><button class="primary" data-go="scan">스캔 실행</button></div>
         </div>`}
@@ -76,7 +76,7 @@ export async function viewReport() {
         <h2>생성된 보고서</h2>
       </div>
       ${reports.length ? reportTable(reports) : `
-        <p class="empty" style="margin:0">아직 생성된 보고서가 없습니다.</p>`}
+        <p class="empty" style="margin:0">아직 생성된 보고서 없음</p>`}
     </div>
 
     <div class="panel">
@@ -85,24 +85,24 @@ export async function viewReport() {
         <h2>스캔 비교</h2>
       </div>
       <p style="color:var(--muted);margin:0 0 12px">
-        조치 전후 두 스캔의 차이만 보고합니다. 도구는 조치 성공 여부를 판정하지 않으며,
-        비교 결과는 보고서에 포함되지 않습니다.
+        조치 전후 두 스캔의 차이만 표시. 조치가 성공했는지는 도구가 판정하지 않으며,
+        비교 결과는 보고서에 실리지 않음
       </p>
       ${scans.length >= 2 ? `
         <div class="row" style="align-items:flex-start">
           <label class="field" style="flex:1">
-            <span>기준 스캔 (이전)</span>
+            <span>기준 스캔 · 이전</span>
             <select id="cmp-base">${scanOptions(scans, 1)}</select>
           </label>
           <label class="field" style="flex:1">
-            <span>비교 스캔 (이후)</span>
+            <span>비교 스캔 · 이후</span>
             <select id="cmp-target">${scanOptions(scans, 0)}</select>
           </label>
         </div>
         <div class="actions">
           <button data-rpt="compare">비교 실행</button>
         </div>` : `
-        <p class="empty" style="margin:0">비교에는 스캔 2건 이상이 필요합니다.</p>`}
+        <p class="empty" style="margin:0">비교하려면 스캔 2건 이상 필요</p>`}
       <div id="cmp-result">${state.compare ? compareResult(state.compare) : ""}</div>
     </div>`;
 }
@@ -233,8 +233,7 @@ function previewDrawer(report) {
       <section>
         <h3>PDF 로 저장</h3>
         <p style="margin:0;color:var(--muted)">HTML 을 열고 인쇄(Cmd/Ctrl+P) 에서
-           <strong>PDF 로 저장</strong>을 선택하세요. 보고서 HTML 은 폰트를 포함한
-           자체 완결형 파일입니다.</p>
+           <strong>PDF 로 저장</strong> 선택. 보고서 HTML 은 폰트까지 담고 있어 파일 하나로 공유 가능</p>
         <div class="actions">
           <button class="sm" data-rpt-html="${esc(report.report_id)}">HTML 내려받기</button>
         </div>
@@ -276,9 +275,9 @@ export async function handleReportClick(target) {
     return true;
   }
   if (del) {
-    if (!confirm("보고서와 생성된 파일을 삭제합니다. 계속할까요?")) return true;
+    if (!confirm("보고서와 생성된 파일이 삭제됨. 계속할까요?")) return true;
     await api.deleteReport(del);
-    toast("삭제했습니다");
+    toast("삭제됨");
     await viewReport();
     return true;
   }
@@ -298,7 +297,7 @@ export async function handleReportClick(target) {
     case "compare": {
       const base = document.getElementById("cmp-base").value;
       const target2 = document.getElementById("cmp-target").value;
-      if (base === target2) { toast("서로 다른 두 스캔을 선택하세요", "err"); return true; }
+      if (base === target2) { toast("서로 다른 두 스캔 선택 필요", "err"); return true; }
       state.compare = await api.compareScans(base, target2);
       document.getElementById("cmp-result").innerHTML = compareResult(state.compare);
       return true;

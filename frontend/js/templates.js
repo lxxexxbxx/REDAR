@@ -29,8 +29,7 @@ export async function viewTemplates() {
     <div class="view-head">
       <div class="eyebrow">진단 항목 관리</div>
       <h1>템플릿</h1>
-      <p>진단 항목은 nuclei YAML 템플릿으로만 표현됩니다. REDAR 는 사용자 스크립트를
-         실행하지 않습니다.</p>
+      <p>진단 항목은 nuclei YAML 템플릿으로만 표현. REDAR 는 사용자 스크립트를 실행하지 않음</p>
     </div>
 
     <div class="panel">
@@ -64,7 +63,7 @@ export async function viewTemplates() {
       ${state.items.length ? templateTable(state.items) : `
         <div class="empty">
           <div class="eyebrow">${state.total === 0 && !filters.q ? "인벤토리 비어 있음" : "결과 없음"}</div>
-          <h2>표시할 템플릿이 없습니다</h2>
+          <h2>표시할 템플릿 없음</h2>
           <p>아래에서 직접 만들거나, <span class="mono">templates/official/</span> 에
              파일을 넣고 <strong>폴더 재색인</strong>을 누르세요.</p>
         </div>`}
@@ -93,8 +92,8 @@ export async function viewTemplates() {
         <h2>드라이런</h2>
       </div>
       <p style="color:var(--muted);margin:0 0 12px">
-        저장 전에 대상 1개로 실제 요청을 보내 matcher 별 매칭 결과를 확인합니다.
-        allowlist 통제가 스캔과 동일하게 적용됩니다.
+        저장 전에 대상 1개로 실제 요청을 보내 matcher 별 결과 확인.
+        허용 대상 통제는 스캔과 동일하게 적용
       </p>
       <label class="field">
         <span>대상</span>
@@ -344,7 +343,7 @@ async function save() {
   const result = state.editing
     ? await api.updateTemplate(state.editing, form)
     : await api.createTemplate(form);
-  toast(state.editing ? "수정했습니다" : "저장했습니다");
+  toast(state.editing ? "수정됨" : "저장됨");
   state.editing = null;
   await viewTemplates();
   renderCheck({ ...result, policy: { valid: true, warnings: result.warnings || [] },
@@ -354,11 +353,11 @@ async function save() {
 async function dryrun() {
   const target = document.getElementById("tpl-target").value.trim();
   const box = document.getElementById("tpl-dryrun");
-  if (!target) { toast("대상을 입력하세요", "err"); return; }
+  if (!target) { toast("대상 입력 필요", "err"); return; }
 
   const built = await api.validateTemplate({ form: collectForm() });
   if (!built.policy.valid) {
-    toast("정책 검증을 먼저 통과해야 합니다", "err");
+    toast("정책 검증 통과 필요", "err");
     renderCheck(built);
     return;
   }
@@ -415,7 +414,7 @@ async function openTemplate(templateId) {
         <section>
           <h3>빌더 미지원 문법</h3>
           <div class="coverage" style="border-left-color:var(--warn)">
-            폼으로 편집하면 아래 항목이 유실됩니다. YAML 을 직접 수정하세요.
+            폼으로 편집하면 아래 항목 유실. YAML 직접 수정 필요
             <div class="mono" style="margin-top:6px;color:var(--text)">
               ${esc(detail.unsupported_fields.join(", "))}</div>
           </div>
@@ -432,7 +431,7 @@ async function openTemplate(templateId) {
                <button class="sm danger" data-tpl-delete="${esc(detail.template_id)}">삭제</button>`
             : `<button class="sm" data-tpl-fork="${esc(detail.template_id)}">사본 만들어 편집</button>
                <p style="color:var(--faint);font-size:12px;margin:8px 0 0">
-                 공식 템플릿은 수정·삭제할 수 없습니다.</p>`}
+                 공식 템플릿은 수정·삭제 불가</p>`}
         </div>
       </section>
     </div>`;
@@ -461,7 +460,7 @@ export async function handleTemplateClick(target) {
     const container = group.parentElement;
     // 최소 1개는 남김. 스키마의 min_items 를 화면에서도 지킴
     if (container.children.length > 1) group.remove();
-    else toast("최소 1개는 필요합니다", "err");
+    else toast("최소 1개 필요", "err");
     return true;
   }
   if (open) { await openTemplate(open); return true; }
@@ -473,15 +472,15 @@ export async function handleTemplateClick(target) {
     await viewTemplates();
     if (detail.form) fillForm(detail.form);
     if (detail.unsupported_fields?.length) {
-      toast(`미지원 문법 ${detail.unsupported_fields.length}건은 폼에 반영되지 않습니다`, "err");
+      toast(`미지원 문법 ${detail.unsupported_fields.length}건은 폼에 미반영`, "err");
     }
     return true;
   }
   if (del) {
-    if (!confirm(`${del} 을 삭제합니다. 계속할까요?`)) return true;
+    if (!confirm(`${del} 삭제됨. 계속할까요?`)) return true;
     await api.deleteTemplate(del);
     document.querySelector(".drawer")?.remove();
-    toast("삭제했습니다");
+    toast("삭제됨");
     await viewTemplates();
     return true;
   }
@@ -490,7 +489,7 @@ export async function handleTemplateClick(target) {
     if (!newId) return true;
     await api.forkTemplate(forkId, newId);
     document.querySelector(".drawer")?.remove();
-    toast("사본을 만들었습니다");
+    toast("사본 생성됨");
     state.editing = newId;
     await viewTemplates();
     const detail = await api.getTemplate(newId);

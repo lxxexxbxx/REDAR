@@ -439,30 +439,6 @@ def test_build_installs_deps_even_inside_venv(monkeypatch):
     assert installed == [sys.executable]
 
 
-def test_headless_only_when_no_display(monkeypatch):
-    """원격 리눅스 서버에는 디스플레이가 없어 데스크톱 셸을 띄울 수 없음"""
-    build = _load_build()
-    monkeypatch.setattr(build.platform, "system", lambda: "Linux")
-    monkeypatch.delenv("DISPLAY", raising=False)
-    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
-    assert build.headless() is True
-    monkeypatch.setenv("DISPLAY", ":0")
-    assert build.headless() is False
-    monkeypatch.setattr(build.platform, "system", lambda: "Darwin")
-    monkeypatch.delenv("DISPLAY", raising=False)
-    assert build.headless() is False
-
-
-def test_headless_prints_port_forward_guide(monkeypatch, tmp_path, capsys):
-    """번들이 없어도 접속 방법은 알려줘야 함"""
-    build = _load_build()
-    monkeypatch.setattr(build, "DIST", tmp_path)
-    build.serve_headless(8000)
-    out = capsys.readouterr().out
-    assert "ssh -L 8000:127.0.0.1:8000" in out
-    assert "http://127.0.0.1:8000" in out
-
-
 def test_node_installed_in_one_run(monkeypatch):
     """node 가 없다고 빌드가 끝나면 사용자가 두 번 실행해야 함"""
     build = _load_build()

@@ -44,7 +44,7 @@ class MonoGptProvider:
 
     def narrate(self, purpose: str, context: dict[str, Any]) -> str:
         if not self.endpoint:
-            raise LlmError("LLM 엔드포인트가 설정되지 않았습니다.")
+            raise LlmError("LLM 엔드포인트 미설정")
         payload = {
             "model": self.model,
             "temperature": TEMPERATURE,

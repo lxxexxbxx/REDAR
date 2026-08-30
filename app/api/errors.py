@@ -42,7 +42,7 @@ def error_response(
 
 
 def not_found(resource: str) -> JSONResponse:
-    return error_response(404, "NOT_FOUND", f"{resource}을(를) 찾을 수 없습니다.")
+    return error_response(404, "NOT_FOUND", f"{resource} 없음")
 
 
 def register(app: FastAPI) -> None:
@@ -73,11 +73,11 @@ def register(app: FastAPI) -> None:
             for err in exc.errors()
         ]
         return error_response(
-            400, "INVALID_REQUEST", "요청 본문 형식이 올바르지 않습니다.", details
+            400, "INVALID_REQUEST", "요청 본문 형식 오류", details
         )
 
     @app.exception_handler(Exception)
     async def _unhandled(_: Request, exc: Exception) -> JSONResponse:
         # 내부 예외 메시지를 그대로 노출하지 않음. 상세는 로그로만
         logger.exception("처리되지 않은 예외")
-        return error_response(500, "INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.")
+        return error_response(500, "INTERNAL_ERROR", "서버 내부 오류")

@@ -12,6 +12,8 @@ import sys
 
 import pytest
 
+from app.domain import models
+
 from app.cli import _CSV_LOADS, init_db, load_data
 from app.config import settings
 from app.repository import settings_repo
@@ -22,6 +24,10 @@ ROOT = settings.SCHEMA_PATH.parents[1]
 # schema_version 은 마이그레이션 장부이며 데이터가 아님
 _ALLOWED_SEED_TABLES = {"schema_version"}
 
+
+def _notice_tail() -> str:
+    """고지 문구의 고정부. 표현이 바뀌어도 존재 여부는 계속 검증"""
+    return models.COVERAGE_NOTICE_TEMPLATE.split("{scope}")[-1].strip()
 
 def _load_tool():
     spec = importlib.util.spec_from_file_location(
@@ -267,7 +273,7 @@ def test_part_a_works_without_guide(tmp_path):
     # 본문 없이도 커버리지 고지는 나옴. 단 "382개 중" 대신 미탑재를 명시 (절대규칙 10)
     notice = status["coverage_notice"]
     assert "36개" in notice and "미탑재" in notice
-    assert "탐지되지 않음이 양호를 의미하지 않습니다" in notice
+    assert _notice_tail() in notice
 
 
 def test_guide_body_is_never_committed():

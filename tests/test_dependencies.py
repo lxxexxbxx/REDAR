@@ -137,7 +137,7 @@ def test_imported_binary_is_executable(conn, home, fake_binary, clean_settings):
 
 def test_unrunnable_import_is_rejected_and_rolled_back(conn, home, clean_settings):
     """실행되지 않는 파일을 등록한 채로 두면 스캔이 조용히 실패"""
-    with pytest.raises(ScanError, match="실행할 수 없습니다"):
+    with pytest.raises(ScanError, match="실행 불가"):
         dependency_service.import_binary(conn, "nuclei", b"not-a-binary")
     assert not (home / "bin" / "nuclei").exists()
     assert not settings_repo.get_all(conn).get("dep_nuclei_path")
@@ -160,7 +160,7 @@ def test_set_path_pins_specific_binary(conn, home, fake_binary, clean_settings):
 
 
 def test_set_path_rejects_missing_file(conn, home, clean_settings):
-    with pytest.raises(ScanError, match="파일이 없습니다"):
+    with pytest.raises(ScanError, match="파일 없음"):
         dependency_service.set_path(conn, "nuclei", "/nonexistent/nuclei")
 
 

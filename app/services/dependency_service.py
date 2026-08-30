@@ -187,9 +187,9 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
 
 def _blocked_reason(offline: bool, enabled: bool) -> str | None:
     if offline:
-        return "오프라인 모드에서는 자동 설치를 하지 않습니다. 파일 반입으로 등록하세요."
+        return "오프라인 모드. 자동 설치 대신 파일 반입으로 등록"
     if not enabled:
-        return "설정에서 '의존성 자동 설치' 통신 지점을 먼저 허용하세요."
+        return "설정에서 '의존성 자동 설치' 통신 지점 허용 필요"
     return None
 
 
@@ -202,12 +202,12 @@ def set_path(conn: sqlite3.Connection, key: str, path: str | None) -> dict[str, 
         target = Path(path).expanduser()
         if not target.is_file():
             raise ScanError(
-                "INVALID_REQUEST", f"파일이 없습니다: {target}",
+                "INVALID_REQUEST", f"파일 없음: {target}",
                 details=[{"field": "path", "reason": str(target)}],
             )
         if not os.access(target, os.X_OK):
             raise ScanError(
-                "INVALID_REQUEST", f"실행 권한이 없습니다: {target}",
+                "INVALID_REQUEST", f"실행 권한 없음: {target}",
                 details=[{"field": "path", "reason": "not executable"}],
             )
         settings_repo.put_many(conn, {f"dep_{dependency.key}_path": str(target)})
@@ -248,7 +248,7 @@ def import_binary(
         sync_configured_paths(conn)
         raise ScanError(
             "INVALID_REQUEST",
-            "반입한 파일을 실행할 수 없습니다. 플랫폼이 맞는지 확인하세요.",
+            "반입한 파일 실행 불가. 플랫폼 일치 여부 확인 필요",
         )
     result["sha256"] = digest
     return result
@@ -260,12 +260,12 @@ def install(conn: sqlite3.Connection, key: str, *, confirmed: bool) -> dict[str,
     """Go 툴체인 확보 후 go install. 외부 통신 지점 4번 (docs/01 §7.1)"""
     dependency = get(key)
     if not dependency.installable:
-        raise ScanError("INVALID_REQUEST", f"{dependency.label} 은 자동 설치를 지원하지 않습니다.")
+        raise ScanError("INVALID_REQUEST", f"{dependency.label} 자동 설치 미지원")
     if not confirmed:
         # 사용자가 매번 명시적으로 동의해야 한다. 설정만으로 자동 실행되지 않음
         raise ScanError(
             "INVALID_REQUEST",
-            "자동 설치에는 명시적 동의가 필요합니다 (confirm=true).",
+            "자동 설치에는 명시적 동의 필요 (confirm=true)",
             details=[{"field": "confirm", "reason": "required"}],
         )
 
@@ -273,7 +273,7 @@ def install(conn: sqlite3.Connection, key: str, *, confirmed: bool) -> dict[str,
     if settings_repo.offline_mode(conn):
         raise ScanError(
             "OFFLINE_MODE_BLOCKED",
-            "오프라인 모드에서는 자동 설치를 할 수 없습니다. 파일 반입을 사용하세요.",
+            "오프라인 모드. 자동 설치 불가. 파일 반입 사용",
             status_code=403,
         )
     if not settings_repo.as_bool(raw.get("ext_dependency_install_enabled")):
@@ -327,7 +327,7 @@ def go_asset() -> tuple[str, str]:
                     and entry.get("kind") == "archive"
                     and entry.get("filename", "").endswith(kind)):
                 return entry["filename"], entry.get("sha256", "")
-    raise ScanError("INTERNAL_ERROR", f"Go 배포본을 찾지 못했습니다: {goos}/{arch}")
+    raise ScanError("INTERNAL_ERROR", f"Go 배포본 없음: {goos}/{arch}")
 
 
 def _install_go() -> Path:
@@ -398,5 +398,5 @@ def _go_install(go_binary: Path, dependency: Dependency) -> Path:
 
     binary = target_dir / dependency.filename
     if not binary.is_file():
-        raise ScanError("INTERNAL_ERROR", f"설치 산출물이 없습니다: {binary}")
+        raise ScanError("INTERNAL_ERROR", f"설치 산출물 없음: {binary}")
     return binary

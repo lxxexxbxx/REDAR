@@ -25,6 +25,23 @@ def _as_address(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | No
         return None
 
 
+def normalize_entry(entry: str) -> str:
+    """등록값을 판정 단위(호스트 또는 CIDR)로 정규화.
+
+    사용자는 'http://localhost:8080' 처럼 URL 을 그대로 붙여넣음.
+    판정은 호스트만 비교하므로 정규화 없이는 영원히 매칭되지 않음
+    """
+    text = (entry or "").strip().lower()
+    if not text:
+        return ""
+    if _as_network(text) is not None:      # CIDR·단일 IP 는 그대로
+        return text
+    try:
+        return urlmod.parse(text).host
+    except ValueError:
+        return text                        # 해석 불가는 원본 유지. 판정에서 걸러짐
+
+
 def host_allowed(host: str, allowlist: Sequence[str]) -> bool:
     """호스트 단독 판정. 포트는 무관.
 
@@ -38,7 +55,8 @@ def host_allowed(host: str, allowlist: Sequence[str]) -> bool:
     address = _as_address(target)
 
     for raw_entry in allowlist:
-        entry = str(raw_entry).strip().lower()
+        # 저장된 값도 정규화. 이전 버전이 URL 그대로 저장한 행을 살림
+        entry = normalize_entry(str(raw_entry))
         if not entry:
             continue
         if entry == target:
