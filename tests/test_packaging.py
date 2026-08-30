@@ -269,6 +269,31 @@ def test_spec_has_no_onefile_branch():
     assert "COLLECT(" in text
 
 
+# ─────────────────────────────── 앱 아이콘
+
+def test_bundle_icons_cover_platform_formats():
+    """PNG 만 등록하면 macOS 번들이 'No matching IconType' 로 실패.
+    플랫폼별 컨테이너를 함께 등록해야 함"""
+    conf = json.loads((ROOT / "src-tauri" / "tauri.conf.json").read_text("utf-8"))
+    icons = conf["bundle"]["icon"]
+    suffixes = {Path(i).suffix for i in icons}
+    assert ".icns" in suffixes, "macOS 번들에 icns 필요"
+    assert ".ico" in suffixes, "Windows 번들에 ico 필요"
+    assert ".png" in suffixes
+    for entry in icons:
+        assert (ROOT / "src-tauri" / entry).is_file(), entry
+
+
+def test_ico_holds_small_sizes():
+    """작업 표시줄·탭 아이콘은 16·32 를 씀. 큰 이미지 하나만 넣으면 뭉개짐"""
+    raw = (ROOT / "src-tauri" / "icons" / "icon.ico").read_bytes()
+    count = int.from_bytes(raw[4:6], "little")
+    assert count >= 4
+    # 디렉터리 엔트리의 첫 바이트가 가로 크기. 256 은 규격상 0
+    widths = {raw[6 + 16 * i] or 256 for i in range(count)}
+    assert {16, 32}.issubset(widths), widths
+
+
 # ─────────────────────────────── 빌드 스크립트 (완료 조건 1)
 
 def test_build_script_runs_three_stages_in_order():
