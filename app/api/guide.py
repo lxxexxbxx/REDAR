@@ -15,7 +15,7 @@ from app.services.scan_service import ScanError
 
 router = APIRouter()
 
-_MAX_UPLOAD_BYTES = 32 * 1024 * 1024      # 본문 CSV 1MB 대. 이미지 CSV 포함해도 여유
+_MAX_UPLOAD_BYTES = 32 * 1024 * 1024      # 본문 CSV 1MB 대. 여유를 크게 둠
 
 
 @router.get("/guide/status")
@@ -25,25 +25,16 @@ def guide_status() -> dict[str, Any]:
 
 
 @router.post("/guide/import")
-async def guide_import(
-    file: Annotated[UploadFile, File()],
-    images: Annotated[UploadFile | None, File()] = None,
-) -> dict[str, Any]:
+async def guide_import(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
     """본문 CSV 업로드. 전체 삭제 후 재적재하며 매핑 결과는 보존됨"""
     payload = await file.read(_MAX_UPLOAD_BYTES + 1)
     if len(payload) > _MAX_UPLOAD_BYTES:
         raise ScanError("INVALID_REQUEST", "파일이 너무 큽니다.")
-    images_text = None
-    if images is not None:
-        images_payload = await images.read(_MAX_UPLOAD_BYTES + 1)
-        if len(images_payload) > _MAX_UPLOAD_BYTES:
-            raise ScanError("INVALID_REQUEST", "이미지 목록 파일이 너무 큽니다.")
-        images_text = images_payload.decode("utf-8-sig", errors="replace")
 
     try:
         with session() as conn:
             return guide_importer.import_text(
-                conn, payload.decode("utf-8-sig", errors="replace"), images_text
+                conn, payload.decode("utf-8-sig", errors="replace")
             )
     except guide_importer.ImportError_ as exc:
         raise ScanError(

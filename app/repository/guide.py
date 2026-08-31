@@ -1,7 +1,8 @@
 """가이드 데이터 조회 · 임포트.
 
 본문(guide_items)은 미탑재가 정상 상태. 매핑 테이블은 번들이라 항상 존재 (절대규칙 3)
-본문·이미지는 저작권 대상이라 저장소에 없고 사용자가 임포트 (절대규칙 8)
+본문은 저작권 대상이라 저장소에 없고 사용자가 임포트 (절대규칙 8)
+'점검 및 조치 사례'와 캡처 이미지는 스키마 미포함. 설계상 미채택
 """
 from __future__ import annotations
 
@@ -38,35 +39,8 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
 # 누락 시 에러 없이 유사항목 검색만 0건이 되어 발견이 늦음
 _FTS_COLUMNS = (
     "item_code", "item_name", "check_content", "security_threat",
-    "remediation", "case_text",
+    "remediation",
 )
-
-
-def clear_images(conn: sqlite3.Connection, item_codes: list[str]) -> int:
-    """재임포트 시 이미지 중복 방지. guide_item_images 에 UNIQUE 제약이 없어 필요"""
-    if not item_codes:
-        return 0
-    marks = ", ".join("?" * len(item_codes))
-    cur = conn.execute(
-        f"DELETE FROM guide_item_images WHERE item_code IN ({marks})", item_codes
-    )
-    return cur.rowcount
-
-
-def replace_images(conn: sqlite3.Connection, rows: list[dict]) -> int:
-    """이미지 전체 교체. guide_item_images 에 UNIQUE 가 없어 재임포트 시 중복됨"""
-    conn.execute("DELETE FROM guide_item_images")
-    if not rows:
-        return 0
-    columns = [c["name"] for c in conn.execute("PRAGMA table_info(guide_item_images)")
-               if c["name"] != "image_id"]
-    usable = [c for c in columns if c in rows[0]]
-    conn.executemany(
-        f"INSERT INTO guide_item_images ({', '.join(usable)})"
-        f" VALUES ({', '.join('?' * len(usable))})",
-        [[row.get(c) or None for c in usable] for row in rows],
-    )
-    return len(rows)
 
 
 def rebuild_fts(conn: sqlite3.Connection) -> int:
@@ -84,18 +58,6 @@ def versions(conn: sqlite3.Connection) -> list[str]:
         r["guide_version"]
         for r in conn.execute(
             "SELECT DISTINCT guide_version FROM guide_items ORDER BY guide_version"
-        )
-    ]
-
-
-def orphan_image_codes(conn: sqlite3.Connection) -> list[str]:
-    """본문 없는 이미지. FK 로 막히지만 원인을 알려주기 위해 먼저 확인"""
-    return [
-        r["item_code"]
-        for r in conn.execute(
-            "SELECT DISTINCT i.item_code FROM guide_item_images i"
-            " LEFT JOIN guide_items g ON g.item_code = i.item_code"
-            " WHERE g.item_code IS NULL"
         )
     ]
 

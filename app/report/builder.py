@@ -29,7 +29,6 @@ from app.services import guide_service
 
 # 보고서에 싣는 응답 원문 상한. 초과분은 마커로 절단 표시 (docs/04)
 EVIDENCE_LIMIT = 2 * 1024
-CASE_TEXT_LIMIT = 4 * 1024
 TRUNCATION_MARKER = "…이하 생략"
 TOP_RISK_LIMIT = 5
 HOSTS_INLINE_LIMIT = 10
@@ -41,7 +40,6 @@ def build(
     *,
     report_id: str,
     include_evidence: bool = True,
-    include_guide_cases: bool = True,
     exclude_false_positives: bool = True,
     use_llm: bool = False,
 ) -> dict[str, Any]:
@@ -101,12 +99,9 @@ def build(
             for v in VulnType
         ],
         "findings_detail": detail,
-        "remediation": _remediation(conn, scan_id, findings, guide_items,
-                                    include_guide_cases=include_guide_cases),
+        "remediation": _remediation(conn, scan_id, findings, guide_items),
         "patch_plan": _patch_plan(conn, scan_id),
-        "guide_mapping": _guide_mapping(
-            verdicts, guide_items, guide_status, include_guide_cases=include_guide_cases
-        ),
+        "guide_mapping": _guide_mapping(verdicts, guide_items, guide_status),
         "unmapped_findings": _unmapped(conn, scan_id, findings),
         "false_positives": [
             {
@@ -264,8 +259,6 @@ def _remediation(
     scan_id: str,
     findings: list[dict[str, Any]],
     guide_items: dict[str, dict[str, Any]],
-    *,
-    include_guide_cases: bool,
 ) -> list[dict[str, Any]]:
     """유형 트랙. 가이드 원문을 그대로 인용하고 출처 페이지를 붙임 (절대규칙 9).
 
@@ -295,11 +288,6 @@ def _remediation(
             "guide_item_code": section["item_code"] if original else None,
             "guide_citation": _citation(item),
             "guide_remediation_original": original,
-            "guide_case_text": (
-                _truncate(item.get("case_text"), CASE_TEXT_LIMIT,
-                          f" (원문 p.{item.get('page_start')} 참조)")
-                if include_guide_cases else None
-            ),
             "narrative": None,
             "narrative_generated_by": fallback.GENERATED_BY_TEMPLATE,
         })
@@ -335,8 +323,6 @@ def _guide_mapping(
     verdicts: list[guide_service.ItemVerdict],
     guide_items: dict[str, dict[str, Any]],
     guide_status: dict[str, Any],
-    *,
-    include_guide_cases: bool,
 ) -> dict[str, Any]:
     items = []
     for verdict in verdicts:
@@ -354,11 +340,6 @@ def _guide_mapping(
             "criteria_safe": item.get("criteria_safe"),
             "criteria_vuln": item.get("criteria_vuln"),
             "remediation": item.get("remediation"),
-            "case_text": (
-                _truncate(item.get("case_text"), CASE_TEXT_LIMIT,
-                          f" (원문 p.{item.get('page_start')} 참조)")
-                if include_guide_cases else None
-            ),
             "citation": _citation(item),
             "review_required": bool(item.get("review_required")),
         })

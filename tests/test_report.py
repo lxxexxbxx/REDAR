@@ -100,7 +100,6 @@ def guide_loaded(conn):
     guide_importer.import_text(conn, MOCK_CSV.read_text(encoding="utf-8"))
     yield
     conn.execute("DELETE FROM guide_items")
-    conn.execute("DELETE FROM guide_item_images")
     conn.execute("DELETE FROM guide_items_fts")
     conn.commit()
 
@@ -316,16 +315,15 @@ def test_tc_r09_remediation_is_verbatim_substring(conn, guide_loaded, scan_with_
         pytest.fail("원문 조치 문구가 HTML 에 인용되지 않았다")
 
 
-def test_guide_case_text_truncated_with_page_reference(conn, guide_loaded, scan_with_findings):
-    long_text = "가" * (builder.CASE_TEXT_LIMIT + 100)
-    conn.execute("UPDATE guide_items SET case_text = ? WHERE item_code = 'WA-06'",
-                 (long_text,))
-    conn.commit()
+def test_report_carries_no_guide_case_text(conn, guide_loaded, scan_with_findings):
+    """사례 본문은 미채택. Report JSON 어디에도 남지 않아야 함"""
     report = _report(conn, scan_with_findings)
-    items = {i["item_code"]: i for i in report["guide_mapping"]["items"]}
-    if items.get("WA-06", {}).get("case_text"):
-        assert builder.TRUNCATION_MARKER in items["WA-06"]["case_text"]
-        assert "원문 p." in items["WA-06"]["case_text"]
+    for item in report["guide_mapping"]["items"]:
+        assert "case_text" not in item
+    for section in report["remediation"]:
+        assert "guide_case_text" not in section
+    # 조치 근거 자체는 유지됨 - remediation 원문과 출처 페이지는 그대로 인용
+    assert all("guide_remediation_original" in s for s in report["remediation"])
 
 
 # ─────────────────────────────── TC-R10 (커버리지 고지)

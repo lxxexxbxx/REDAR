@@ -20,7 +20,6 @@ class ReportOptions(BaseModel):
     include_guide_mapping: bool = True
     include_evidence: bool = True
     exclude_false_positives: bool = True
-    include_guide_cases: bool = True
 
 
 class CreateReportRequest(BaseModel):

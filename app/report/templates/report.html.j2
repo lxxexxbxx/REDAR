@@ -368,12 +368,6 @@
     {{ item.root_fix.summary }}</div>
   {% endif %}
 
-  {% if item.guide_case_text %}
-  <h4>점검 및 조치 사례 (원문 인용)</h4>
-  <div class="original">{{ item.guide_case_text }}
-    <span class="citation">[출처: {{ item.guide_citation | nz('KISA 상세가이드') }}]</span></div>
-  {% endif %}
-
   <h4>임시 조치</h4>
   <p style="margin:0">{{ item.temporary_fix.summary }}</p>
 </div>
@@ -452,11 +446,6 @@
   {% if item.remediation %}
   <h4>조치 방법 (원문 인용)</h4>
   <div class="original">{{ item.remediation }}
-    <span class="citation">[출처: {{ item.citation | nz('KISA 상세가이드') }}]</span></div>
-  {% endif %}
-  {% if item.case_text %}
-  <h4>점검 및 조치 사례 (원문 인용)</h4>
-  <div class="original">{{ item.case_text }}
     <span class="citation">[출처: {{ item.citation | nz('KISA 상세가이드') }}]</span></div>
   {% endif %}
 </div>

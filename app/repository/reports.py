@@ -164,15 +164,14 @@ def insert(
     conn.execute(
         "INSERT INTO reports (report_id, scan_id, status, opt_use_llm,"
         " opt_include_guide_mapping, opt_include_evidence,"
-        " opt_exclude_false_positives, opt_include_guide_cases,"
+        " opt_exclude_false_positives,"
         " guide_db_available, guide_db_version, guide_items_total,"
         " guide_items_covered)"
-        " VALUES (?, ?, 'generating', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " VALUES (?, ?, 'generating', ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             report_id, scan_id,
             int(options["use_llm"]), int(options["include_guide_mapping"]),
             int(options["include_evidence"]), int(options["exclude_false_positives"]),
-            int(options["include_guide_cases"]),
             int(guide_status["imported"]), guide_status["version"],
             guide_status["item_count"], guide_status["items_covered"],
         ),

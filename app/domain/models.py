@@ -301,7 +301,6 @@ class GuideMappingItem(Strict):
     criteria_safe: str | None = None
     criteria_vuln: str | None = None
     remediation: str | None = None
-    case_text: str | None = None
     citation: str | None = None
     # confidence=low + 미검수 매핑에 부착 (guide_mappings.reviewed)
     review_required: bool = False

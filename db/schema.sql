@@ -345,8 +345,6 @@ CREATE TABLE IF NOT EXISTS reports (
     opt_include_guide_mapping  INTEGER NOT NULL DEFAULT 1,
     opt_include_evidence       INTEGER NOT NULL DEFAULT 1,
     opt_exclude_false_positives INTEGER NOT NULL DEFAULT 1,
-    -- 가이드 '점검 및 조치 사례' 원문 포함 여부. 항목당 최대 8.7천 자라 옵션화한다
-    opt_include_guide_cases     INTEGER NOT NULL DEFAULT 1,
 
     -- 저하 상태 기록 (§01 문서 §6)
     guide_db_available   INTEGER NOT NULL DEFAULT 0,
@@ -416,9 +414,8 @@ CREATE TABLE IF NOT EXISTS guide_items (
     remediation     TEXT,                            -- 조치 방법 (요약 1~2문장)
     impact          TEXT,                            -- 조치 시 영향
     detail          TEXT,                            -- 상세 설명 (이동통신 M-xx 형)
-    -- 점검 및 조치 사례. 실제 조치 절차 본문이며 항목당 평균 948자, 중앙값 451자, 최대 8,675자.
-    -- 보고서 A-6 조치 사항의 실질 내용이 여기서 나온다.
-    case_text       TEXT,
+    -- '점검 및 조치 사례'(case_text) 컬럼은 두지 않음. 설계상 미채택
+    -- 조치 인용은 remediation 요약만 사용. 절차 본문은 보고서 대상 아님
     reference       TEXT,
 
     -- 출처. 보고서에 "가이드 p.680 근거" 를 표기하기 위해 필요하다.
@@ -433,25 +430,15 @@ CREATE INDEX IF NOT EXISTS idx_guide_category ON guide_items(category);
 CREATE INDEX IF NOT EXISTS idx_guide_severity ON guide_items(severity_guide);
 
 
--- 가이드 캡처 이미지. 파일은 외부(data/guide_images/), DB 에는 경로만.
--- 본문과 마찬가지로 사용자 임포트 대상이다.
-CREATE TABLE IF NOT EXISTS guide_item_images (
-    image_id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_code   TEXT NOT NULL REFERENCES guide_items(item_code) ON DELETE CASCADE,
-    file_path   TEXT NOT NULL,
-    page        INTEGER,
-    caption     TEXT,
-    sort_order  INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS idx_guide_img_item ON guide_item_images(item_code);
+-- 가이드 캡처 이미지 테이블(guide_item_images)은 두지 않음. 설계상 미채택
+-- 캡처는 '점검 및 조치 사례'의 절차 스크린샷이라 사례 미채택과 함께 불필요
 
 
 -- 전문 검색. 매핑 우선순위 4단계가 모두 실패했을 때 유사 항목을 제시하는 용도.
 -- 자동 연결에는 쓰지 않는다 (결정론적 매핑 원칙).
 CREATE VIRTUAL TABLE IF NOT EXISTS guide_items_fts USING fts5(
     item_code UNINDEXED,
-    item_name, check_content, security_threat, remediation, case_text,
+    item_name, check_content, security_threat, remediation,
     tokenize='unicode61'
 );
 

@@ -57,13 +57,8 @@ print('\n위험도 분포:', dict(rk))
 pf = collections.Counter(r['item_code'].rsplit('-', 1)[0] for r in items)
 print('분류별 항목수:', dict(pf), '| 합계', len(items))
 
-# 사례 본문 길이 분포
-L = sorted(len(r['case_text']) for r in items)
-print(f'case_text 길이  min={L[0]} p50={L[len(L)//2]} max={L[-1]}')
-short = [r['code'] for r in items if 0 < len(r['case_text']) < 80]
-print('사례 본문 80자 미만:', len(short), short[:10])
+# '점검 및 조치 사례'와 캡처 이미지는 설계상 미채택. 대조 대상 아님
 
-# 이미지
 if any(fail.values()):
     print('\n[FAIL] 원문과 불일치하는 필드가 있다. 판형이 바뀌었을 수 있다.')
     print('       파서를 수정하기 전까지 이 CSV 를 임포트하지 마라.')

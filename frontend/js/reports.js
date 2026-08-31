@@ -53,11 +53,6 @@ export async function viewReport() {
             <small>요청·응답 원문을 보고서에 포함. 민감 정보가 섞일 수 있어 공유 전 확인 권장</small></span>
         </div>
         <div class="toggle">
-          <input type="checkbox" id="rpt-cases" checked>
-          <span class="t-body"><b>가이드 조치 사례 포함</b>
-            <small>항목당 최대 8천 자. 탐지가 많으면 끄는 편이 읽기 편함</small></span>
-        </div>
-        <div class="toggle">
           <input type="checkbox" id="rpt-llm">
           <span class="t-body"><b>LLM 서술 사용</b>
             <small>끄면 미리 정해둔 문장 사용. 취약점 판정과 조치 문구는 어떤 경우에도 LLM 이 만들지 않음</small></span>
@@ -298,7 +293,6 @@ export async function handleReportClick(target) {
         "보고서 생성", scanId,
         () => api.createReport(scanId, {
           include_evidence: document.getElementById("rpt-evidence").checked,
-          include_guide_cases: document.getElementById("rpt-cases").checked,
           use_llm: document.getElementById("rpt-llm").checked,
         }),
       );

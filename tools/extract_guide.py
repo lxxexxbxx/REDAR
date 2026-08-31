@@ -8,10 +8,12 @@ docs/03_GUIDE_DATA.md §1.2 B안 구현.
 
   pip install pymupdf pdfplumber
   pdftotext -layout <가이드>.pdf full.txt        # 선택. 명령어 들여쓰기 보존용
-  python3 tools/extract_guide.py --pdf <가이드>.pdf \
-      --csv data/guide_items_2026.csv --imgdir data/guide_images
+  python3 tools/extract_guide.py --pdf <가이드>.pdf --csv data/guide_items_2026.csv
 
 산출 CSV 를 POST /api/v1/guide/import 에 업로드함
+
+'점검 및 조치 사례'(case_text)와 캡처 이미지는 스키마 미포함. 설계상 미채택.
+사례는 보고서 대상이 아니고, 캡처는 사례의 절차 스크린샷이라 함께 빠짐
 
 파싱 방식 메모
   - 항목 경계: 표 괘선 중 "라벨 열을 가로지르는 선"만 행 경계로 인정함
@@ -23,15 +25,12 @@ docs/03_GUIDE_DATA.md §1.2 B안 구현.
   - M-01~M-04(이동통신)는 대상/판단기준/조치방법이 없고 상세 설명만 있다. 원문 구조
 """
 import os, re, io, json, sqlite3, argparse, hashlib
-import collections
 from collections import defaultdict
 
 import pymupdf
 import pdfplumber
 
 CODE_RE = re.compile(r'^([A-Z]{1,3})-(\d{1,3})$')
-# 그림 캡션. 원문이 "[ 실행 창 ]" 형태로 이미지 바로 아래에 둠
-IMGCAP_RE = re.compile(r'^\[\s*.{1,60}\s*\]$')
 RISK_RE = re.compile(r'^\(([가-힣])\)$')
 RISK_FIX = {'히': '하', '증': '중', '중': '중', '상': '상', '하': '하'}
 HDR_RE  = re.compile(r'\b[A-Z]{1,3}-\d{1,3}\b')
@@ -75,50 +74,6 @@ CATEGORY_NAME = {
     'WA': 'Web Application(웹)',
 }
 WA_RE = re.compile(r'^[A-Z]{2,4}$')
-
-
-def template_xrefs(doc, threshold=3):
-    """페이지 장식으로 판정되는 이미지 xref 집합.
-
-    page.get_images() 는 머리말 띠·장 표지 같은 페이지 템플릿 그래픽까지 반환함
-    2026판에서는 xref 69/77(595x75 상단 띠)이 각각 429/424 페이지에 등장하며,
-    이를 거르지 않으면 추출물의 69%가 장식 이미지가 됨
-    같은 이미지가 여러 페이지에 반복되면 콘텐츠가 아니라 템플릿임
-    """
-    c = collections.Counter()
-    for page in doc:
-        for img in page.get_images(full=True):
-            c[img[0]] += 1
-    return {x for x, n in c.items() if n > threshold}
-
-
-def content_images(page, skip_xrefs, header_y=92, footer_y=778, min_pt=60):
-    """콘텐츠 이미지만 (xref, rect, caption) 로 반환"""
-    pr = page.rect
-    lines = []
-    for b in page.get_text('dict')['blocks']:
-        if b['type'] != 0:
-            continue
-        for l in b['lines']:
-            t = ''.join(sp['text'] for sp in l['spans']).strip()
-            if t:
-                lines.append((l['bbox'][1], t))
-    out = []
-    for img in page.get_images(full=True):
-        x = img[0]
-        if x in skip_xrefs:
-            continue
-        for r in page.get_image_rects(x):
-            if r.y1 <= header_y or r.y0 >= footer_y:
-                continue                      # 머리말/꼬리말 영역
-            if r.width < min_pt or r.height < min_pt:
-                continue                      # 아이콘·구분선
-            if r.width > pr.width * 0.8 and r.height > pr.height * 0.7:
-                continue                      # 표지·간지 전면 그래픽
-            cap = next((t for y, t in lines
-                        if r.y1 < y < r.y1 + 45 and IMGCAP_RE.match(t)), '')
-            out.append((x, r, cap))
-    return out
 
 
 def is_noise(t):
@@ -200,8 +155,8 @@ def parse_table_page(lines, rows, split_x):
     return cells
 
 
-def clean_case_text(raw_page_text):
-    """사례 본문에서 머리말/꼬리말 제거"""
+def clean_body_text(raw_page_text):
+    """본문 블록에서 머리말·꼬리말 제거"""
     keep = []
     for ln in raw_page_text.split('\n'):
         if is_noise(ln):
@@ -230,9 +185,7 @@ def main():
     ap.add_argument('--json', default='')
     ap.add_argument('--csv', default='data/guide_items_2026.csv')
     ap.add_argument('--guide-version', default='2026')
-    ap.add_argument('--imgdir', default='data/guide_images')
     ap.add_argument('--limit', type=int, default=0, help='앞에서 N개 항목만 처리(0=전체)')
-    ap.add_argument('--no-images', action='store_true')
     args = ap.parse_args()
 
     doc = pymupdf.open(args.pdf)
@@ -249,11 +202,6 @@ def main():
         if len(lp) >= npages:
             layout_pages = lp[:npages]
 
-    global SKIP_XREFS
-    SKIP_XREFS = set() if args.no_images else template_xrefs(doc)
-    if SKIP_XREFS:
-        print(f'[i] 페이지 장식으로 제외한 이미지 xref: {sorted(SKIP_XREFS)}')
-
     items = detect_items(doc)
     if args.limit:
         items = items[:args.limit]
@@ -263,7 +211,6 @@ def main():
     all_items = detect_items(doc) if args.limit else items
     starts = [it['page'] for it in all_items] + [npages]
 
-    os.makedirs(args.imgdir, exist_ok=True)
     plumb = pdfplumber.open(args.pdf)
 
     records, unknown_labels = [], defaultdict(int)
@@ -280,7 +227,7 @@ def main():
             'title': '', 'section': '',
             'check_content': '', 'check_purpose': '', 'security_threat': '',
             'reference_note': '', 'target': '', 'criteria': '',
-            'remediation': '', 'impact': '', 'detail': '', 'case_text': '', 'images': [],
+            'remediation': '', 'impact': '', 'detail': '',
         }
 
         # --- 표 영역 파싱 (사례 헤딩 전까지) ---
@@ -357,32 +304,12 @@ def main():
                 pos = txt.find(body_head)
                 if pos >= 0:
                     txt = txt[pos + len(body_head):]
-            parts.append(clean_case_text(txt))
+            parts.append(clean_body_text(txt))
         body = dedent_block('\n'.join(p for p in parts if p.strip()))
+        # '점검 및 조치 사례'(case_text)와 캡처는 설계상 미채택.
+        # 파싱은 유지함 - '상세 설명'(detail)이 같은 블록에서 나오므로 건너뛸 수 없음
         if body_head == '상세 설명':
             rec['detail'] = body
-        else:
-            rec['case_text'] = body
-
-        # --- 이미지 ---
-        if not args.no_images:
-            n, seen = 0, set()
-            for pi in range(p0, min(p1, npages - 1) + 1):
-                for xref, _rect, cap in content_images(doc[pi], SKIP_XREFS):
-                    if xref in seen:
-                        continue          # 항목 내 동일 이미지 중복 방지
-                    seen.add(xref)
-                    try:
-                        pix = pymupdf.Pixmap(doc, xref)
-                        if pix.n - pix.alpha > 3:
-                            pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
-                        n += 1
-                        fn = f"{rec['code']}_{n:02d}.png"
-                        pix.save(os.path.join(args.imgdir, fn))
-                        rec['images'].append({'file': fn, 'page': pi + 1,
-                                              'caption': cap})
-                    except Exception:
-                        pass
 
         rec['title'] = re.sub(r'^\d{1,2}\.\s*', '', rec['title'].strip())
         records.append(rec)
@@ -407,7 +334,7 @@ def main():
     COLS = ['item_code', 'item_code_raw', 'item_name', 'category', 'section',
             'severity_guide', 'check_content', 'check_purpose', 'security_threat',
             'reference_note', 'target', 'criteria_safe', 'criteria_vuln',
-            'remediation', 'impact', 'detail', 'case_text', 'reference',
+            'remediation', 'impact', 'detail', 'reference',
             'page_start', 'page_end', 'guide_version']
     with open(args.csv, 'w', newline='', encoding='utf-8-sig') as f:
         cw = _csv.writer(f, lineterminator='\n')
@@ -418,19 +345,9 @@ def main():
                          r['section'], r['risk'], r['check_content'], r['check_purpose'],
                          r['security_threat'], r['reference_note'], r['target'],
                          cs, cv, r['remediation'], r['impact'], r['detail'],
-                         r['case_text'], '', r['page_start'], r['page_end'],
+                         '', r['page_start'], r['page_end'],
                          args.guide_version])
     print(f'[ok] {args.csv}  ({len(records)}행)')
-
-    img_csv = os.path.splitext(args.csv)[0] + '_images.csv'
-    with open(img_csv, 'w', newline='', encoding='utf-8-sig') as f:
-        cw = _csv.writer(f, lineterminator='\n')
-        cw.writerow(['item_code', 'file_path', 'page', 'caption', 'sort_order'])
-        for r in records:
-            for i, im in enumerate(r['images'], 1):
-                cw.writerow([r['code'], os.path.join(args.imgdir, im['file']),
-                             im['page'], im.get('caption', ''), i])
-    print(f'[ok] {img_csv}')
 
     if args.json:
         with open(args.json, 'w', encoding='utf-8') as f:
@@ -450,12 +367,8 @@ def main():
       check_content TEXT, check_purpose TEXT, security_threat TEXT,
       reference_note TEXT, target TEXT, criteria TEXT,
       criteria_safe TEXT, criteria_vuln TEXT,
-      remediation TEXT, impact TEXT, detail TEXT, case_text TEXT,
+      remediation TEXT, impact TEXT, detail TEXT,
       page_start INTEGER, page_end INTEGER
-    );
-    CREATE TABLE item_image (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT REFERENCES item(code), file TEXT, page INTEGER
     );
     CREATE TABLE nuclei_map (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -464,7 +377,7 @@ def main():
       UNIQUE(template_id, code)
     );
     CREATE VIRTUAL TABLE item_fts USING fts5(
-      code UNINDEXED, title, check_content, security_threat, remediation, case_text,
+      code UNINDEXED, title, check_content, security_threat, remediation,
       tokenize='unicode61'
     );
     CREATE INDEX idx_item_prefix ON item(prefix);
@@ -484,18 +397,15 @@ def main():
 
     for r in records:
         s, v = split_criteria(r['criteria'])
-        con.execute("""INSERT INTO item VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        con.execute("""INSERT INTO item VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
             r['code'], r['code_raw'], r['prefix'], r['num'], r['category'], r['section'],
             r['title'], r['risk'],
             r['check_content'], r['check_purpose'], r['security_threat'], r['reference_note'],
             r['target'], r['criteria'], s, v, r['remediation'], r['impact'], r['detail'],
-            r['case_text'], r['page_start'], r['page_end']))
-        con.execute("INSERT INTO item_fts VALUES (?,?,?,?,?,?)", (
+            r['page_start'], r['page_end']))
+        con.execute("INSERT INTO item_fts VALUES (?,?,?,?,?)", (
             r['code'], r['title'], r['check_content'], r['security_threat'],
-            r['remediation'], r['case_text']))
-        for im in r['images']:
-            con.execute("INSERT INTO item_image(code,file,page) VALUES (?,?,?)",
-                        (r['code'], im['file'], im['page']))
+            r['remediation']))
     con.commit()
 
     con.close()
@@ -506,7 +416,7 @@ def _report(records, unknown_labels):
     # ---------- 검증 리포트 ----------
     req = ['title', 'check_content', 'check_purpose', 'target', 'criteria', 'remediation']
     print('\n=== 필드 결측률 ===')
-    for k in req + ['security_threat', 'impact', 'detail', 'case_text']:
+    for k in req + ['security_threat', 'impact', 'detail']:
         miss = [r['code'] for r in records if not r[k].strip()]
         print(f'{k:18} 결측 {len(miss):3}/{len(records)}  {miss[:8]}')
     bad = [r['code'] for r in records if not r['criteria'].strip()
@@ -514,10 +424,6 @@ def _report(records, unknown_labels):
     print(f'\n판단기준 파싱 이상: {len(bad)} {bad[:10]}')
     if unknown_labels:
         print(f'\n미매핑 라벨: {dict(unknown_labels)}')
-    imgs = [im for r in records for im in r['images']]
-    withcap = sum(1 for im in imgs if im.get('caption'))
-    print(f'\n총 이미지: {len(imgs)}장 (캡션 확보 {withcap})')
-    print(f'이미지 있는 항목: {sum(1 for r in records if r["images"])}/{len(records)}')
 
 
 if __name__ == '__main__':

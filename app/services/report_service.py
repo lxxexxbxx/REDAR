@@ -36,7 +36,6 @@ DEFAULT_OPTIONS = {
     "include_guide_mapping": True,
     "include_evidence": True,
     "exclude_false_positives": True,
-    "include_guide_cases": True,
 }
 
 
@@ -58,7 +57,6 @@ def create(
         report = builder.build(
             conn, scan_id, report_id=report_id,
             include_evidence=opts["include_evidence"],
-            include_guide_cases=opts["include_guide_cases"],
             exclude_false_positives=opts["exclude_false_positives"],
             use_llm=opts["use_llm"],
         )

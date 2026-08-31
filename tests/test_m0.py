@@ -21,7 +21,8 @@ WHERE type='table'
 
 
 def test_schema_object_counts(conn):
-    assert conn.execute(COUNT_TABLES).fetchone()[0] == 19
+    # 18 = 19 - guide_item_images (설계상 미채택)
+    assert conn.execute(COUNT_TABLES).fetchone()[0] == 18
     assert conn.execute(
         "SELECT COUNT(*) FROM sqlite_master WHERE type='view'"
     ).fetchone()[0] == 5

@@ -258,8 +258,9 @@ def test_import_loads_all_21_columns(conn):
     row = conn.execute(
         "SELECT * FROM guide_items WHERE item_code = 'WA-02'"
     ).fetchone()
-    # case_text·page_start 가 비면 보고서 A-6 조치 사항과 근거 페이지가 사라짐
-    assert row["case_text"] == "사례 본문 WA-02 조치 절차"
+    # case_text 는 스키마에 없음. CSV 열이 남아도 적재되면 안 됨
+    assert "case_text" not in row.keys()
+    # page_start 가 비면 보고서 A-6 의 근거 페이지 표기가 사라짐
     assert row["page_start"] == 684
     assert row["page_end"] == 686
     assert row["severity_guide"] == "상"
@@ -268,7 +269,7 @@ def test_import_loads_all_21_columns(conn):
     assert row["category"] == "Web Application(웹)"
 
     filled = [k for k in row.keys() if row[k] not in (None, "")]
-    assert len(filled) >= 19            # imported_at 포함, reference_note·detail 은 빈 값
+    assert len(filled) >= 18            # imported_at 포함, reference_note·detail 은 빈 값
     conn.execute("DELETE FROM guide_items")
     conn.commit()
 
