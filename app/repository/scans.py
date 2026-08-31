@@ -38,12 +38,13 @@ def insert_scan(
     targets: list[str],
     tool_version: str,
     nuclei_version: str | None,
+    target_input: list[str] | None = None,
 ) -> None:
     conn.execute(
         "INSERT INTO scans (scan_id, status, selection_mode, selection_detail,"
         " collect_environment, opt_threads, opt_timeout_sec, opt_retries,"
-        " opt_rate_limit, tool_version, nuclei_version)"
-        " VALUES (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " opt_rate_limit, tool_version, nuclei_version, target_input)"
+        " VALUES (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             scan_id,
             selection_mode,
@@ -57,6 +58,8 @@ def insert_scan(
             rate_limit,
             tool_version,
             nuclei_version,
+            # 전개 전 원문. 화면·보고서 개요에서 '범위' 표기를 복원하는 유일한 근거
+            json.dumps(target_input or targets, ensure_ascii=False),
         ),
     )
     for raw in targets:
@@ -126,6 +129,57 @@ def targets_of(conn: sqlite3.Connection, scan_id: str) -> list[str]:
     ]
 
 
+def mark_reachable(
+    conn: sqlite3.Connection, scan_id: str, reachable: list[str]
+) -> None:
+    """응답한 대상만 1, 나머지 0. 확인하지 않으면 NULL 그대로 둔다"""
+    conn.execute(
+        "UPDATE scan_targets SET reachable = 0 WHERE scan_id = ?", (scan_id,)
+    )
+    if reachable:
+        marks = ", ".join("?" * len(reachable))
+        conn.execute(
+            f"UPDATE scan_targets SET reachable = 1"
+            f" WHERE scan_id = ? AND raw IN ({marks})",
+            (scan_id, *reachable),
+        )
+    conn.commit()
+
+
+def target_probe(conn: sqlite3.Connection, scan_id: str) -> dict[str, Any]:
+    """대상 응답 현황. 보고서 개요와 결과 화면이 같은 값을 쓴다"""
+    rows = list(
+        conn.execute(
+            "SELECT raw, reachable FROM scan_targets WHERE scan_id = ?"
+            " ORDER BY scan_target_id",
+            (scan_id,),
+        )
+    )
+    checked = [r for r in rows if r["reachable"] is not None]
+    responded = [r["raw"] for r in checked if r["reachable"]]
+    return {
+        "requested": len(rows),
+        # 확인하지 않은 스캔(이전 버전)은 요청 전부를 스캔한 것으로 본다
+        "checked": len(checked),
+        "responded": responded,
+        "no_response": [r["raw"] for r in checked if not r["reachable"]],
+    }
+
+
+def _target_input(row: sqlite3.Row) -> list[str]:
+    """입력 원문. 마이그레이션 이전 스캔은 컬럼이 비어 있어 전개 결과로 대체"""
+    try:
+        raw = row["target_input"]
+    except (IndexError, KeyError):
+        return []
+    if not raw:
+        return []
+    try:
+        return list(json.loads(raw))
+    except (TypeError, ValueError):
+        return []
+
+
 def _scan_view(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     scan_id = row["scan_id"]
     counts = {s.value: 0 for s in Severity}
@@ -142,7 +196,12 @@ def _scan_view(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     )
     return {
         "scan_id": scan_id,
+        # 요청 대상. 포트 범위는 전개된 개별 포트가 들어감
         "targets": targets_of(conn, scan_id),
+        # 사용자 입력 원문. 범위 표기를 화면·보고서 개요에서 복원하는 근거
+        "target_input": _target_input(row),
+        # 요청 / 응답 / 무응답. 실제로 무엇을 스캔했는지의 단일 출처
+        "target_probe": target_probe(conn, scan_id),
         "status": row["status"],
         "created_at": row["created_at"],
         "started_at": row["started_at"],

@@ -48,7 +48,22 @@ python -m app.cli import-guide data/guide_items_2026.csv \
 | Python | 3.11 이상 | 시스템 파이썬이면 충분. 가상환경은 빌드가 만듦 |
 | Node.js | 18 이상 | 없으면 빌드가 공식 배포본 설치 |
 | Rust | 최신 안정판 | 없으면 빌드가 rustup 으로 설치 |
+| 플랫폼 링커 | Windows: **MSVC 빌드 도구** · macOS: Xcode CLT | 자동 설치 안 함. 아래 참조 |
 | OS | Windows / macOS / Linux | |
+
+**Windows 는 MSVC 링커가 따로 필요.** Rust 기본 타깃이 요구하며, 없으면 Tauri 빌드가
+컴파일 끝에서 `link.exe not found` 로 실패. 관리자 권한과 수 GB 다운로드가 필요해
+자동 설치하지 않음
+
+```powershell
+winget install --id Microsoft.VisualStudio.2022.BuildTools `
+  --override "--wait --quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+VS Code 는 해당하지 않음. macOS 는 `xcode-select --install`
+
+**Windows 빌드는 PowerShell 에서 실행.** WSL 은 리눅스라 리눅스 실행 파일이 나오고
+Windows 앱이 만들어지지 않음
 
 ### 한 줄 빌드
 
@@ -193,10 +208,25 @@ python3 packaging/build.py --backend-only --no-launch
 첫 줄에 `REDAR_READY {"port": …}` 가 출력되면 정상. 포트는 매 실행마다
 비어 있는 것을 골라 잡으므로 두 번 실행해도 충돌 없음
 
+### 산출물 위치
+
+빌드 끝에 경로가 출력되지만 정리하면 아래와 같음. 전부
+`src-tauri/target/release/` 하위
+
+| OS | 실행 파일 | 설치본 |
+|---|---|---|
+| Windows | `redar.exe` | `bundle/msi/*.msi` · `bundle/nsis/*-setup.exe` |
+| macOS | `bundle/macos/REDAR.app` | `bundle/dmg/*.dmg` |
+| Linux | `redar` | `bundle/*/*.AppImage` |
+
+Windows 는 `.app` 같은 앱 번들 개념이 없어 **`redar.exe` 를 그대로 실행**하거나
+`.msi`·`setup.exe` 로 설치. 설치본은 시작 메뉴에 등록되고 다른 PC 배포에도 사용
+
 ### 크로스 컴파일 불가
 
 PyInstaller 는 실행 중인 OS 용 바이너리만 생성.
-**Windows 배포본은 Windows 에서, macOS 배포본은 macOS 에서 빌드 필요**
+**Windows 배포본은 Windows 에서, macOS 배포본은 macOS 에서 빌드 필요.**
+WSL 에서 빌드하면 리눅스 실행 파일이 나오므로 Windows 배포본으로 쓸 수 없음
 
 ### 데이터 저장 위치
 

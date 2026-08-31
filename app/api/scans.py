@@ -48,6 +48,8 @@ class CreateScanRequest(BaseModel):
     template_selection: TemplateSelection
     collect_environment: bool = True
     options: ScanOptions = Field(default_factory=ScanOptions)
+    # 포트 범위가 상한을 넘을 때만 의미가 있음. 기본값은 되묻기
+    confirm_expanded: bool = False
 
 
 class PatchFindingRequest(BaseModel):
@@ -83,6 +85,7 @@ def create_scan(body: CreateScanRequest) -> dict[str, Any]:
             timeout_sec=body.options.timeout_sec,
             retries=body.options.retries,
             rate_limit=body.options.rate_limit,
+            confirm_expanded=body.confirm_expanded,
         )
     )
     return {
@@ -90,6 +93,13 @@ def create_scan(body: CreateScanRequest) -> dict[str, Any]:
         "status": view.get("status", ScanStatus.QUEUED.value),
         "created_at": view.get("created_at"),
     }
+
+
+@router.get("/scans/preflight")
+def scan_preflight() -> dict[str, Any]:
+    """스캔 성립 조건. 고정 경로라 /scans/{scan_id} 보다 먼저 등록되어야 함"""
+    with session() as conn:
+        return scan_service.preflight(conn)
 
 
 @router.get("/scans")

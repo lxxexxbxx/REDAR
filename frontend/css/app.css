@@ -667,3 +667,95 @@ button.chip.pick.on { border-color: var(--brand); color: var(--text); }
 
 .panel-head .lede { color: var(--muted); margin: 8px 0 0; max-width: 68ch; font-size: 13px; line-height: 1.65; }
 .field small { line-height: 1.6; }
+
+/* 준비 상태 점검. 막힌 항목마다 다음 행동을 함께 보여줌 */
+.blocker { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.blocker:first-of-type { margin-top: 14px; }
+.blocker b { display: block; font-weight: 400; color: var(--text); }
+.blocker small { display: block; color: var(--faint); margin-top: 4px; line-height: 1.6; }
+.blocker .cta { margin-top: 9px; }
+
+/* 확인 대화. window.confirm 은 Tauri WebView 에서 뜨지 않음 (ui.js confirmDialog) */
+.modal-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 60;
+}
+.modal {
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px 24px 18px;
+  max-width: 52ch;
+  width: 100%;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+.modal h2 { margin: 0 0 10px; font-size: 16px; }
+.modal p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.modal .actions { margin-top: 20px; justify-content: flex-end; }
+
+/* 진행 중 작업 도크. 오래 걸리는 작업이 화면 전환에 묻혀 멈춘 것처럼 보임 */
+.taskdock {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 320px;
+  max-width: calc(100vw - 36px);
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.48);
+  z-index: 50;
+  overflow: hidden;
+}
+.dock-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--ink-700);
+  border: 0;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.dock-toggle:hover { background: var(--ink-600); }
+.dock-toggle span:nth-child(2) { flex: 1; }
+.dock-caret { color: var(--faint); font-size: 10px; }
+.dock-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--faint); flex: none;
+}
+.dock-dot.on { background: var(--brand); animation: dockpulse 1.4s ease-in-out infinite; }
+@keyframes dockpulse { 50% { opacity: 0.3; } }
+
+.dock-body { max-height: 46vh; overflow-y: auto; padding: 4px 0; }
+.task { padding: 9px 12px; border-top: 1px solid var(--line-soft); }
+.task:first-child { border-top: 0; }
+.task-head { display: flex; align-items: baseline; gap: 8px; }
+.task-head b { flex: 1; font-weight: 400; font-size: 12.5px; }
+.task-mark { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+.task-done .task-mark { color: var(--ok); }
+.task-fail .task-mark { color: var(--brand); }
+.task small {
+  display: block; color: var(--faint); font-size: 11.5px;
+  margin-top: 3px; line-height: 1.5; word-break: break-word;
+}
+.task-bar {
+  height: 3px; background: var(--ink-600); border-radius: 2px;
+  margin-top: 7px; overflow: hidden;
+}
+.task-bar > div { height: 100%; background: var(--brand); transition: width 0.25s; }
+/* 총량을 모르는 작업. 진행 중임만 표시 */
+.task-bar.sweep > div { width: 34% !important; animation: docksweep 1.2s ease-in-out infinite; }
+@keyframes docksweep {
+  0% { margin-left: -34%; } 100% { margin-left: 100%; }
+}

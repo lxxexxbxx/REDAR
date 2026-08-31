@@ -315,6 +315,53 @@ def test_build_script_fails_loudly_without_toolchain(monkeypatch):
     assert "--no-auto-install" in message
 
 
+def test_msvc_checked_before_compiling(monkeypatch):
+    """링커가 없으면 크레이트 수백 개를 받아 컴파일한 끝에서 실패한다.
+    시작 전에 잡아야 다운로드·컴파일 시간을 버리지 않음"""
+    build = _load_build()
+    monkeypatch.setattr(build.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(build, "cargo_path", lambda: "C:/cargo.exe")
+    monkeypatch.setattr(build, "msvc_linker", lambda: None)
+    called: list[str] = []
+    monkeypatch.setattr(build, "ensure_node", lambda auto: called.append("node") or "")
+
+    with pytest.raises(SystemExit) as exc:
+        build.build_tauri(True)
+    message = str(exc.value)
+    assert "link.exe" in message
+    assert "VCTools" in message              # 정확한 설치 명령을 알려줌
+    assert called == []                      # 빌드 단계로 넘어가지 않음
+
+
+def test_msvc_check_skipped_off_windows(monkeypatch):
+    build = _load_build()
+    monkeypatch.setattr(build.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(build, "cargo_path", lambda: "/usr/bin/cargo")
+    monkeypatch.setattr(build, "msvc_linker", lambda: None)
+    monkeypatch.setattr(build, "ensure_node", lambda auto: "/usr/bin/npx")
+    ran: list[list[str]] = []
+    monkeypatch.setattr(build, "run", lambda cmd, **kw: ran.append(cmd))
+
+    build.build_tauri(True)
+    assert ran, "macOS 에서는 MSVC 검사로 막히지 않아야 함"
+
+
+def test_artifact_paths_reported_per_platform(monkeypatch, tmp_path, capsys):
+    """플랫폼마다 산출물 경로가 달라 어디를 봐야 할지 알기 어려움"""
+    build = _load_build()
+    monkeypatch.setattr(build, "ROOT", tmp_path)
+    monkeypatch.setattr(build.platform, "system", lambda: "Windows")
+    release = tmp_path / "src-tauri" / "target" / "release"
+    (release / "bundle" / "msi").mkdir(parents=True)
+    (release / "redar.exe").write_text("x", encoding="utf-8")
+    (release / "bundle" / "msi" / "REDAR_0.3.0_x64.msi").write_text("x", encoding="utf-8")
+
+    build.report_artifacts()
+    out = capsys.readouterr().out
+    assert "redar.exe" in out
+    assert "REDAR_0.3.0_x64.msi" in out
+
+
 def test_build_script_installs_rust_only_when_asked(monkeypatch):
     """빌드가 임의로 툴체인을 설치하지 않음. 옵션이 있어야 한다"""
     build = _load_build()

@@ -79,6 +79,20 @@ def set_configured_nuclei(path: str | None) -> None:
     _CONFIGURED_NUCLEI["path"] = path or None
 
 
+def nuclei_template_store() -> str | None:
+    """nuclei 가 자체적으로 내려받는 기본 템플릿 경로.
+
+    REDAR 트리가 비어 있어도 사용자가 nuclei 로 직접 받아뒀으면 스캔이 성립함.
+    '템플릿 없음' 판정에서 이 경로를 빼면 멀쩡한 환경을 막게 됨
+    """
+    for rel in (".local/nuclei-templates", "nuclei-templates"):
+        path = Path.home() / rel
+        # 재귀 탐색은 1만 개 파일을 훑어 느림. 비어 있지 않은지만 확인
+        if path.is_dir() and any(path.iterdir()):
+            return str(path)
+    return None
+
+
 def nuclei_bin() -> str | None:
     """nuclei 실행 파일 경로. 미설치 시 None (docs/01 §5.5).
 

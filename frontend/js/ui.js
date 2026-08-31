@@ -82,6 +82,53 @@ export const severityTag = (severity) =>
 export const target = (t) =>
   t ? esc(t.host + (t.port ? `:${t.port}` : "") + (t.path || "")) : "—";
 
+/* 스캔 요약용 대상 표기.
+ *
+ * 포트 범위는 개별 포트로 전개해 실행하므로 targets 에는 수백 건이 들어갈 수 있음.
+ * 요약에는 사용자가 입력한 원문을 그대로 보여줌 - 전개 결과를 나열하면 읽을 수 없음
+ * 개별 탐지 결과는 실제 포트로 표기해야 조치 대상이 특정됨 (target 헬퍼)
+ */
+export function scanTargets(scan) {
+  const input = scan?.target_input?.length ? scan.target_input : scan?.targets;
+  if (!input?.length) return "대상 없음";
+  const label = input.join(", ");
+  const probe = scan?.target_probe;
+  if (probe?.no_response?.length) {
+    return `${label} · 응답 ${probe.responded.length}개 / 요청 ${probe.requested}개`;
+  }
+  const expanded = scan?.targets?.length ?? 0;
+  return expanded > input.length ? `${label} · ${expanded}개 포트` : label;
+}
+
+/* 대상 응답 현황. 보고서는 응답한 대상만 싣지만 화면은 무응답도 보여준다 -
+ * '요청했는데 안 나왔다' 를 사용자가 확인할 수 있어야 범위를 조정할 수 있음 */
+export function targetProbe(scan) {
+  const probe = scan?.target_probe;
+  if (!probe || !probe.checked) return "";
+
+  const dead = probe.no_response || [];
+  const alive = probe.responded || [];
+  return `<div class="panel">
+    <div class="panel-head">
+      <div class="eyebrow">대상 · 요청 ${probe.requested}개</div>
+      <h2>응답 ${alive.length}개 · 무응답 ${dead.length}개</h2>
+    </div>
+    <div class="hintbox">
+      <b>응답한 대상 — 실제로 점검함</b>
+      <div class="chips">${alive.length
+        ? alive.map((t) => `<span class="chip strong">${esc(t)}</span>`).join(" ")
+        : "<small>없음</small>"}</div>
+    </div>
+    ${dead.length ? `<div class="hintbox">
+      <b>무응답 — 연결되지 않아 점검하지 않음</b>
+      <small>보고서에는 개수만 기록되고 목록은 실리지 않음</small>
+      <div class="chips" style="margin-top:6px">${
+        dead.slice(0, 40).map((t) => `<span class="chip">${esc(t)}</span>`).join(" ")
+      }${dead.length > 40 ? ` <span class="chip">외 ${dead.length - 40}개</span>` : ""}</div>
+    </div>` : ""}
+  </div>`;
+}
+
 /* 시그니처: 고정 축 미터.
  * 심각도 5칸 항상 전부 렌더링. 0인 줄도 유지.
  * 슬롯 12칸 중 채워진 칸이 비율. 빈 슬롯은 테두리로 남김
@@ -185,6 +232,96 @@ export function emptyState({ eyebrow, title, body, cta }) {
     <p>${body}</p>
     ${cta ? `<div class="cta">${cta}</div>` : ""}
   </div>`;
+}
+
+/* 확인 대화.
+ *
+ * window.confirm 을 쓰지 않는다. Tauri WebView 는 JS 기본 대화상자를 처리하지 않아
+ * 창이 뜨지 않은 채 즉시 false 가 반환된다. 사용자에게는 '눌러도 취소됨' 으로 보인다
+ * 브라우저 개발 환경에서만 동작하고 배포본에서 조용히 실패하는 구조라 직접 만든다
+ */
+export function confirmDialog({ title, body, confirmLabel = "진행", danger = false }) {
+  document.querySelector(".modal-back")?.remove();
+
+  return new Promise((resolve) => {
+    const back = document.createElement("div");
+    back.className = "modal-back";
+    back.innerHTML = `
+      <div class="modal" role="alertdialog" aria-modal="true" aria-label="${esc(title)}">
+        <h2>${esc(title)}</h2>
+        <p>${body}</p>
+        <div class="actions">
+          <button class="sm ghost" data-modal="cancel">취소</button>
+          <button class="${danger ? "danger" : "primary"}" data-modal="ok">${esc(confirmLabel)}</button>
+        </div>
+      </div>`;
+
+    const close = (answer) => {
+      document.removeEventListener("keydown", onKey);
+      back.remove();
+      resolve(answer);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") close(false);
+    };
+
+    back.addEventListener("click", (event) => {
+      const action = event.target.closest("[data-modal]")?.dataset.modal;
+      if (action) close(action === "ok");
+      else if (event.target === back) close(false);   // 바깥 클릭 = 취소
+    });
+    document.addEventListener("keydown", onKey);
+
+    document.body.appendChild(back);
+    back.querySelector('[data-modal="ok"]').focus();
+  });
+}
+
+/* 한 줄 입력 대화. window.prompt 도 confirm 과 같은 이유로 쓸 수 없다 */
+export function promptDialog({ title, body = "", label, value = "", confirmLabel = "확인" }) {
+  document.querySelector(".modal-back")?.remove();
+
+  return new Promise((resolve) => {
+    const back = document.createElement("div");
+    back.className = "modal-back";
+    back.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <h2>${esc(title)}</h2>
+        ${body ? `<p>${body}</p>` : ""}
+        <label class="field" style="margin-top:14px">
+          <span>${esc(label)}</span>
+          <input type="text" data-modal-input value="${esc(value)}">
+        </label>
+        <div class="actions">
+          <button class="sm ghost" data-modal="cancel">취소</button>
+          <button class="primary" data-modal="ok">${esc(confirmLabel)}</button>
+        </div>
+      </div>`;
+
+    const input = back.querySelector("[data-modal-input]");
+    const close = (answer) => {
+      document.removeEventListener("keydown", onKey);
+      back.remove();
+      resolve(answer);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") close(null);
+      if (event.key === "Enter" && document.activeElement === input) {
+        close(input.value.trim() || null);
+      }
+    };
+
+    back.addEventListener("click", (event) => {
+      const action = event.target.closest("[data-modal]")?.dataset.modal;
+      if (action) close(action === "ok" ? input.value.trim() || null : null);
+      else if (event.target === back) close(null);
+    });
+    document.addEventListener("keydown", onKey);
+
+    document.body.appendChild(back);
+    input.focus();
+    input.select();
+  });
 }
 
 let toastTimer = null;

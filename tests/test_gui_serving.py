@@ -42,12 +42,32 @@ def test_guide_status_reports_bundled_mapping(client):
         ("/js/app.js", "javascript"),
         ("/js/api.js", "javascript"),
         ("/js/ui.js", "javascript"),
+        ("/js/tasks.js", "javascript"),
     ],
 )
 def test_static_assets_served(client, path, content_type):
     response = client.get(path)
     assert response.status_code == 200
     assert content_type in response.headers["content-type"]
+
+
+def test_every_module_import_resolves():
+    """import 경로가 틀리면 화면이 통째로 안 뜬다. 브라우저 없이 정적 확인"""
+    missing = []
+    for file in (FRONTEND / "js").glob("*.js"):
+        for spec in re.findall(r'from\s+"\./([A-Za-z0-9_.-]+)"', file.read_text("utf-8")):
+            if not (FRONTEND / "js" / spec).is_file():
+                missing.append(f"{file.name} -> {spec}")
+    assert not missing, missing
+
+
+def test_task_dock_mounted_outside_view():
+    """작업 도크가 #view 안에 있으면 화면 전환마다 지워진다"""
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    assert 'id="taskdock"' in html
+    # 도크가 본문 컨테이너 뒤에 와야 재렌더에 살아남음
+    assert html.index('id="view"') < html.index('id="taskdock"')
+    assert "taskdock" not in html.split('id="view"')[1].split("</main>")[0]
 
 
 def test_fonts_served(client):

@@ -3,7 +3,10 @@
  * 미리보기는 Report JSON 을 그대로 사용. 화면이 DB 를 다시 조회하면 파일 산출물과
  * 갈라짐 (docs/04 §3). PDF 는 브라우저 인쇄로 파생 (절대규칙 4-1) */
 import { api } from "./api.js";
-import { esc, dash, fmtTime, toast, SEVERITY_LABEL } from "./ui.js";
+import {
+  confirmDialog, esc, dash, fmtTime, scanTargets, toast, SEVERITY_LABEL,
+} from "./ui.js";
+import * as tasks from "./tasks.js";
 
 const view = () => document.getElementById("view");
 
@@ -40,7 +43,7 @@ export async function viewReport() {
           <span>대상 스캔</span>
           <select id="rpt-scan">
             ${scans.map((s) => `<option value="${esc(s.scan_id)}">
-              ${esc(s.targets.join(", ") || "대상 없음")} ·
+              ${esc(scanTargets(s))} ·
               ${esc(fmtTime(s.started_at || s.created_at))}</option>`).join("")}
           </select>
         </label>
@@ -110,7 +113,7 @@ export async function viewReport() {
 function scanOptions(scans, selectedIndex) {
   return scans.map((s, i) => `<option value="${esc(s.scan_id)}"${
     i === selectedIndex ? " selected" : ""}>
-    ${esc(s.targets.join(", ") || "대상 없음")} · ${esc(fmtTime(s.started_at || s.created_at))}
+    ${esc(scanTargets(s))} · ${esc(fmtTime(s.started_at || s.created_at))}
   </option>`).join("");
 }
 
@@ -275,7 +278,13 @@ export async function handleReportClick(target) {
     return true;
   }
   if (del) {
-    if (!confirm("보고서와 생성된 파일이 삭제됨. 계속할까요?")) return true;
+    const ok = await confirmDialog({
+      title: "보고서 삭제",
+      body: "보고서와 생성된 파일이 함께 삭제됨. 되돌릴 수 없음",
+      confirmLabel: "삭제",
+      danger: true,
+    });
+    if (!ok) return true;
     await api.deleteReport(del);
     toast("삭제됨");
     await viewReport();
@@ -285,11 +294,14 @@ export async function handleReportClick(target) {
   switch (action) {
     case "create": {
       const scanId = document.getElementById("rpt-scan").value;
-      const created = await api.createReport(scanId, {
-        include_evidence: document.getElementById("rpt-evidence").checked,
-        include_guide_cases: document.getElementById("rpt-cases").checked,
-        use_llm: document.getElementById("rpt-llm").checked,
-      });
+      const created = await tasks.track(
+        "보고서 생성", scanId,
+        () => api.createReport(scanId, {
+          include_evidence: document.getElementById("rpt-evidence").checked,
+          include_guide_cases: document.getElementById("rpt-cases").checked,
+          use_llm: document.getElementById("rpt-llm").checked,
+        }),
+      );
       toast(`보고서 생성 완료 · ${created.files.join(", ")}`);
       await viewReport();
       return true;

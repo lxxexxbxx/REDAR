@@ -3,7 +3,8 @@
  * 필드 정의를 프론트에 복제하지 않음 - 백엔드에 필드가 추가되면 이 화면이
  * 자동으로 따라간다 (docs/00 §3). 그래서 렌더러는 타입별로만 분기 */
 import { api, ApiError } from "./api.js";
-import { esc, dash, toast } from "./ui.js";
+import { confirmDialog, esc, dash, promptDialog, toast } from "./ui.js";
+import * as tasks from "./tasks.js";
 
 const view = () => document.getElementById("view");
 
@@ -13,7 +14,7 @@ const SEVERITY_LABEL = {
 };
 
 const filters = { source: "", severity: "", q: "" };
-const state = { schema: null, items: [], total: 0, editing: null };
+const state = { schema: null, items: [], total: 0, editing: null, ready: null };
 
 /* ------------------------------------------------------------ 화면 */
 
@@ -24,6 +25,12 @@ export async function viewTemplates() {
   });
   state.items = listed.items;
   state.total = listed.total;
+  // 갱신 가능 여부·실제 경로. 개발과 번들에서 경로가 달라 화면에 값을 직접 표기
+  try {
+    state.ready = await api.scanPreflight();
+  } catch {
+    state.ready = null;
+  }
 
   view().innerHTML = `
     <div class="view-head">
@@ -44,6 +51,8 @@ export async function viewTemplates() {
         </div>
       </div>
 
+      <div id="sync-notice">${syncNotice()}</div>
+
       <div class="filters">
         <select data-tpl-filter="source">
           <option value="">출처 전체</option>
@@ -60,13 +69,7 @@ export async function viewTemplates() {
                value="${esc(filters.q)}">
       </div>
 
-      ${state.items.length ? templateTable(state.items) : `
-        <div class="empty">
-          <div class="eyebrow">${state.total === 0 && !filters.q ? "인벤토리 비어 있음" : "결과 없음"}</div>
-          <h2>표시할 템플릿 없음</h2>
-          <p>아래에서 직접 만들거나, <span class="mono">templates/official/</span> 에
-             파일을 넣고 <strong>폴더 재색인</strong>을 누르세요.</p>
-        </div>`}
+      ${state.items.length ? templateTable(state.items) : emptyInventory()}
     </div>
 
     <div class="panel">
@@ -105,6 +108,80 @@ export async function viewTemplates() {
       <div id="tpl-dryrun"></div>
     </div>`;
 }
+
+/* 갱신 상태·실패 사유를 화면에 남김.
+ *
+ * 토스트는 3.6초 뒤 사라지고, 버튼이 잠겨 있으면 클릭이 아예 무시된다.
+ * 둘 다 사용자에게는 '눌렀는데 아무 반응 없음' 으로 보인다
+ */
+function syncNotice(override) {
+  if (override) {
+    return `<div class="coverage" style="border-left-color:${override.color}">
+      ${override.html}</div>`;
+  }
+  const ready = state.ready;
+  if (!ready) return "";
+
+  // 갱신은 nuclei 가 실행한다. 통신 허용보다 이게 먼저 막힌다
+  if ((ready.blockers || []).some((b) => b.code === "NUCLEI_MISSING")) {
+    return `<div class="coverage" style="border-left-color:var(--brand)">
+      <strong>nuclei 없음 — 갱신 불가</strong>
+      템플릿 갱신은 nuclei 가 직접 내려받으므로 먼저 준비 필요
+      <div class="cta">
+        <button class="sm" data-go="settings">설정 → 의존성</button>
+      </div>
+    </div>`;
+  }
+  if (ready.sync_allowed) return "";
+
+  return `<div class="coverage" style="border-left-color:var(--warn)">
+    <strong>공식 템플릿 갱신이 막혀 있음</strong>
+    갱신은 외부 통신이라 두 가지가 모두 켜져 있어야 함 —
+    <b>오프라인 모드 끄기</b> + <b>nuclei 템플릿 갱신</b> 허용.
+    둘 중 하나만 켜면 막힘
+    <div class="cta">
+      <button class="sm" data-go="settings">설정에서 통신 허용</button>
+    </div>
+  </div>`;
+}
+
+function showSyncNotice(html, color = "var(--brand)") {
+  const host = document.getElementById("sync-notice");
+  if (host) host.innerHTML = syncNotice({ html, color });
+}
+
+function emptyInventory() {
+  if (state.total !== 0 || filters.q || filters.source || filters.severity) {
+    return `<div class="empty">
+      <div class="eyebrow">결과 없음</div>
+      <h2>조건에 맞는 템플릿 없음</h2>
+      <p>필터 해제 후 다시 확인</p>
+    </div>`;
+  }
+
+  const ready = state.ready;
+  const dir = ready?.templates?.official_dir || "templates/official";
+  const blocked = ready && !ready.sync_allowed;
+  return `<div class="empty">
+    <div class="eyebrow">인벤토리 비어 있음</div>
+    <h2>보유한 템플릿 없음</h2>
+    <p>템플릿은 "이런 취약점이 있는지 확인하는 방법"을 적어둔 파일.
+       하나도 없으면 스캔은 끝나도 결과가 항상 0건. 아래 셋 중 하나로 채움</p>
+    <div class="hintbox" style="text-align:left;max-width:60ch;margin:var(--gap) auto 0">
+      <b>1 · 공식 템플릿 갱신</b>
+      <small>${blocked
+        ? "설정에서 오프라인 모드를 끄고 <b>nuclei 템플릿 갱신</b> 을 켜야 사용 가능. "
+          + "지금은 버튼이 잠겨 있음"
+        : "위 <b>공식 템플릿 갱신</b> 버튼. 수천 개를 내려받아 수 분 소요"}</small>
+      <b style="margin-top:10px">2 · 파일 직접 넣기</b>
+      <small>인터넷이 없는 환경용. 아래 경로에 <span class="mono">.yaml</span> 을 넣고
+        <b>폴더 재색인</b> 실행<br><span class="mono">${esc(dir)}</span></small>
+      <b style="margin-top:10px">3 · 직접 작성</b>
+      <small>아래 폼으로 진단 항목을 만들어 저장. 저장 전 드라이런으로 실제 매칭 확인 가능</small>
+    </div>
+  </div>`;
+}
+
 
 function templateTable(items) {
   return `<table>
@@ -361,9 +438,10 @@ async function dryrun() {
     renderCheck(built);
     return;
   }
-  const result = await api.dryrunTemplate({
-    yaml: built.yaml, target, timeout_sec: 10,
-  });
+  const result = await tasks.track(
+    "드라이런", `${target} 에 실제 요청`,
+    () => api.dryrunTemplate({ yaml: built.yaml, target, timeout_sec: 10 }),
+  );
   const request = result.requests?.[0] || {};
   box.innerHTML = `
     <div class="coverage" style="margin-top:14px;border-left-color:${
@@ -477,7 +555,13 @@ export async function handleTemplateClick(target) {
     return true;
   }
   if (del) {
-    if (!confirm(`${del} 삭제됨. 계속할까요?`)) return true;
+    const ok = await confirmDialog({
+      title: "템플릿 삭제",
+      body: `<span class="mono">${esc(del)}</span> 삭제됨. 되돌릴 수 없음`,
+      confirmLabel: "삭제",
+      danger: true,
+    });
+    if (!ok) return true;
     await api.deleteTemplate(del);
     document.querySelector(".drawer")?.remove();
     toast("삭제됨");
@@ -485,7 +569,13 @@ export async function handleTemplateClick(target) {
     return true;
   }
   if (forkId) {
-    const newId = prompt("새 템플릿 ID (소문자·숫자·하이픈)", `${forkId}-copy`.toLowerCase());
+    const newId = await promptDialog({
+      title: "템플릿 사본 만들기",
+      body: "공식 템플릿은 수정할 수 없으므로 사본을 만들어 편집",
+      label: "새 템플릿 ID · 소문자·숫자·하이픈",
+      value: `${forkId}-copy`.toLowerCase(),
+      confirmLabel: "사본 생성",
+    });
     if (!newId) return true;
     await api.forkTemplate(forkId, newId);
     document.querySelector(".drawer")?.remove();
@@ -499,15 +589,54 @@ export async function handleTemplateClick(target) {
 
   switch (action) {
     case "reindex": {
-      const result = await api.reindexTemplates();
-      toast(`색인 완료 · 공식 ${result.indexed.official} · 직접 작성 ${result.indexed.custom}`);
+      const result = await tasks.track(
+        "폴더 재색인", "templates/ 트리를 훑는 중",
+        async () => {
+          const r = await api.reindexTemplates();
+          return `공식 ${r.indexed.official} · 직접 작성 ${r.indexed.custom}`
+            + (r.indexed.skipped ? ` · 건너뜀 ${r.indexed.skipped}` : "");
+        },
+      );
+      toast(`색인 완료 · ${result}`);
       await viewTemplates();
       return true;
     }
     case "sync": {
-      const result = await api.syncTemplates();
-      toast(`갱신 ${result.added}개 추가 · ${result.updated}개 유지`);
-      await viewTemplates();
+      // 수천 개를 내려받아 수 분 걸림. 표시가 없으면 멈춘 것으로 읽힘
+      const button = target.closest("[data-tpl]");
+      const label = button.textContent;
+      button.disabled = true;
+      button.textContent = "갱신 중…";
+      showSyncNotice(
+        "<strong>갱신 중</strong> nuclei 가 공식 템플릿 저장소를 내려받고 있음. "
+        + "수천 개라 수 분 소요. 완료되면 이 문구가 결과로 바뀜",
+        "var(--warn)",
+      );
+      const dockId = tasks.begin("공식 템플릿 갱신", "내려받는 중 · 수 분 소요");
+      try {
+        const result = await api.syncTemplates();
+        tasks.done(dockId, `${result.added}개 추가 · ${result.updated}개 유지`);
+        showSyncNotice(
+          `<strong>갱신 완료</strong> ${result.added}개 추가 · ${result.updated}개 유지`,
+          "var(--ok)",
+        );
+        const notice = document.getElementById("sync-notice")?.innerHTML;
+        await viewTemplates();
+        // 재렌더로 결과가 지워지므로 다시 붙임
+        if (notice) document.getElementById("sync-notice").innerHTML = notice;
+      } catch (error) {
+        tasks.fail(dockId, error?.message || "실패");
+        // 실패 사유를 화면에 남김. 토스트만으로는 놓치고 원인도 알 수 없음
+        showSyncNotice(
+          `<strong>갱신 실패</strong> ${esc(error?.message || "알 수 없는 오류")}`
+          + `<div style="margin-top:6px;color:var(--faint)">코드 `
+          + `<span class="mono">${esc(error?.code || "-")}</span>`
+          + " · nuclei 미설치면 설정 → 의존성에서 먼저 준비 필요</div>",
+        );
+      } finally {
+        button.disabled = false;
+        button.textContent = label;
+      }
       return true;
     }
     case "preview": await preview(); return true;

@@ -20,12 +20,16 @@ from app.services import scan_service
 from app.services.scan_service import ScanService
 
 
-def _service(db_path, **kwargs) -> ScanService:
-    """nuclei 미설치 환경용. 커맨드 조립·실행 둘 다 대체"""
+def _service(db_path, prober=None, **kwargs) -> ScanService:
+    """nuclei 미설치 환경용. 커맨드 조립·실행 둘 다 대체.
+
+    prober 도 주입 대상이다. 기본값은 실제 소켓을 열어 CI 에서 대상에 접속하게 됨
+    """
     return ScanService(
         db_path,
         command_builder=lambda opts: ["fake-nuclei"],
         command_runner=_fixture_runner(**kwargs),
+        prober=prober or (lambda targets: list(targets)),
     )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nuclei_sample.jsonl"
@@ -51,8 +55,39 @@ def _fixture_runner(delay: float = 0.0, hang: bool = False):
     return run
 
 
+_SEED_TEMPLATE_ID = "seed-template"
+
+
+def _set_seed_template(db_path, present: bool) -> None:
+    """스캔 성립 조건. 템플릿 0개는 사전 점검에서 거부되므로 정상 경로 테스트에 필요.
+
+    db_path 는 세션 스코프라 남겨두면 '템플릿 없음' 을 검증하는 테스트가 오염됨
+    """
+    with session(db_path) as conn:
+        if present:
+            conn.execute(
+                "INSERT OR IGNORE INTO templates"
+                " (template_id, source, file_path, name, severity)"
+                " VALUES (?, 'custom', '/tmp/seed.yaml', 'seed', 'info')",
+                (_SEED_TEMPLATE_ID,),
+            )
+        else:
+            conn.execute(
+                "DELETE FROM templates WHERE template_id = ?", (_SEED_TEMPLATE_ID,)
+            )
+        conn.commit()
+
+
 @pytest.fixture
-def client(db_path, monkeypatch):
+def scannable(db_path):
+    """템플릿 보유 상태. 스캔을 실제로 시작하는 테스트가 사전 점검을 통과하려면 필요"""
+    _set_seed_template(db_path, True)
+    yield
+    _set_seed_template(db_path, False)
+
+
+@pytest.fixture
+def client(db_path, scannable, monkeypatch):
     monkeypatch.setattr(
         "app.repository.db.settings.DB_PATH", db_path, raising=False
     )
@@ -77,13 +112,14 @@ def allowlisted(conn):
     conn.commit()
 
 
-def _create(client: TestClient, targets: list[str]) -> Any:
+def _create(client: TestClient, targets: list[str], **extra: Any) -> Any:
     return client.post(
         f"{API}/scans",
         json={
             "targets": targets,
             "template_selection": {"mode": "filter", "tags": ["cve"]},
             "collect_environment": False,
+            **extra,
         },
     )
 
@@ -364,7 +400,7 @@ def test_findings_readable_while_scan_running(db_path, client, allowlisted):
 # ------------------------------------------------------------------- SSE
 
 
-def test_sse_emits_progress_finding_done(db_path, allowlisted):
+def test_sse_emits_progress_finding_done(db_path, allowlisted, scannable):
     """progress · finding · done 수신 확인."""
     service = _service(db_path, delay=0.02)
     scan_service.set_service(service)
@@ -384,7 +420,7 @@ def test_sse_emits_progress_finding_done(db_path, allowlisted):
     assert events[-1] == "done"
 
 
-def test_finding_events_throttled_to_10_per_sec(db_path, allowlisted):
+def test_finding_events_throttled_to_10_per_sec(db_path, allowlisted, scannable):
     """초당 10건 상한. 초과분은 이벤트만 생략되고 저장은 그대로."""
     service = _service(db_path)
     scan_service.set_service(service)
@@ -506,3 +542,161 @@ def test_thread_safety_of_service_singleton():
     for worker in workers:
         worker.join()
     assert set(seen) == {id(service)}
+
+
+# ------------------------------------------------------------- 사전 점검
+
+def test_preflight_blocks_when_no_templates(conn, allowlisted, monkeypatch):
+    """템플릿 0개면 nuclei 가 아무것도 실행하지 않고 성공으로 끝나
+    '탐지 0건' 이 '양호' 로 오독됨 (절대규칙 10)"""
+    monkeypatch.setattr(scan_service.settings, "nuclei_bin", lambda: "/tmp/nuclei")
+    monkeypatch.setattr(scan_service.settings, "nuclei_template_store", lambda: None)
+    result = scan_service.preflight(conn)
+    assert result["ready"] is False
+    blocker = next(b for b in result["blockers"] if b["code"] == "NO_TEMPLATES")
+    # 막힌 사실만으로는 부족. 다음 행동과 이동할 화면을 알려줘야 함
+    assert blocker["action"]
+    assert blocker["goto"] == "templates"
+
+
+def test_preflight_accepts_nuclei_own_store(conn, allowlisted, monkeypatch):
+    """REDAR 색인이 비어도 사용자가 nuclei 로 직접 받아뒀으면 스캔 성립"""
+    monkeypatch.setattr(scan_service.settings, "nuclei_bin", lambda: "/tmp/nuclei")
+    monkeypatch.setattr(
+        scan_service.settings, "nuclei_template_store",
+        lambda: "/home/u/nuclei-templates",
+    )
+    result = scan_service.preflight(conn)
+    assert result["blockers"] == []
+    assert result["ready"] is True
+
+
+def test_preflight_reports_every_blocker(conn, monkeypatch):
+    """하나씩 알려주면 고치고 또 막힘. 남은 것을 한 번에 보여줘야 함"""
+    monkeypatch.setattr(scan_service.settings, "nuclei_bin", lambda: None)
+    monkeypatch.setattr(scan_service.settings, "nuclei_template_store", lambda: None)
+    codes = {b["code"] for b in scan_service.preflight(conn)["blockers"]}
+    assert codes == {"NUCLEI_MISSING", "ALLOWLIST_EMPTY", "NO_TEMPLATES"}
+
+
+def test_scan_rejected_without_templates(client, conn, allowlisted, monkeypatch):
+    """조용히 0건으로 끝나지 않고 이유를 밝히며 거부"""
+    monkeypatch.setattr(scan_service.settings, "nuclei_template_store", lambda: None)
+    conn.execute("DELETE FROM templates")
+    conn.commit()
+    response = _create(client, ["localhost"])
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "NO_TEMPLATES"
+
+
+# ------------------------------------------------------------- 포트 범위
+
+def test_port_range_expands_and_keeps_input(client, allowlisted):
+    """실행은 개별 포트, 표기는 입력 원문. 두 층이 함께 남아야 함"""
+    scan_id = _create(client, ["localhost:7860-7862"]).json()["scan_id"]
+    _wait_done(client, scan_id)
+
+    view = client.get(f"{API}/scans/{scan_id}").json()
+    assert view["target_input"] == ["localhost:7860-7862"]
+    assert view["targets"] == ["localhost:7860", "localhost:7861", "localhost:7862"]
+
+
+def test_large_range_needs_confirmation(client, allowlisted):
+    """대상이 곱으로 늘어 부하가 큼. 조용히 진행하지 않고 되물음"""
+    ports = scan_service.target_range.CONFIRM_THRESHOLD + 2
+    response = _create(client, [f"localhost:1000-{1000 + ports}"])
+    assert response.status_code == 400
+    body = response.json()["error"]
+    assert body["code"] == "LARGE_TARGET_EXPANSION"
+    assert str(ports + 1) in body["message"]        # 몇 건인지 알려줘야 함
+
+
+def test_large_range_proceeds_once_confirmed(client, allowlisted):
+    ports = scan_service.target_range.CONFIRM_THRESHOLD + 2
+    response = _create(
+        client, [f"localhost:1000-{1000 + ports}"], confirm_expanded=True
+    )
+    assert response.status_code == 202
+
+
+def test_small_range_does_not_ask(client, allowlisted):
+    """상한 이하는 되묻지 않음. 매번 확인창이 뜨면 확인이 무의미해짐"""
+    assert _create(client, ["localhost:7860-7862"]).status_code == 202
+
+
+def test_range_over_max_rejected(client, allowlisted):
+    over = scan_service.target_range.MAX_PORTS + 1
+    response = _create(client, [f"localhost:1-{over}"], confirm_expanded=True)
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_range_allowlist_checked_by_host(client, conn):
+    """범위 표기도 호스트로 판정. 포트 때문에 허용 대상이 거부되면 안 됨"""
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('target_allowlist', ?)"
+        " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+        (json.dumps(["localhost"]),),
+    )
+    conn.commit()
+    try:
+        assert _create(client, ["localhost:7860-7862"]).status_code == 202
+        denied = _create(client, ["evil.example.com:80-82"])
+        assert denied.status_code == 400
+        assert denied.json()["error"]["code"] == "INVALID_REQUEST"
+    finally:
+        conn.execute("UPDATE settings SET value = '[]' WHERE key = 'target_allowlist'")
+        conn.commit()
+
+
+# ------------------------------------------------------------- 대상 응답 확인
+
+def test_unreachable_targets_excluded_and_recorded(db_path, allowlisted, scannable):
+    """닫힌 포트는 스캔하지 않되, 건너뛴 사실은 남아야 함 (절대규칙 10)"""
+    alive = "localhost:7861"
+    scan_service.set_service(
+        _service(db_path, prober=lambda targets: [t for t in targets if t == alive])
+    )
+    with TestClient(app) as client:
+        scan_id = _create(client, ["localhost:7860-7862"]).json()["scan_id"]
+        _wait_done(client, scan_id)
+        view = client.get(f"{API}/scans/{scan_id}").json()
+
+    probe = view["target_probe"]
+    assert probe["requested"] == 3
+    assert probe["responded"] == [alive]
+    assert set(probe["no_response"]) == {"localhost:7860", "localhost:7862"}
+    scan_service.set_service(None)
+
+
+def test_all_unreachable_fails_loudly(db_path, allowlisted, scannable):
+    """전부 무응답인데 '탐지 0건 완료' 로 끝나면 양호로 오독됨"""
+    scan_service.set_service(_service(db_path, prober=lambda targets: []))
+    with TestClient(app) as client:
+        scan_id = _create(client, ["localhost:7860-7862"]).json()["scan_id"]
+        view = _wait_done(client, scan_id)
+
+    assert view["status"] == "failed"
+    assert view["error"]["code"] == "NO_REACHABLE_TARGET"
+    scan_service.set_service(None)
+
+
+def test_probe_failure_does_not_block_scan(db_path, allowlisted, scannable):
+    """사전 확인이 깨져도 스캔 자체는 진행. 보조 단계가 본 기능을 막으면 안 됨"""
+    def broken(targets):
+        raise OSError("probe down")
+
+    scan_service.set_service(_service(db_path, prober=broken))
+    with TestClient(app) as client:
+        scan_id = _create(client, ["http://localhost:7860"]).json()["scan_id"]
+        view = _wait_done(client, scan_id)
+
+    assert view["status"] == "completed"
+    scan_service.set_service(None)
+
+
+def test_preflight_route_not_shadowed(client):
+    """/scans/{scan_id} 가 먼저 잡으면 preflight 가 404 로 사라짐"""
+    response = client.get(f"{API}/scans/preflight")
+    assert response.status_code == 200
+    assert "blockers" in response.json()

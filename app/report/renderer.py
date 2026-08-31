@@ -32,6 +32,13 @@ _EXTERNAL_REF = re.compile(
     re.I,
 )
 
+# 실행 요소. 보고서 골격에는 하나도 없으므로 발견되면 외부에서 흘러든 것.
+# 이벤트 핸들러는 '태그 안에 있을 때' 만 잡는다. 이스케이프된 근거 본문에도
+# ' onerror=' 같은 글자는 그대로 남는데, 꺾쇠가 없으면 실행되지 않는 평문이다
+_ACTIVE_CONTENT = re.compile(
+    r"<\s*(?:script|iframe|object|embed|form)\b|<[a-z][^>]*\son[a-z]+\s*=", re.I
+)
+
 
 @lru_cache(maxsize=1)
 def font_faces() -> str:
@@ -59,7 +66,11 @@ def base_css() -> str:
 def _env() -> Environment:
     env = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
-        autoescape=select_autoescape(["html"]),
+        # select_autoescape 는 파일 확장자로 판단한다. 이름이 'report.html.j2' 라
+        # '.j2' 로 끝나 목록에 걸리지 않고 이스케이프가 통째로 꺼진다.
+        # 대상 서버의 응답 본문이 그대로 살아 있는 HTML 로 보고서에 삽입됨
+        # 이 디렉터리는 전부 HTML 템플릿이므로 조건 없이 켠다
+        autoescape=True,
         undefined=StrictUndefined,      # 오타 필드를 조용히 빈칸으로 만들지 않는다
         trim_blocks=True,
         lstrip_blocks=True,
@@ -83,6 +94,16 @@ def render_html(report: dict[str, Any]) -> str:
 def external_references(html: str) -> list[str]:
     """자체 완결형 검사용. 반환값이 비어야 한다 (TC-R12)"""
     return ["".join(m) for m in _EXTERNAL_REF.findall(html)]
+
+
+def active_content(html: str) -> list[str]:
+    """실행 요소 검사. 보고서는 정적 문서이며 스크립트를 쓰지 않는다.
+
+    external_references 는 절대 URL 만 본다. 대상 서버 응답이 그대로 삽입되면
+    상대 경로(`/openapi.json`)를 쓰는 페이지가 검사를 통과해 버린다.
+    근거가 '표시' 되지 않고 '실행' 되는 상태이므로 태그 자체를 금지
+    """
+    return [m.group(0) for m in _ACTIVE_CONTENT.finditer(html)]
 
 
 def filename(report: dict[str, Any], ext: str) -> str:

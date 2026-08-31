@@ -121,6 +121,46 @@ MANUAL_RUST_GUIDE = """Rust 툴체인이 없음. 아래 중 하나로 설치하�
 자동 설치는 기본 동작. --no-auto-install 를 뺀 채 실행하면 됨 (외부 통신 발생)."""
 
 
+MANUAL_MSVC_GUIDE = """MSVC 링커(link.exe)가 없음. Rust 의 Windows 기본 타깃이 요구함.
+
+  winget install --id Microsoft.VisualStudio.2022.BuildTools ^
+    --override "--wait --quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+
+  또는 https://visualstudio.microsoft.com/downloads/ 에서
+  'Visual Studio Build Tools' 를 받아 **C++ 데스크톱 개발** 워크로드 선택
+
+VS Code 는 해당하지 않음. 설치 후 새 터미널에서 다시 실행.
+관리자 권한과 수 GB 다운로드가 필요해 자동 설치하지 않음."""
+
+
+def msvc_linker() -> str | None:
+    """MSVC 링커 존재 확인.
+
+    없으면 크레이트 수백 개를 받아 컴파일한 뒤 'link.exe not found' 로 끝난다.
+    16초 다운로드 + 컴파일을 버리기 전에 미리 잡음
+    link.exe 는 개발자 명령 프롬프트 밖에서는 PATH 에 없으므로 vswhere 로도 찾음
+    """
+    found = shutil.which("link")
+    if found:
+        return found
+
+    base = os.environ.get("ProgramFiles(x86)") or os.environ.get("ProgramFiles")
+    if not base:
+        return None
+    vswhere = Path(base) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+    if not vswhere.is_file():
+        return None                     # VS 설치 관리자 자체가 없음
+
+    completed = subprocess.run(
+        [str(vswhere), "-products", "*", "-latest",
+         "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+         "-property", "installationPath"],
+        capture_output=True, text=True, stdin=subprocess.DEVNULL,
+    )
+    path = completed.stdout.strip()
+    return path or None
+
+
 def cargo_path() -> str | None:
     """PATH 우선. rustup 이 방금 설치한 경우 PATH 갱신 전이라 홈도 봄"""
     found = shutil.which("cargo")
@@ -165,6 +205,10 @@ def build_tauri(auto_install_rust: bool) -> None:
         if not auto_install_rust:
             sys.exit(MANUAL_RUST_GUIDE)
         cargo = install_rust()
+
+    # Rust 는 있어도 링커가 없으면 컴파일 끝에서 실패한다. 시작 전에 확인
+    if _windows() and msvc_linker() is None:
+        sys.exit(MANUAL_MSVC_GUIDE)
 
     npx = ensure_node(auto_install_rust)
 
@@ -378,6 +422,36 @@ def launch() -> None:
     print(f"  $ {' '.join(command)}")
     subprocess.Popen(command, cwd=ROOT)
     print(f"  {APP_NAME} 실행")
+    report_artifacts()
+
+
+def report_artifacts() -> None:
+    """산출물 위치 출력. 플랫폼마다 경로가 달라 어디를 봐야 할지 알기 어려움"""
+    release = ROOT / "src-tauri" / "target" / "release"
+    if _windows():
+        candidates = [
+            release / f"{APP_NAME}.exe",
+            release / "redar.exe",
+            *sorted((release / "bundle" / "msi").glob("*.msi")),
+            *sorted((release / "bundle" / "nsis").glob("*.exe")),
+        ]
+    elif platform.system() == "Darwin":
+        candidates = [
+            release / "bundle" / "macos" / f"{APP_NAME}.app",
+            *sorted((release / "bundle" / "dmg").glob("*.dmg")),
+        ]
+    else:
+        candidates = [release / "redar", *sorted(
+            (release / "bundle").glob("*/*.AppImage")
+        )]
+
+    found = [p for p in candidates if p.exists()]
+    if not found:
+        return
+    print("")
+    print("  산출물")
+    for path in found:
+        print(f"    {path}")
 
 
 def main() -> None:

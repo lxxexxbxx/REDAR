@@ -56,6 +56,7 @@ export const api = {
     request("/settings", { method: "PUT", body: JSON.stringify(patch) }),
 
   listScans: (params = {}) => request("/scans" + query(params)),
+  scanPreflight: () => request("/scans/preflight"),
   getScan: (id) => request(`/scans/${encodeURIComponent(id)}`),
   createScan: (payload) =>
     request("/scans", { method: "POST", body: JSON.stringify(payload) }),

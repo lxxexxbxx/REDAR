@@ -6,6 +6,7 @@ nuclei 는 실행하지 않음. 문법 검증은 미설치 시 건너뜀으로 �
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 import yaml
@@ -318,6 +319,59 @@ def test_index_all_picks_up_manually_added_files(conn, custom_dir, clean_templat
     assert template_repo.get(conn, "manual") is not None
 
 
+def test_index_accepts_out_of_range_severity(conn, custom_dir, clean_templates):
+    """공식 템플릿에는 'unknown' 등 5종 밖 값이 섞여 있음.
+    그대로 넣으면 CHECK 위반으로 색인 전체가 실패 (서버 내부 오류)"""
+    (custom_dir / "odd.yaml").write_text(
+        "id: odd-severity\n"
+        "info:\n  name: Odd\n  author: t\n  severity: unknown\n",
+        encoding="utf-8",
+    )
+    counts = service.index_all(conn)
+    assert counts["custom"] == 1
+    assert counts["skipped"] == 0
+    # 모르는 등급을 info 로 바꾸면 거짓 등급이 됨. 비워둠
+    assert template_repo.get(conn, "odd-severity")["severity"] is None
+
+
+def test_index_normalizes_severity_case(conn, custom_dir, clean_templates):
+    (custom_dir / "up.yaml").write_text(
+        "id: upper-severity\n"
+        "info:\n  name: Up\n  author: t\n  severity: HIGH\n",
+        encoding="utf-8",
+    )
+    service.index_all(conn)
+    assert template_repo.get(conn, "upper-severity")["severity"] == "high"
+
+
+def test_index_skips_bad_row_instead_of_failing_all(conn, custom_dir,
+                                                    clean_templates, monkeypatch):
+    """한 행 때문에 수천 개 색인이 통째로 날아가면 사용자는 원인을 알 수 없음"""
+    for name in ("a", "b"):
+        (custom_dir / f"{name}.yaml").write_text(
+            f"id: tpl-{name}\ninfo:\n  name: {name}\n  author: t\n  severity: high\n",
+            encoding="utf-8",
+        )
+
+    real = template_repo.upsert
+
+    def fail_on_b(conn_, row):
+        if row["template_id"] == "tpl-b":
+            raise sqlite3.IntegrityError("CHECK constraint failed")
+        real(conn_, row)
+
+    monkeypatch.setattr(template_repo, "upsert_many", _raise_integrity)
+    monkeypatch.setattr(template_repo, "upsert", fail_on_b)
+
+    counts = service.index_all(conn)
+    assert counts["skipped"] == 1
+    assert template_repo.get(conn, "tpl-a") is not None      # 나머지는 살아남음
+
+
+def _raise_integrity(conn, rows):
+    raise sqlite3.IntegrityError("CHECK constraint failed")
+
+
 def test_detection_template_flagged(conn, custom_dir, clean_templates):
     form = {**VALID_FORM, "info": {**VALID_FORM["info"], "id": "wp-detect",
                                    "tags": ["tech", "wordpress"]}}
@@ -421,6 +475,38 @@ def test_sync_blocked_when_endpoint_disabled(conn):
     finally:
         conn.execute("UPDATE settings SET value = 'true' WHERE key = 'offline_mode'")
         conn.commit()
+
+
+def test_sync_reports_nuclei_exit_reason(monkeypatch, tmp_path):
+    """nuclei 가 남긴 사유를 올려야 함. 종료 코드만 보이면 어디서 막혔는지 모름"""
+    monkeypatch.setattr("app.config.settings.OFFICIAL_DIR", tmp_path / "official",
+                        raising=False)
+    monkeypatch.setattr(service.settings, "nuclei_bin", lambda: "/tmp/nuclei")
+
+    class _Done:
+        returncode = 1
+        stdout = ""
+        stderr = "could not run nuclei: application control policy blocked"
+
+    monkeypatch.setattr(service.subprocess, "run", lambda *a, **kw: _Done())
+    with pytest.raises(ScanError) as exc:
+        service._run_update()
+    assert "application control policy" in exc.value.message
+    assert exc.value.status_code == 502
+
+
+def test_sync_succeeds_on_zero_exit(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.config.settings.OFFICIAL_DIR", tmp_path / "official",
+                        raising=False)
+    monkeypatch.setattr(service.settings, "nuclei_bin", lambda: "/tmp/nuclei")
+
+    class _Done:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    monkeypatch.setattr(service.subprocess, "run", lambda *a, **kw: _Done())
+    service._run_update()      # 예외 없이 끝나야 함
 
 
 def test_sync_runs_when_explicitly_enabled(conn, custom_dir, clean_templates):

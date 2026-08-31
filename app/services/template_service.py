@@ -21,6 +21,7 @@ import yaml
 from app.config import settings
 from app.domain import url as urlmod
 from app.domain.allowlist import rejected_targets
+from app.domain.enums import Severity
 from app.domain.vuln_type import normalize
 from app.repository import settings_repo
 from app.repository import templates as template_repo
@@ -64,7 +65,7 @@ def custom_path(template_id: str) -> Path:
 def index_all(conn: sqlite3.Connection) -> dict[str, int]:
     """templates/ 트리를 훑어 DB 색인 갱신. 파일이 정본이고 DB 는 색인"""
     rules = load_vuln_type_rules(conn)
-    counts = {"official": 0, "custom": 0}
+    counts = {"official": 0, "custom": 0, "skipped": 0}
     rows: list[dict[str, Any]] = []
     for source, directory in (
         (_SOURCE_OFFICIAL, settings.OFFICIAL_DIR),
@@ -78,8 +79,30 @@ def index_all(conn: sqlite3.Connection) -> dict[str, int]:
                 rows.append(row)
                 counts[source] += 1
     if rows:
-        template_repo.upsert_many(conn, rows)
+        counts["skipped"] = _upsert_tolerant(conn, rows)
     return counts
+
+
+def _upsert_tolerant(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> int:
+    """일괄 삽입. 실패 시 한 행씩 재시도해 문제 행만 버림.
+
+    executemany 는 한 행이 제약에 걸리면 전체가 끊김. 공식 템플릿 수천 개 중
+    하나 때문에 색인이 통째로 실패하면 사용자는 '서버 내부 오류' 만 보게 됨
+    """
+    try:
+        template_repo.upsert_many(conn, rows)
+        return 0
+    except sqlite3.DatabaseError:
+        logger.warning("일괄 색인 실패. 행 단위로 재시도", exc_info=True)
+
+    skipped = 0
+    for row in rows:
+        try:
+            template_repo.upsert(conn, row)
+        except sqlite3.DatabaseError:
+            skipped += 1
+            logger.warning("템플릿 색인 건너뜀: %s", row.get("file_path"))
+    return skipped
 
 
 def _index_row(path: Path, source: str, rules) -> dict[str, Any] | None:
@@ -110,7 +133,7 @@ def _index_row(path: Path, source: str, rules) -> dict[str, Any] | None:
         "file_path": str(path),
         "name": str(info.get("name") or template_id),
         "description": info.get("description"),
-        "severity": info.get("severity"),
+        "severity": _severity_or_none(info.get("severity")),
         "vuln_type": normalize(
             tags=tags, cwe_ids=cwe_ids, template_id=template_id, rules=rules
         ).value,
@@ -125,6 +148,19 @@ def _index_row(path: Path, source: str, rules) -> dict[str, Any] | None:
         "form_json": None,
         "yaml_hash": hashlib.sha256(path.read_bytes()).hexdigest(),
     }
+
+
+def _severity_or_none(value: Any) -> str | None:
+    """스키마 CHECK 를 통과하는 값만 저장.
+
+    공식 템플릿에는 'unknown' 처럼 5종 밖의 값이 섞여 있음. 그대로 넣으면
+    executemany 가 IntegrityError 로 끊겨 색인 전체가 실패함
+    임의로 다른 등급에 욱여넣지 않고 비움 - 모르는 것을 'info' 로 만들면 거짓 등급
+    """
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    return text if text in set(Severity) else None
 
 
 def _listify(value: Any) -> list[str]:
@@ -269,14 +305,22 @@ def sync(conn: sqlite3.Connection, *, runner=None) -> dict[str, Any]:
     if not settings_repo.as_bool(raw.get("ext_template_sync_enabled")):
         raise ScanError(
             "OFFLINE_MODE_BLOCKED",
-            "템플릿 갱신이 설정에서 비활성 상태입니다.",
+            "템플릿 갱신 비활성. 설정에서 통신 지점 허용 필요",
             status_code=403,
         )
 
     before = {r["template_id"] for r in template_repo.search(conn, size=100_000)[0]}
     execute = runner or _run_update
     execute()
-    counts = index_all(conn)
+    try:
+        counts = index_all(conn)
+    except Exception as exc:  # noqa: BLE001 - 원인을 '서버 내부 오류' 로 삼키지 않음
+        logger.exception("템플릿 색인 실패")
+        raise ScanError(
+            "INDEX_FAILED",
+            f"내려받기는 됐으나 색인 실패: {exc}. 폴더 재색인으로 재시도 가능",
+            status_code=500,
+        ) from exc
     after = {r["template_id"] for r in template_repo.search(conn, size=100_000)[0]}
 
     return {
@@ -297,15 +341,27 @@ def _run_update() -> None:
         )
     settings.OFFICIAL_DIR.mkdir(parents=True, exist_ok=True)
     try:
-        subprocess.run(
+        completed = subprocess.run(
             [binary, "-update-templates", "-ud", str(settings.OFFICIAL_DIR), "-silent"],
-            capture_output=True, text=True, timeout=_SYNC_TIMEOUT_SEC, check=True,
+            capture_output=True, text=True, timeout=_SYNC_TIMEOUT_SEC, check=False,
             stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise ScanError(
             "NUCLEI_UNAVAILABLE", f"템플릿 갱신 실패: {exc}", status_code=502
         ) from exc
+
+    if completed.returncode != 0:
+        # nuclei 가 남긴 사유를 그대로 올림. 'CalledProcessError(1)' 만 보이면
+        # 어느 단계에서 막혔는지 알 수 없다 (Windows 실행 차단·네트워크 차단 등)
+        detail = (completed.stderr or completed.stdout or "").strip()
+        logger.warning("템플릿 갱신 실패 rc=%s: %s", completed.returncode, detail)
+        raise ScanError(
+            "NUCLEI_UNAVAILABLE",
+            f"템플릿 갱신 실패 (종료 코드 {completed.returncode})"
+            + (f": {detail.splitlines()[-1][:300]}" if detail else ""),
+            status_code=502,
+        )
 
 
 # ────────────────────────────────────────────── 드라이런

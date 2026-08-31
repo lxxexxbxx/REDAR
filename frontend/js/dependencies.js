@@ -5,7 +5,8 @@
  *   파일 반입  통신 없음. 오프라인에서도 동작
  *   경로 지정  통신 없음. 특정 버전을 고정할 때 */
 import { api } from "./api.js";
-import { esc, dash, toast } from "./ui.js";
+import { confirmDialog, esc, dash, toast } from "./ui.js";
+import * as tasks from "./tasks.js";
 
 const SOURCE_LABEL = {
   configured: "설정에서 지정",
@@ -119,14 +120,18 @@ export async function handleDependencyClick(target, refresh) {
   }
   if (install) {
     // 설정만으로 자동 실행되지 않음. 사용자가 매번 동의함
-    const agreed = confirm(
-      `${install} 자동 설치 진행.\n\n` +
-      "Go 툴체인을 내려받아 빌드하므로 외부 통신이 발생하고 수 분 걸립니다.\n" +
-      "계속할까요?"
-    );
+    const agreed = await confirmDialog({
+      title: `${install} 자동 설치`,
+      body: "Go 툴체인을 내려받아 직접 빌드함. <b>외부 통신이 발생</b>하고 수 분 소요.<br><br>"
+          + "인터넷이 없는 환경이면 대신 <b>파일 반입</b> 사용",
+      confirmLabel: "설치",
+    });
     if (!agreed) return true;
     toast("설치 시작. 수 분 소요");
-    await api.installDependency(install, true);
+    await tasks.track(
+      `${install} 자동 설치`, "Go 툴체인 확보 후 빌드 · 수 분 소요",
+      () => api.installDependency(install, true),
+    );
     toast(`${install} 설치 완료`);
     await refresh();
     return true;
@@ -139,8 +144,10 @@ export async function handleDependencyChange(node, refresh) {
   if (!key) return false;
   const file = node.files?.[0];
   if (!file) return true;
-  toast(`${file.name} 반입 중…`);
-  await api.importDependency(key, file);
+  await tasks.track(
+    `${key} 파일 반입`, `${file.name} 검증 중`,
+    () => api.importDependency(key, file),
+  );
   toast("반입 완료");
   await refresh();
   return true;

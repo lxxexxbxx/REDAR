@@ -138,9 +138,23 @@ def _meta(
     use_llm: bool,
 ) -> dict[str, Any]:
     hosts = scan.get("targets") or []
+    # 입력 원문. 포트 범위는 전개 전 표기를 개요에 남김
+    requested = scan.get("target_input") or hosts
+    probe = scan.get("target_probe") or {}
+    # 보고서에는 실제로 응답한 대상만 싣는다. 닫힌 포트를 나열하면
+    # 조치와 무관한 수백 줄이 되고, 요청 수만 적으면 점검 범위가 과장된다
+    scanned = probe.get("responded") or hosts
     return {
-        "target_summary": _target_summary(hosts),
-        "targets": hosts,
+        "target_summary": _target_summary(requested, len(scanned)),
+        # 실제 스캔한 대상. 조치 대상이 특정되어야 하므로 전개 결과를 그대로 둠
+        "targets": scanned,
+        "target_input": requested,
+        "target_probe": {
+            "requested": probe.get("requested", len(hosts)),
+            "scanned": len(scanned),
+            # 확인하지 않은 스캔(이전 버전)은 0. 요청 전부를 스캔한 것으로 본다
+            "no_response": len(probe.get("no_response") or []),
+        },
         "scan_started_at": scan.get("started_at") or scan.get("created_at"),
         "scan_finished_at": scan.get("finished_at"),
         "scan_duration_sec": scan.get("duration_sec"),
@@ -170,10 +184,17 @@ def _meta(
     }
 
 
-def _target_summary(hosts: list[str]) -> str:
-    if not hosts:
+def _target_summary(requested: list[str], scanned: int) -> str:
+    """개요 표기. 입력 원문 기준.
+
+    포트 범위를 펼친 개별 포트를 나열하면 수백 건이 되어 읽을 수 없음.
+    실제 몇 개 포트를 봤는지는 함께 밝혀 범위가 뭉개지지 않게 함
+    """
+    if not requested:
         return "대상 없음"
-    return hosts[0] if len(hosts) == 1 else f"{hosts[0]} 외 {len(hosts) - 1}건"
+    head = requested[0] if len(requested) == 1 else \
+        f"{requested[0]} 외 {len(requested) - 1}건"
+    return f"{head} (포트 {scanned}개)" if scanned > len(requested) else head
 
 
 def _top_risks(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:

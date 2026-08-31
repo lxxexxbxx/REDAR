@@ -27,6 +27,38 @@ def test_schema_object_counts(conn):
     ).fetchone()[0] == 5
 
 
+def test_migration_numbers_exceed_schema_baseline(conn):
+    """schema.sql 말미가 기록해둔 버전 이하의 마이그레이션은
+    '적용 완료' 로 간주되어 조용히 건너뛰어진다. 실패해도 오류가 없어 발견이 늦다"""
+    baseline = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
+    files = sorted(settings.MIGRATIONS_DIR.glob("*.sql"))
+    skipped = [
+        f.name for f in files if int(f.name.split("_", 1)[0]) <= _schema_baseline()
+    ]
+    assert not skipped, f"schema.sql 이 이미 적용 표시한 번호: {skipped}"
+    # 실제로 전부 적용되었는지도 확인
+    assert baseline >= max(
+        (int(f.name.split("_", 1)[0]) for f in files), default=0
+    )
+
+
+def _schema_baseline() -> int:
+    """schema.sql 이 스스로 적용됨으로 기록하는 최대 버전"""
+    text = settings.SCHEMA_PATH.read_text(encoding="utf-8")
+    versions = [
+        int(line.rsplit("(", 1)[1].split(")")[0])
+        for line in text.splitlines()
+        if "INTO schema_version" in line and "VALUES" in line
+    ]
+    return max(versions, default=0)
+
+
+def test_migrations_applied(conn):
+    """마이그레이션 003 컬럼이 실제로 존재해야 함"""
+    columns = {r["name"] for r in conn.execute("PRAGMA table_info(scans)")}
+    assert "target_input" in columns
+
+
 @pytest.mark.parametrize(
     "table,expected",
     [

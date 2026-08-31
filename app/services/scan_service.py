@@ -5,20 +5,24 @@ import logging
 import queue
 import threading
 import time
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 from app import __version__
+from app.adapters import portprobe
 from app.adapters.nuclei import parser, progress, runner
 from app.adapters.nuclei import version as nuclei_version
+from app.config import settings
 from app.domain import url as urlmod
+from app.domain import target_range
 from app.domain.allowlist import rejected_targets
 from app.domain.enums import ScanStatus
 from app.domain.ids import new_id
 from app.repository import scans as scan_repo
 from app.repository import settings_repo
+from app.repository import templates as template_repo
 from app.repository.db import session
 from app.repository.findings import FindingBatchWriter
 from app.repository.rules import load_vuln_type_rules
@@ -31,6 +35,72 @@ TOOL_VERSION = __version__
 # SSE finding 이벤트 상한. 초과분은 이벤트만 생략되며 DB 저장은 그대로 (docs/00 §2)
 _FINDING_EVENTS_PER_SEC = 10
 _EVENT_QUEUE_MAX = 2000
+
+
+def preflight(conn) -> dict[str, Any]:
+    """스캔 성립 조건 점검. 실행 전에 '왜 안 되는지' 를 미리 알려주기 위함.
+
+    템플릿 0개인 상태로 스캔하면 nuclei 가 아무것도 실행하지 않고 정상 종료해
+    '탐지 0건 = 안전' 으로 오독됨 (절대규칙 10)
+    """
+    official = template_repo.search(conn, source="official", size=1)[1]
+    custom = template_repo.search(conn, source="custom", size=1)[1]
+    store = settings.nuclei_template_store()
+
+    blockers: list[dict[str, str]] = []
+    if not settings.nuclei_bin():
+        blockers.append({
+            "code": "NUCLEI_MISSING",
+            "message": "nuclei 없음. 탐지 실행 불가",
+            "action": "설정 → 의존성에서 설치하거나 파일 반입",
+            "goto": "settings",
+        })
+    if not settings_repo.target_allowlist(conn):
+        blockers.append({
+            "code": "ALLOWLIST_EMPTY",
+            "message": "허용된 스캔 대상 없음. 기본값이 전부 차단",
+            "action": "설정 → 스캔 허용 대상에 진단할 주소 등록",
+            "goto": "settings",
+        })
+    if not official and not custom and not store:
+        blockers.append({
+            "code": "NO_TEMPLATES",
+            "message": "실행할 템플릿 0개. 스캔해도 항상 탐지 0건",
+            "action": "템플릿 화면에서 공식 템플릿 갱신, 또는 직접 작성",
+            "goto": "templates",
+        })
+
+    return {
+        "ready": not blockers,
+        "blockers": blockers,
+        "templates": {
+            "official": official,
+            "custom": custom,
+            # REDAR 색인 밖의 nuclei 기본 저장소. 개수는 세지 않고 존재만 확인
+            "nuclei_store": store,
+            # 사용자가 파일을 직접 넣을 위치. 개발·번들에서 경로가 달라 화면에 실제 값 표기
+            "official_dir": str(settings.OFFICIAL_DIR),
+            "custom_dir": str(settings.CUSTOM_DIR),
+        },
+        # 갱신은 외부 통신 지점. 막혀 있으면 버튼이 403 으로만 끝나 이유를 알 수 없음
+        "sync_allowed": not settings_repo.offline_mode(conn) and settings_repo.as_bool(
+            settings_repo.get_all(conn).get("ext_template_sync_enabled")
+        ),
+    }
+
+
+def template_paths() -> list[str]:
+    """스캔이 로드할 템플릿 트리.
+
+    REDAR 는 템플릿을 자체 경로로 내려받는다 (sync 의 -ud). 이 경로를 -t 로
+    넘기지 않으면 nuclei 가 자기 기본 경로만 보므로 받아둔 템플릿도, 사용자가
+    만든 custom 템플릿도 실행되지 않음. -id·-tags 는 '로드된 것 중' 고르는 필터
+    존재하는 디렉터리만 넘김. 둘 다 없으면 nuclei 기본 경로로 넘어감
+    """
+    return [
+        str(path) for path in (settings.OFFICIAL_DIR, settings.CUSTOM_DIR)
+        if path.is_dir() and any(path.iterdir())
+    ]
 
 
 class ScanError(Exception):
@@ -57,6 +127,8 @@ class ScanRequest:
     timeout_sec: int = 10
     retries: int = 1
     rate_limit: int | None = None
+    # 포트 범위 전개가 상한을 넘을 때의 사용자 동의. 기본값은 되묻기
+    confirm_expanded: bool = False
 
 
 @dataclass
@@ -77,8 +149,11 @@ class ScanService:
         *,
         command_builder: Callable[[runner.RunOptions], list[str]] = runner.build_command,
         command_runner: Callable[..., int] = runner.run,
+        prober: Callable[[Sequence[str]], list[str]] = portprobe.reachable,
     ) -> None:
         self._db_path = db_path
+        # 실제 소켓 연결을 여는 단계. 테스트에서 대체 가능해야 함
+        self._prober = prober
         # 테스트는 실제 nuclei 대신 JSONL 을 흘리는 함수를 주입.
         # 조립도 주입 대상 - build_command 가 바이너리 존재를 요구하므로
         # 이것까지 열지 않으면 nuclei 없이 API 테스트가 불가 (CLAUDE.md 테스트 규칙)
@@ -103,9 +178,34 @@ class ScanService:
         if req.mode not in ("explicit", "filter", "environment_driven"):
             raise ScanError("INVALID_REQUEST", f"알 수 없는 모드: {req.mode}")
 
+        # 'host:33-4444' 를 개별 대상으로 전개. nuclei 에는 포트 범위 옵션이 없음
+        try:
+            expansion = target_range.expand(req.targets)
+        except target_range.RangeError as exc:
+            raise ScanError(
+                "INVALID_REQUEST", str(exc),
+                details=[{"field": "targets", "reason": "range"}],
+            ) from exc
+
+        if (
+            expansion.expanded
+            and len(expansion.targets) > target_range.CONFIRM_THRESHOLD
+            and not req.confirm_expanded
+        ):
+            # 대상이 곱으로 늘어 스캔 시간·대상 부하가 함께 커짐. 사용자에게 되물음
+            raise ScanError(
+                "LARGE_TARGET_EXPANSION",
+                f"포트 범위를 펼치면 대상 {len(expansion.targets)}건. "
+                "스캔이 오래 걸리고 대상 서버 부하가 큼",
+                details=[
+                    {"field": "targets", "reason": f"expanded={len(expansion.targets)}"}
+                ],
+            )
+
         with session(self._db_path) as conn:
             allowlist = settings_repo.target_allowlist(conn)
-            rejected = rejected_targets(req.targets, allowlist)
+            # 판정은 호스트 기준. 전개 결과 전체를 검사하면 같은 호스트를 수천 번 봄
+            rejected = rejected_targets(target_range.hosts(req.targets), allowlist)
             if rejected:
                 raise ScanError(
                     "INVALID_REQUEST",
@@ -114,6 +214,19 @@ class ScanService:
                         {"field": "targets", "reason": f"not allowed: {t}"}
                         for t in rejected
                     ],
+                )
+
+            # 템플릿 0개면 nuclei 가 아무것도 실행하지 않고 성공으로 끝남.
+            # 그대로 두면 '탐지 0건' 이 '양호' 로 오독됨 (절대규칙 10)
+            ready = preflight(conn)
+            no_templates = [
+                b for b in ready["blockers"] if b["code"] == "NO_TEMPLATES"
+            ]
+            if no_templates:
+                raise ScanError(
+                    "NO_TEMPLATES",
+                    f"{no_templates[0]['message']}. {no_templates[0]['action']}",
+                    details=[{"field": "templates", "reason": "empty"}],
                 )
 
             with self._lock:
@@ -136,7 +249,9 @@ class ScanService:
                     timeout_sec=req.timeout_sec,
                     retries=req.retries,
                     rate_limit=req.rate_limit,
-                    targets=req.targets,
+                    # 실행·탐지 결과는 실제 포트 기준. 조치 대상이 특정되어야 함
+                    targets=expansion.targets,
+                    target_input=expansion.raw,
                     tool_version=TOOL_VERSION,
                     nuclei_version=nuclei_version(),
                 )
@@ -145,8 +260,11 @@ class ScanService:
                     cancel=threading.Event(),
                     events=queue.Queue(maxsize=_EVENT_QUEUE_MAX),
                 )
+                # 실행부터는 전개된 대상만 다룸. 원문은 이미 DB 에 남김
                 run.thread = threading.Thread(
-                    target=self._execute, args=(run, req), daemon=True
+                    target=self._execute,
+                    args=(run, replace(req, targets=expansion.targets)),
+                    daemon=True,
                 )
                 self._active = run
                 run.thread.start()
@@ -168,6 +286,8 @@ class ScanService:
                     "templates_done": 0, "templates_total": None, "findings_so_far": 0,
                 })
 
+                req = replace(req, targets=self._probe_targets(run, req, conn))
+
                 template_ids, tags = list(req.template_ids), list(req.tags)
                 if req.collect_environment:
                     selection = self._collect_environment(run, req, conn)
@@ -178,6 +298,7 @@ class ScanService:
                     runner.RunOptions(
                         targets=list(req.targets),
                         template_ids=template_ids,
+                        template_paths=template_paths(),
                         tags=tags,
                         severities=list(req.severities),
                         threads=req.threads,
@@ -198,6 +319,9 @@ class ScanService:
                     guide_service.map_scan(conn, run.scan_id)
                 except Exception:  # noqa: BLE001 - 매핑 실패가 스캔 실패는 아니다
                     logger.warning("가이드 매핑 실패 %s", run.scan_id, exc_info=True)
+        except ScanError as exc:                       # 대상 전부 무응답 등
+            status, error = ScanStatus.FAILED, (exc.code, exc.message)
+            logger.warning("스캔 중단 %s: %s", run.scan_id, exc.message)
         except RuntimeError as exc:                    # nuclei 미설치 등
             status, error = ScanStatus.FAILED, ("NUCLEI_UNAVAILABLE", str(exc))
             logger.warning("스캔 실패 %s: %s", run.scan_id, exc)
@@ -222,6 +346,32 @@ class ScanService:
         })
         # 스트림 종료 신호
         self._emit(run, None, None)
+
+    def _probe_targets(self, run: _Run, req: ScanRequest, conn) -> list[str]:
+        """응답하는 대상만 추려 실제 스캔 대상으로 삼음.
+
+        포트 범위는 대부분이 닫힌 포트다. 전부에 템플릿을 돌리면 시간만 쓴다.
+        무엇을 건너뛰었는지는 DB 에 남겨 보고서가 점검 범위를 밝힐 수 있게 함
+        """
+        self._emit(run, "progress", {
+            "scan_id": run.scan_id, "percent": 0, "phase": "probing_targets",
+            "templates_done": 0, "templates_total": None,
+            "findings_so_far": run.findings_so_far,
+        })
+        try:
+            alive = self._prober(req.targets)
+        except Exception:  # noqa: BLE001 - 사전 확인 실패가 스캔을 막지 않음
+            logger.warning("대상 응답 확인 실패. 전부 스캔", exc_info=True)
+            return list(req.targets)
+
+        scan_repo.mark_reachable(conn, run.scan_id, alive)
+        if not alive:
+            # 하나도 응답하지 않으면 0건으로 끝내지 않고 이유를 밝힘 (절대규칙 10)
+            raise ScanError(
+                "NO_REACHABLE_TARGET",
+                f"대상 {len(req.targets)}개 전부 무응답. 주소·포트 확인 필요",
+            )
+        return alive
 
     def _collect_environment(self, run: _Run, req: ScanRequest, conn):
         """수집 -> 선별. 실패해도 스캔을 중단하지 않음 (M4 규칙 2).

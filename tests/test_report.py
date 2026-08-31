@@ -162,6 +162,58 @@ def test_tc_r04_no_guide_no_llm(conn, scan_with_findings):
     assert fallback.GUIDE_UNAVAILABLE in html
 
 
+def test_target_response_is_not_rendered_as_html(conn, scan_with_findings):
+    """대상 서버의 응답 본문이 살아 있는 HTML 로 들어가면 안 됨.
+
+    실제로 Swagger UI 페이지가 보고서 안에서 실행되어 /openapi.json 을 요청하고
+    ReDoc 스크립트가 오류를 냈다. 근거 표시가 아니라 코드 실행이 된 것
+    """
+    report = _report(conn, scan_with_findings)
+    payload = (
+        '<script>window.__redar_probe=1</script>'
+        '<div id="swagger-ui">Failed to load API definition.</div>'
+    )
+    assert report["findings_detail"], "근거를 넣을 탐지 항목이 있어야 함"
+    detail = report["findings_detail"][0]
+    detail["evidence"]["included"] = True
+    detail["evidence"]["response"] = payload
+
+    html = renderer.render_html(report)
+    # 원문은 보이되 태그로 살아나지 않아야 함
+    assert "window.__redar_probe" in html
+    assert "<script>window.__redar_probe" not in html
+    assert '<div id="swagger-ui">' not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_report_lists_only_scanned_targets(conn, scan_with_findings):
+    """무응답 대상은 보고서에 나열하지 않되 개수는 밝힘.
+    목록을 실으면 조치와 무관한 수백 줄이 되고, 개수를 빼면 범위가 과장됨"""
+    conn.execute(
+        "UPDATE scan_targets SET reachable = 0 WHERE scan_id = ?",
+        (scan_with_findings,),
+    )
+    conn.execute(
+        "INSERT INTO scan_targets (scan_id, raw, host, port, reachable)"
+        " VALUES (?, 'localhost:9999', 'localhost', 9999, 1)",
+        (scan_with_findings,),
+    )
+    conn.commit()
+
+    meta = _report(conn, scan_with_findings)["meta"]
+    assert meta["targets"] == ["localhost:9999"]
+    assert meta["target_probe"]["no_response"] >= 1
+    assert meta["target_probe"]["scanned"] == 1
+
+
+def test_report_css_not_escaped(conn, scan_with_findings):
+    """우리 CSS 는 이스케이프 예외. 따옴표가 깨지면 폰트가 적용되지 않음"""
+    html = renderer.render_html(_report(conn, scan_with_findings))
+    assert '"NanumGothic"' in html
+    assert "&quot;NanumGothic&quot;" not in html
+    assert "@font-face" in html
+
+
 def test_tc_r03_no_guide_part_a_intact(conn, scan_with_findings):
     report = _report(conn, scan_with_findings)
     html = renderer.render_html(report)
@@ -323,6 +375,59 @@ def test_tc_r12_html_is_self_contained(conn, guide_loaded, scan_with_findings):
     assert "@font-face" in html
     assert html.count("data:font/woff2;base64,") == 3
     assert "local(" not in html
+
+
+def test_tc_r12_no_active_content(conn, guide_loaded, scan_with_findings):
+    """보고서는 정적 문서. 스크립트가 있으면 대상 응답이 흘러든 것"""
+    report = _report(conn, scan_with_findings)
+    detail = report["findings_detail"][0]
+    detail["evidence"]["included"] = True
+    detail["evidence"]["response"] = (
+        '<iframe src="/x"></iframe><img src=x onerror="alert(1)">'
+    )
+    html = renderer.render_html(report)
+    assert renderer.active_content(html) == []
+    # 이스케이프된 평문으로는 남아야 함. 근거를 지워버리면 안 됨
+    assert "onerror" in html
+
+
+def test_toc_links_to_every_section(conn, guide_loaded, scan_with_findings):
+    """목차 항목이 전부 실제 앵커로 이어져야 함. 끊긴 링크는 눌러야 알게 됨"""
+    html = renderer.render_html(_report(conn, scan_with_findings))
+    hrefs = set(re.findall(r'href="#([a-z0-9-]+)"', html))
+    ids = set(re.findall(r'id="([a-z0-9-]+)"', html))
+    assert hrefs, "목차 링크가 있어야 함"
+    assert hrefs <= ids, f"이어지지 않는 링크: {hrefs - ids}"
+    # 절이 13개이므로 절 앵커도 13개
+    assert len([i for i in ids if i.startswith("sec-")]) == 13
+
+
+def test_screen_nav_hidden_in_print(conn, guide_loaded, scan_with_findings):
+    """화면용 메뉴는 인쇄에서 숨기되 본문은 그대로 나와야 함"""
+    html = renderer.render_html(_report(conn, scan_with_findings))
+    print_block = html.split("@media print")[1].split("}\n}")[0]
+    # 인쇄에서 숨기는 것은 화면용 메뉴뿐. 본문을 숨기면 PDF 에서 내용이 사라진다
+    hidden = [
+        line.split("{")[0].strip()
+        for line in print_block.splitlines()
+        if re.search(r"display:\s*none", line)
+    ]
+    assert hidden == [".docnav"]
+
+
+def test_nav_uses_no_script(conn, guide_loaded, scan_with_findings):
+    """목차는 앵커만으로 동작. 스크립트를 넣으면 절대규칙 4-1 검사에 걸림"""
+    html = renderer.render_html(_report(conn, scan_with_findings))
+    assert renderer.active_content(html) == []
+    assert renderer.external_references(html) == []
+
+
+def test_active_content_catches_real_tags():
+    """검사 자체가 동작하는지. 통과만 확인하면 규칙이 느슨해져도 모름"""
+    assert renderer.active_content("<p>ok</p>") == []
+    assert renderer.active_content("&lt;script&gt; onerror= 평문") == []
+    assert renderer.active_content("<script>x</script>")
+    assert renderer.active_content('<img src=x onerror="alert(1)">')
 
 
 def test_font_weights_registered_separately():

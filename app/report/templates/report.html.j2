@@ -9,12 +9,14 @@
 <head>
 <meta charset="utf-8">
 <title>취약점 진단 결과 보고서 — {{ r.meta.target_summary }}</title>
+{# 우리가 만든 CSS 이므로 이스케이프 예외. 따옴표가 &quot; 로 바뀌면 폰트가 깨짐.
+   대상 서버에서 온 값에는 절대 safe 를 붙이지 않는다 (응답 본문이 살아 있는 HTML 이 됨) #}
 <style>
-{{ font_faces }}
-{{ base_css }}
+{{ font_faces | safe }}
+{{ base_css | safe }}
 </style>
 </head>
-<body>
+<body id="top">
 <div class="page">
 
 {# ─────────────────────────────────────────── 표지 #}
@@ -23,6 +25,18 @@
   <div class="sub">{{ r.meta.target_summary }}</div>
   <table style="margin-top:6mm">
     <tr><th style="width:34mm">진단 대상</th>
+        <td class="mono">{{ r.meta.target_input | join(', ') | nz }}</td></tr>
+    {# 요청과 실제 스캔이 다르면 반드시 밝힌다. 요청 수만 적으면 점검 범위가 과장됨 #}
+    {% if r.meta.target_probe.no_response %}
+    <tr><th>점검 범위</th>
+        <td class="mono">요청 {{ r.meta.target_probe.requested }}개 ·
+          응답 <strong>{{ r.meta.target_probe.scanned }}개</strong> ·
+          무응답 {{ r.meta.target_probe.no_response }}개
+          <div style="color:#555;margin-top:1mm">
+            무응답 대상은 연결되지 않아 점검하지 않음. 아래 결과는 응답한 대상에 한함
+          </div></td></tr>
+    {% endif %}
+    <tr><th>점검한 대상</th>
         <td class="mono">{{ r.meta.targets | join(', ') | nz }}</td></tr>
     <tr><th>진단 일시</th>
         <td class="mono">{{ r.meta.scan_started_at | nz }}
@@ -38,42 +52,62 @@
   </table>
 </div>
 
-{# ─────────────────────────────────────────── 목차 (고정) #}
+{# ─────────────────────────────────────────── 목차 (고정)
+   골격이 고정이므로 목차도 항상 같다. 항목은 앵커 링크이며 스크립트를 쓰지 않는다
+   (보고서에 실행 요소 금지. renderer.active_content 가 검사) #}
 <div class="toc">
   <strong>목차</strong>
   <ol>
-    <li>Part A — 진단 결과
+    <li><a href="#part-a">Part A — 진단 결과</a>
       <ol>
-        <li>A-1. 개요 및 집계</li>
-        <li>A-2. 진단 대상 환경</li>
-        <li>A-3. 심각도별 상세</li>
-        <li>A-4. 유형별 상세</li>
-        <li>A-5. 취약점 상세</li>
-        <li>A-6. 조치 사항</li>
-        <li>A-7. 오탐 처리 내역</li>
+        <li><a href="#sec-a1">A-1. 개요 및 집계</a></li>
+        <li><a href="#sec-a2">A-2. 진단 대상 환경</a></li>
+        <li><a href="#sec-a3">A-3. 심각도별 상세</a></li>
+        <li><a href="#sec-a4">A-4. 유형별 상세</a></li>
+        <li><a href="#sec-a5">A-5. 취약점 상세</a></li>
+        <li><a href="#sec-a6">A-6. 조치 사항</a></li>
+        <li><a href="#sec-a7">A-7. 오탐 처리 내역</a></li>
       </ol>
     </li>
-    <li>Part B — 주요정보통신기반시설 상세가이드 매핑
+    <li><a href="#part-b">Part B — 주요정보통신기반시설 상세가이드 매핑</a>
       <ol>
-        <li>B-1. 점검항목 판정 요약</li>
-        <li>B-2. 점검항목별 상세</li>
-        <li>B-3. 미매핑 탐지 결과</li>
+        <li><a href="#sec-b1">B-1. 점검항목 판정 요약</a></li>
+        <li><a href="#sec-b2">B-2. 점검항목별 상세</a></li>
+        <li><a href="#sec-b3">B-3. 미매핑 탐지 결과</a></li>
       </ol>
     </li>
-    <li>부록
+    <li><a href="#part-c">부록</a>
       <ol>
-        <li>C-1. 심각도 환산표</li>
-        <li>C-2. 사용 템플릿 목록</li>
-        <li>C-3. 진단 범위 및 한계</li>
+        <li><a href="#sec-c1">C-1. 심각도 환산표</a></li>
+        <li><a href="#sec-c2">C-2. 사용 템플릿 목록</a></li>
+        <li><a href="#sec-c3">C-3. 진단 범위 및 한계</a></li>
       </ol>
     </li>
   </ol>
 </div>
 
-<h1>Part A — 진단 결과</h1>
+{# 화면 전용 고정 메뉴. 인쇄에서는 숨기고 위 목차만 남는다 (@media print) #}
+<nav class="docnav" aria-label="보고서 목차">
+  <a class="docnav-top" href="#top">{{ r.meta.target_summary }}</a>
+  <a href="#sec-a1">A-1 개요 및 집계</a>
+  <a href="#sec-a2">A-2 진단 대상 환경</a>
+  <a href="#sec-a3">A-3 심각도별 상세</a>
+  <a href="#sec-a4">A-4 유형별 상세</a>
+  <a href="#sec-a5">A-5 취약점 상세</a>
+  <a href="#sec-a6">A-6 조치 사항</a>
+  <a href="#sec-a7">A-7 오탐 처리 내역</a>
+  <a href="#sec-b1">B-1 점검항목 판정 요약</a>
+  <a href="#sec-b2">B-2 점검항목별 상세</a>
+  <a href="#sec-b3">B-3 미매핑 탐지 결과</a>
+  <a href="#sec-c1">C-1 심각도 환산표</a>
+  <a href="#sec-c2">C-2 사용 템플릿 목록</a>
+  <a href="#sec-c3">C-3 진단 범위 및 한계</a>
+</nav>
+
+<h1 id="part-a">Part A — 진단 결과</h1>
 
 {# ─────────────────────────────────────────── A-1 #}
-<h2>A-1. 개요 및 집계</h2>
+<h2 id="sec-a1">A-1. 개요 및 집계</h2>
 <p>{{ r.executive_summary.narrative }}</p>
 {% if r.executive_summary.narrative_generated_by != 'template' %}
 <div class="generated"><span class="tag">[AI 생성 — 적용 전 검토 필요]</span></div>
@@ -121,7 +155,7 @@
 {% endif %}
 
 {# ─────────────────────────────────────────── A-2 #}
-<h2>A-2. 진단 대상 환경</h2>
+<h2 id="sec-a2">A-2. 진단 대상 환경</h2>
 {% if r.environment_profiles %}
 {% for profile in r.environment_profiles %}
 <h3>{{ profile.target_host }}</h3>
@@ -203,7 +237,7 @@
 {% endif %}
 
 {# ─────────────────────────────────────────── A-3 #}
-<h2>A-3. 심각도별 상세</h2>
+<h2 id="sec-a3">A-3. 심각도별 상세</h2>
 {% set detail_by_id = {} %}
 {% for f in r.findings_detail %}{% set _ = detail_by_id.__setitem__(f.finding_id, f) %}{% endfor %}
 {% for group in r.findings_by_severity %}
@@ -225,7 +259,7 @@
 {% endfor %}
 
 {# ─────────────────────────────────────────── A-4 #}
-<h2>A-4. 유형별 상세</h2>
+<h2 id="sec-a4">A-4. 유형별 상세</h2>
 {% for group in r.findings_by_vuln_type %}
 <h3>{{ group.label }} ({{ group.count }}건)</h3>
 {% if group.findings %}
@@ -246,7 +280,7 @@
 {% endfor %}
 
 {# ─────────────────────────────────────────── A-5 #}
-<h2>A-5. 취약점 상세</h2>
+<h2 id="sec-a5">A-5. 취약점 상세</h2>
 {% if r.findings_detail %}
 {% for f in r.findings_detail %}
 <div class="finding">
@@ -288,7 +322,7 @@
 {% endif %}
 
 {# ─────────────────────────────────────────── A-6 #}
-<h2>A-6. 조치 사항</h2>
+<h2 id="sec-a6">A-6. 조치 사항</h2>
 
 <h3>패치 트랙 — 즉시 조치</h3>
 {% if r.patch_plan %}
@@ -349,7 +383,7 @@
 {% endif %}
 
 {# ─────────────────────────────────────────── A-7 #}
-<h2>A-7. 오탐 처리 내역</h2>
+<h2 id="sec-a7">A-7. 오탐 처리 내역</h2>
 {% if r.false_positives %}
 <p>아래 항목은 오탐으로 표시되어 <strong>집계에서 제외</strong>되었습니다.</p>
 <table>
@@ -365,10 +399,10 @@
 <p class="empty">해당 없음</p>
 {% endif %}
 
-<h1>Part B — 주요정보통신기반시설 상세가이드 매핑</h1>
+<h1 id="part-b">Part B — 주요정보통신기반시설 상세가이드 매핑</h1>
 
 {# ─────────────────────────────────────────── B-1 #}
-<h2>B-1. 점검항목 판정 요약</h2>
+<h2 id="sec-b1">B-1. 점검항목 판정 요약</h2>
 <table>
   <thead><tr><th style="width:30mm">판정</th><th class="num" style="width:20mm">건수</th></tr></thead>
   <tbody>
@@ -390,7 +424,7 @@
 {% endif %}
 
 {# ─────────────────────────────────────────── B-2 #}
-<h2>B-2. 점검항목별 상세</h2>
+<h2 id="sec-b2">B-2. 점검항목별 상세</h2>
 {# dict 의 .items 메서드와 이름이 겹친다. 대괄호로 접근해야 키를 읽는다 #}
 {% if r.guide_mapping['items'] %}
 {% for item in r.guide_mapping['items'] %}
@@ -432,7 +466,7 @@
 {% endif %}
 
 {# ─────────────────────────────────────────── B-3 #}
-<h2>B-3. 미매핑 탐지 결과</h2>
+<h2 id="sec-b3">B-3. 미매핑 탐지 결과</h2>
 <p style="font-size:9.5pt;color:#555">가이드 항목에 연결되지 않은 탐지 결과입니다.
    <strong>가이드 외 항목</strong>으로 분류됩니다.</p>
 {% if r.unmapped_findings %}
@@ -449,9 +483,9 @@
 <p class="empty">해당 없음</p>
 {% endif %}
 
-<h1>부록</h1>
+<h1 id="part-c">부록</h1>
 
-<h2>C-1. 심각도 환산표</h2>
+<h2 id="sec-c1">C-1. 심각도 환산표</h2>
 <table>
   <thead><tr><th style="width:34mm">CVSS 점수</th><th>Severity</th><th style="width:26mm">가이드 등급</th></tr></thead>
   <tbody>
@@ -465,7 +499,7 @@
 <p style="font-size:9pt;color:#555">이 환산값은 Part A 전용입니다. Part B 의 점검항목
    중요도는 가이드 원문 값을 사용합니다.</p>
 
-<h2>C-2. 사용 템플릿 목록</h2>
+<h2 id="sec-c2">C-2. 사용 템플릿 목록</h2>
 {% if r.appendix.templates_used %}
 <table>
   <thead><tr><th>템플릿 ID</th><th style="width:26mm">출처</th></tr></thead>
@@ -479,7 +513,7 @@
 <p class="empty">해당 없음</p>
 {% endif %}
 
-<h2>C-3. 진단 범위 및 한계</h2>
+<h2 id="sec-c3">C-3. 진단 범위 및 한계</h2>
 <p>{{ r.appendix.scope_note }}</p>
 <table>
   <thead><tr><th style="width:44mm">항목</th><th>내용</th></tr></thead>

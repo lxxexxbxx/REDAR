@@ -5,6 +5,7 @@ import {
   handleTemplateChange, handleTemplateClick, viewTemplates,
 } from "./templates.js";
 import { handleReportClick, viewReport } from "./reports.js";
+import * as tasks from "./tasks.js";
 import {
   dependencyPanel, handleDependencyChange, handleDependencyClick,
   missingDependencyNotice,
@@ -12,8 +13,10 @@ import {
 import {
   FINDING_STATUS_LABEL, SCAN_STATUS_LABEL, SEVERITY_ORDER, SEVERITY_LABEL,
   VULN_TYPE_LABEL, VULN_TYPE_ORDER,
-  coverageNotice, dash, emptyState, esc, fmtDuration, fmtTime,
-  runEnvironment, selectionBasis, severityAxis, severityTag, target, targetEnvironment,
+  confirmDialog, coverageNotice, dash, emptyState, esc, fmtDuration, fmtTime,
+  scanTargets,
+  runEnvironment, selectionBasis, severityAxis, severityTag, target,
+  targetEnvironment, targetProbe,
   toast, vulnTypeAxis,
 } from "./ui.js";
 
@@ -30,6 +33,7 @@ const state = {
   health: null,
   guide: null,
   settings: null,
+  preflight: null,
   scanId: null,
   unsubscribe: null,
 };
@@ -136,7 +140,7 @@ async function viewDashboard() {
       <div class="panel">
         <div class="panel-head">
           <div class="eyebrow">스캔 정보</div>
-          <h2>${latest ? esc(latest.targets.join(", ") || "대상 없음") : "스캔 기록 없음"}</h2>
+          <h2>${latest ? esc(scanTargets(latest)) : "스캔 기록 없음"}</h2>
         </div>
         ${latest ? `
           <dl class="kv">
@@ -217,7 +221,7 @@ function scanTable(items) {
     </tr></thead>
     <tbody>${items.map((scan) => `
       <tr class="clickable" data-open="${esc(scan.scan_id)}">
-        <td class="mono">${esc(scan.targets.join(", ") || "—")}</td>
+        <td class="mono">${esc(scanTargets(scan))}</td>
         <td class="nowrap">${esc(SCAN_STATUS_LABEL[scan.status] || scan.status)}</td>
         ${SEVERITY_ORDER.map((key) => {
           const count = scan.finding_counts?.[key] ?? 0;
@@ -232,6 +236,51 @@ function scanTable(items) {
 
 /* ---------------------------------------------------------- 스캔 실행 */
 
+/* 준비 상태 문구. 막힌 이유마다 다음 행동을 한 곳에 모음 */
+const BLOCKER_HINT = {
+  NUCLEI_MISSING: "탐지 엔진이 없으면 스캔 자체가 실행되지 않음",
+  ALLOWLIST_EMPTY: "허락 없이 남의 서버를 스캔하지 않도록, 등록한 대상만 진단하는 구조",
+  NO_TEMPLATES: "템플릿은 \"이런 취약점이 있는지 확인하는 방법\"을 적어둔 파일. "
+              + "하나도 없으면 스캔은 끝나지만 결과는 항상 0건",
+};
+
+function preflightPanel(ready) {
+  if (!ready) return "";
+  if (ready.ready) {
+    const t = ready.templates;
+    const detail = t.official + t.custom
+      ? `공식 ${t.official}개 · 직접 작성 ${t.custom}개`
+      : `nuclei 기본 저장소 사용 · ${t.nuclei_store}`;
+    return `<div class="coverage" style="border-left-color:var(--ok)">
+      <strong>스캔 준비 완료</strong> 템플릿 ${esc(detail)}
+    </div>`;
+  }
+  return `<div class="coverage" style="border-left-color:var(--brand)">
+    <strong>지금은 스캔할 수 없음</strong> 아래를 먼저 해결 필요
+    ${ready.blockers.map((b) => `
+      <div class="blocker">
+        <b>${esc(b.message)}</b>
+        <small>${esc(BLOCKER_HINT[b.code] || "")}</small>
+        <div class="cta">
+          <button class="sm" data-go="${esc(b.goto)}">${esc(b.action)}</button>
+        </div>
+      </div>`).join("")}
+  </div>`;
+}
+
+async function refreshPreflight() {
+  const host = document.getElementById("preflight");
+  if (!host) return;
+  try {
+    state.preflight = await api.scanPreflight();
+  } catch {
+    state.preflight = null;                 // 점검 실패가 스캔 화면을 막지 않음
+  }
+  host.innerHTML = preflightPanel(state.preflight);
+  const start = document.getElementById("start");
+  if (start && state.preflight) start.disabled = !state.preflight.ready;
+}
+
 function viewScan() {
   const allowlist = state.settings?.target_allowlist || [];
   const blocked = allowlist.length === 0;
@@ -244,14 +293,7 @@ function viewScan() {
          <b>스캔 시작</b> 을 누르면 됨</p>
     </div>
 
-    ${blocked ? `<div class="coverage" style="border-left-color:var(--brand)">
-      <strong>아직 스캔할 수 있는 대상이 없음</strong>
-      허락 없이 남의 서버를 스캔하지 않도록, 등록한 대상만 진단하는 구조.
-      설정에서 내 대상을 먼저 등록 필요
-      <div class="cta">
-        <button class="sm" data-go="settings">설정에서 대상 등록</button>
-      </div>
-    </div>` : ""}
+    <div id="preflight"></div>
 
     <div class="panel">
       <div class="panel-head">
@@ -260,8 +302,14 @@ function viewScan() {
       </div>
       <label class="field">
         <span>대상 주소 · 여러 개면 줄바꿈</span>
-        <textarea id="targets" placeholder="http://192.168.1.50&#10;http://target.local:8080"></textarea>
-        <small>주소 형태로 넣어도 되고 <span class="mono">192.168.1.50</span> 처럼 이름만 넣어도 됨</small>
+        <textarea id="targets" placeholder="http://192.168.1.50:8080&#10;http://localhost:7860&#10;localhost:8000-8100"></textarea>
+        <small>
+          <b>포트를 꼭 붙이세요.</b> 생략하면 80·443 만 검사해서 다른 포트에 떠 있는
+          서비스는 찾지 못함. 어느 포트인지 모르면
+          <span class="mono">localhost:8000-8100</span> 처럼 범위로 입력 가능
+          (범위가 넓으면 실행 전에 다시 확인)
+        </small>
+        <small class="mono" id="target-count"></small>
       </label>
       <div class="hintbox">
         <b>등록된 대상</b>
@@ -334,6 +382,7 @@ function viewScan() {
           <small>어떤 웹서버·CMS·플러그인을 쓰는지 확인. 보고서에 대상 정보가 함께 실림</small>
         </span>
       </div>
+      <div id="range-notice"></div>
       <div class="actions">
         <button class="primary" id="start"${blocked ? " disabled" : ""}>스캔 시작</button>
         <span id="start-note" style="color:var(--faint);font-size:12px"></span>
@@ -364,6 +413,37 @@ function viewScan() {
 
   renderModeFields();
   document.getElementById("mode").addEventListener("change", renderModeFields);
+  const targetBox = document.getElementById("targets");
+  targetBox.addEventListener("input", renderTargetCount);
+  renderTargetCount();
+  refreshPreflight();
+}
+
+/* 입력한 범위가 몇 개 대상으로 펼쳐지는지 즉시 표시.
+ * 실제 판정은 서버가 하지만, 눌러본 뒤에야 아는 것과 적으면서 아는 것은 다름 */
+const RANGE_RE = /^((?:[a-z][a-z0-9+.\-]*:\/\/)?[^/:]+):(\d{1,5})-(\d{1,5})([/?].*)?$/i;
+
+function expandedTargetCount(lines) {
+  let total = 0;
+  for (const line of lines) {
+    const match = RANGE_RE.exec(line);
+    if (!match) { total += 1; continue; }
+    const start = Number(match[2]), end = Number(match[3]);
+    total += end >= start ? end - start + 1 : 1;
+  }
+  return total;
+}
+
+function renderTargetCount() {
+  const note = document.getElementById("target-count");
+  if (!note) return;
+  const lines = splitList(document.getElementById("targets").value);
+  const total = expandedTargetCount(lines);
+  if (!lines.length) { note.textContent = ""; return; }
+  note.textContent = total > lines.length
+    ? `입력 ${lines.length}줄 → 실제 스캔 대상 ${total}개`
+    : `스캔 대상 ${total}개`;
+  note.style.color = total > 300 ? "var(--warn)" : "var(--faint)";
 }
 
 /* 선별 방식. 화면 문구와 API mode 값의 단일 출처 (docs/00 §TemplateSelection) */
@@ -476,12 +556,8 @@ function appendToken(id, value) {
 const splitList = (value) =>
   (value || "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
 
-async function startScan() {
-  const targets = splitList(document.getElementById("targets").value);
-  if (!targets.length) {
-    toast("스캔 대상 입력 필요", "err");
-    return;
-  }
+/* 화면 입력 → 요청 본문. 최초 실행과 범위 확인 후 재실행이 공유 */
+function buildScanPayload() {
   const mode = scanMode();
   const selection = { mode };
   if (mode === "explicit") {
@@ -494,8 +570,8 @@ async function startScan() {
   }
 
   const rateLimit = Number(document.getElementById("ratelimit").value);
-  const payload = {
-    targets,
+  return {
+    targets: splitList(document.getElementById("targets").value),
     template_selection: selection,
     collect_environment: document.getElementById("collect-env").checked,
     options: {
@@ -505,11 +581,60 @@ async function startScan() {
       ...(rateLimit ? { rate_limit: rateLimit } : {}),
     },
   };
+}
+
+async function startScan() {
+  const payload = buildScanPayload();
+  if (!payload.targets.length) {
+    toast("스캔 대상 입력 필요", "err");
+    return;
+  }
 
   const button = document.getElementById("start");
   button.disabled = true;
   try {
     const { scan_id } = await api.createScan(payload);
+    rangeNotice("");
+    state.scanId = scan_id;
+    attachLiveFeed(scan_id);
+  } catch (error) {
+    button.disabled = false;
+    // 포트 범위가 넓으면 서버가 되물음. 화면 안에서 확인받음 -
+    // 브라우저 기본 대화상자는 데스크톱 셸에서 뜨지 않아 조용히 취소됨
+    if (error instanceof ApiError && error.code === "LARGE_TARGET_EXPANSION") {
+      rangeNotice(`
+        <strong>포트 범위가 넓음</strong> ${esc(error.message)}.
+        <div style="margin-top:6px;color:var(--faint)">
+          닫힌 포트는 빠르게 넘어가지만, 방화벽이 응답을 버리면 포트마다 대기 시간이 쌓임.
+          범위를 좁히거나 아래 버튼으로 진행
+        </div>
+        <div class="cta">
+          <button class="primary" id="confirm-range">이대로 스캔</button>
+          <button class="sm ghost" id="cancel-range">범위 수정</button>
+        </div>`);
+      return;
+    }
+    showApiError(error);
+  }
+}
+
+/* 범위 확인 막대. 스캔 버튼 바로 위에 붙여 놓쳐지지 않게 함 */
+function rangeNotice(html) {
+  const host = document.getElementById("range-notice");
+  if (!host) return;
+  host.innerHTML = html
+    ? `<div class="coverage" style="border-left-color:var(--warn)">${html}</div>`
+    : "";
+}
+
+async function confirmRangeAndStart() {
+  rangeNotice("");
+  const button = document.getElementById("start");
+  button.disabled = true;
+  try {
+    const { scan_id } = await api.createScan({
+      ...buildScanPayload(), confirm_expanded: true,
+    });
     state.scanId = scan_id;
     attachLiveFeed(scan_id);
   } catch (error) {
@@ -532,11 +657,15 @@ function attachLiveFeed(scanId) {
   let found = 0;
 
   const PHASE_LABEL = {
+    probing_targets: "대상 응답 확인",
     collecting_environment: "환경 조사",
     selecting_templates: "템플릿 선별",
     scanning: "스캔 진행",
     finalizing: "마무리",
   };
+
+  // 하단 도크에도 같은 진행을 보냄. 다른 화면으로 옮겨도 상태가 보임
+  const dockId = tasks.begin("스캔", scanId);
 
   state.unsubscribe?.();
   state.unsubscribe = subscribeScan(scanId, {
@@ -549,10 +678,15 @@ function attachLiveFeed(scanId) {
         phase.textContent +=
           ` · ${event.templates_done ?? 0} / ${event.templates_total}`;
       }
+      tasks.update(dockId, {
+        detail: phase.textContent,
+        percent: event.percent ?? null,
+      });
     },
     finding(event) {
       found += 1;
       countLabel.textContent = `탐지 ${found}건`;
+      tasks.update(dockId, { detail: `${phase.textContent} · 탐지 ${found}건` });
       const row = document.createElement("tr");
       row.innerHTML = `
         <td>${severityTag(event.severity)}</td>
@@ -568,11 +702,15 @@ function attachLiveFeed(scanId) {
       document.getElementById("start").disabled = false;
       document.getElementById("cancel").disabled = true;
       if (event.error) {
+        tasks.fail(dockId, `${event.error.code}: ${event.error.message}`);
         toast(`${event.error.code}: ${event.error.message}`, "err");
       } else if (event.status === "completed") {
+        tasks.done(dockId, `탐지 ${found}건`);
         toast("스캔 완료");
         document.getElementById("start-note").innerHTML =
           `<button class="sm" data-open="${esc(scanId)}">결과 보기</button>`;
+      } else {
+        tasks.done(dockId, SCAN_STATUS_LABEL[event.status] || event.status);
       }
     },
   });
@@ -620,7 +758,7 @@ async function viewResults(params) {
     <div class="view-head spread">
       <div>
         <div class="eyebrow">결과 조회</div>
-        <h1>${esc(scan.targets.join(", ") || "대상 없음")}</h1>
+        <h1>${esc(scanTargets(scan))}</h1>
         <p class="mono" style="font-size:12.5px;color:var(--muted)">
           ${esc(scanId)} · ${esc(SCAN_STATUS_LABEL[scan.status] || scan.status)}
           · ${esc(fmtTime(scan.started_at || scan.created_at))}${
@@ -670,6 +808,8 @@ async function viewResults(params) {
         ${selectionBasis(scan.selection_basis)}
       </div>
     </div>
+
+    ${targetProbe(scan)}
 
     <div class="panel">
       <div class="panel-head">
@@ -1095,6 +1235,8 @@ async function render() {
 document.addEventListener("click", async (event) => {
   const t = event.target;
 
+  if (tasks.handleDockClick(t)) return;
+
   // 칩 입력. 자유 입력만 두면 무엇을 적어야 할지 알 수 없다는 피드백
   const pick = t.closest(".pick");
   if (pick) {
@@ -1112,7 +1254,13 @@ document.addEventListener("click", async (event) => {
   const deleteId = t.closest("[data-delete]")?.dataset.delete;
   if (deleteId) {
     event.stopPropagation();
-    if (!confirm("이 스캔의 탐지 결과·보고서까지 함께 삭제됨. 계속할까요?")) return;
+    const ok = await confirmDialog({
+      title: "스캔 삭제",
+      body: "이 스캔의 탐지 결과와 보고서까지 함께 삭제됨. 되돌릴 수 없음",
+      confirmLabel: "삭제",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteScan(deleteId);
       if (state.scanId === deleteId) state.scanId = null;
@@ -1129,6 +1277,12 @@ document.addEventListener("click", async (event) => {
   if (findingId) { openFinding(findingId).catch(showApiError); return; }
 
   if (t.closest("#start")) { startScan(); return; }
+  if (t.closest("#confirm-range")) { confirmRangeAndStart(); return; }
+  if (t.closest("#cancel-range")) {
+    rangeNotice("");
+    document.getElementById("targets").focus();
+    return;
+  }
 
   if (t.closest("#cancel")) {
     try {
