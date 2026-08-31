@@ -15,8 +15,7 @@ ROOT = Path(SPECPATH).resolve().parent
 datas = [
     (str(ROOT / "db" / "schema.sql"), "db"),
     (str(ROOT / "db" / "migrations"), "db/migrations"),
-    # data/ 를 통째로 넣지 않는다. guide_items*.csv 와 guide_images/ 는
-    # 저작권 대상이라 배포물에 포함할 수 없다 (절대규칙 8)
+    # data/ 를 통째로 넣지 않는다. guide_images/ 는 미채택이라 번들 대상이 아니다
     *[
         (str(ROOT / "data" / name), "data")
         for name in (
@@ -25,6 +24,8 @@ datas = [
             "guide_mappings.templates.csv",
             "component_advisories.csv",
             "settings_defaults.csv",
+            # 가이드 본문. init-db 가 자동 적재해 배포물에서 Part B 가 바로 동작
+            "guide_items_2026.csv",
         )
     ],
     (str(ROOT / "assets" / "fonts"), "assets/fonts"),

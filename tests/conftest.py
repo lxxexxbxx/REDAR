@@ -23,7 +23,9 @@ from app.repository.db import session  # noqa: E402
 
 @pytest.fixture(scope="session")
 def db_path() -> Path:
-    init_db()
+    # load_guide=False: 본문 미탑재가 정상 상태임을 검증하는 테스트가 다수 (절대규칙 3).
+    # 번들 본문 자동 적재는 test_data_csv 가 따로 검증
+    init_db(load_guide=False)
     return settings.DB_PATH
 
 

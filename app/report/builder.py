@@ -295,8 +295,12 @@ def _remediation(
 
 
 def _citation(item: dict[str, Any]) -> str | None:
-    page = item.get("page_start")
-    return f"KISA 상세가이드 p.{page}" if page else None
+    """출처는 항상 표기. 원문 인용 요건이자 대조 경로 (절대규칙 9)"""
+    start, end = item.get("page_start"), item.get("page_end")
+    if not start:
+        return None
+    pages = f"p.{start}" if not end or end == start else f"p.{start}~{end}"
+    return f"KISA 상세가이드 {pages}"
 
 
 def _patch_plan(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:

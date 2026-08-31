@@ -29,7 +29,7 @@ logs/
 #       패턴과 같은 줄에 주석을 쓰면 패턴이 깨진다.
 
 # KISA 가이드 본문/캡처/원문 PDF
-data/guide_items*.csv
+# data/guide_items*.csv 는 저장소 포함. clone 후 즉시 Part B 동작 (절대규칙 8)
 data/guide_images/
 *.pdf
 

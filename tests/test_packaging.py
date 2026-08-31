@@ -96,8 +96,8 @@ def test_spec_uses_onedir_not_onefile():
     assert "exclude_binaries=True" in text
 
 
-def test_spec_excludes_copyrighted_guide_data():
-    """가이드 본문·캡처는 저작권 대상이라 배포물에 넣지 않음 (절대규칙 8)"""
+def test_spec_bundles_data_csv_without_captures():
+    """번들 대상은 data/*.csv 개별 지정. guide_images/ 는 미채택이라 제외"""
     # 주석은 근거이므로 본문 전체가 아니라 실제 항목만 봄
     entries = [
         line.strip() for line in SPEC.read_text(encoding="utf-8").splitlines()
@@ -105,10 +105,10 @@ def test_spec_excludes_copyrighted_guide_data():
     ]
     joined = " ".join(entries)
     assert 'ROOT / "data"), "data"' not in joined     # 통째 포함 금지
-    assert "guide_items" not in joined
     assert "guide_images" not in joined
     for bundled in ("vuln_type_rules.csv", "guide_mappings.csv",
-                    "component_advisories.csv", "settings_defaults.csv"):
+                    "component_advisories.csv", "settings_defaults.csv",
+                    "guide_items_2026.csv"):
         assert bundled in joined, bundled
 
 

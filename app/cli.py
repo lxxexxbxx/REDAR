@@ -2,6 +2,7 @@
 
     python -m app.cli init-db
     python -m app.cli load-data          # data/*.csv 재적재
+    python -m app.cli import-guide <csv>  # 가이드 본문 교체
 """
 from __future__ import annotations
 
@@ -66,7 +67,8 @@ _CSV_LOADS: tuple[CsvLoad, ...] = (
 _NOTE_COLUMNS = frozenset({"note"})
 
 
-# guide_items(가이드 본문) 미적재. 저작권 대상, 사용자 임포트 (절대규칙 8)
+# 가이드 본문은 적재 로직이 달라 _CSV_LOADS 와 분리. FTS 재구축이 따라붙음
+_GUIDE_ITEMS_GLOB = "guide_items*.csv"
 
 
 def _upsert_csv(conn: sqlite3.Connection, path: Path, load: CsvLoad) -> int:
@@ -104,7 +106,33 @@ def _upsert_csv(conn: sqlite3.Connection, path: Path, load: CsvLoad) -> int:
     return len(rows)
 
 
-def load_data(conn: sqlite3.Connection, data_dir: Path | None = None) -> dict[str, int]:
+def _load_guide_body(conn: sqlite3.Connection, source: Path) -> int:
+    """번들 가이드 본문 적재. 비어 있을 때만. 적재 행 수 반환
+
+    파일 부재는 오류가 아님. 본문 없이도 보고서 Part A 는 생성됨 (절대규칙 3).
+    0행일 때만 채우는 이유: 사용자가 import-guide 로 넣은 판을 재적재가 되돌리면 안 됨.
+    갱신은 import-guide 로 명시 실행
+    """
+    from app.services import guide_importer
+
+    if conn.execute("SELECT COUNT(*) FROM guide_items").fetchone()[0]:
+        return 0
+    files = sorted(source.glob(_GUIDE_ITEMS_GLOB))
+    if not files:
+        return 0
+    latest = files[-1]                        # 파일명에 판 연도. 최신 판 우선
+    result = guide_importer.import_files(conn, latest)
+    print(f"  {latest.name} -> guide_items: {result['item_count']} rows")
+    for message in result["errors"]:
+        print(f"  [경고] {message}")
+    return result["item_count"]
+
+
+def load_data(
+    conn: sqlite3.Connection,
+    data_dir: Path | None = None,
+    load_guide: bool = True,
+) -> dict[str, int]:
     """번들 CSV 전부 적재. 재실행 안전. 초기 데이터의 유일한 입력 경로"""
     source = data_dir or settings.DATA_DIR
     loaded: dict[str, int] = {}
@@ -112,6 +140,8 @@ def load_data(conn: sqlite3.Connection, data_dir: Path | None = None) -> dict[st
         n = _upsert_csv(conn, source / load.filename, load)
         loaded[load.filename] = n
         print(f"  {load.filename} -> {load.table}: {n} rows")
+    if load_guide:
+        loaded[_GUIDE_ITEMS_GLOB] = _load_guide_body(conn, source)
     conn.commit()
     return loaded
 
@@ -130,7 +160,11 @@ def _apply_migrations(conn: sqlite3.Connection) -> list[int]:
     return done
 
 
-def init_db(db_path: Path | None = None, data_dir: Path | None = None) -> None:
+def init_db(
+    db_path: Path | None = None,
+    data_dir: Path | None = None,
+    load_guide: bool = True,
+) -> None:
     """스키마 적용 -> 미적용 마이그레이션 -> 번들 CSV 적재. 재실행 안전"""
     target = db_path or settings.DB_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -138,37 +172,41 @@ def init_db(db_path: Path | None = None, data_dir: Path | None = None) -> None:
         conn.executescript(settings.SCHEMA_PATH.read_text(encoding="utf-8"))
         for version in _apply_migrations(conn):
             print(f"  migration {version:03d} applied")
-        load_data(conn, data_dir)
+        load_data(conn, data_dir, load_guide)
         _print_totals(conn)
     print(f"init-db done: {target}")
 
 
-def reload_data(db_path: Path | None = None, data_dir: Path | None = None) -> None:
+def reload_data(
+    db_path: Path | None = None,
+    data_dir: Path | None = None,
+    load_guide: bool = True,
+) -> None:
     """기존 DB 에 CSV 재적재. CSV 를 고친 뒤 DB 를 다시 만들지 않고 반영하는 경로"""
     target = db_path or settings.DB_PATH
     if not target.is_file():
         raise FileNotFoundError(f"DB 없음: {target}. init-db 를 먼저 실행")
     with session(target) as conn:
-        load_data(conn, data_dir)
+        load_data(conn, data_dir, load_guide)
         _print_totals(conn)
     print(f"load-data done: {target}")
 
 
 def _print_totals(conn: sqlite3.Connection) -> None:
     for table in ("settings", "vuln_type_rules", "guide_mappings",
-                  "component_advisories"):
+                  "component_advisories", "guide_items"):
         total = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         print(f"  {table}: {total} rows total")
 
 
 def import_guide(
     items_csv: Path,
-    images_csv: Path | None = None,
     db_path: Path | None = None,
 ) -> dict[str, int]:
-    """가이드 본문 CSV 임포트. 저작권 대상이라 저장소에 없고 사용자가 직접 넣음
+    """가이드 본문 CSV 임포트. 기존 행을 통째로 교체
 
-    본문 없이도 보고서 Part A 는 생성됨 (절대규칙 3). 이 명령은 Part B 를 켜는 경로.
+    번들 본문(data/guide_items*.csv)은 init-db 가 자동 적재하므로 이 명령은 교체용.
+    본문 없이도 보고서 Part A 는 생성됨 (절대규칙 3).
     적재 로직은 services/guide_importer.py 하나만 사용 - API 와 같은 경로
     """
     from app.services import guide_importer
@@ -178,9 +216,8 @@ def import_guide(
         raise FileNotFoundError(f"DB 없음: {target}. init-db 를 먼저 실행")
 
     with session(target) as conn:
-        result = guide_importer.import_files(conn, items_csv, images_csv)
-    for key in ("item_count", "image_count"):
-        print(f"  {key}: {result[key]}")
+        result = guide_importer.import_files(conn, items_csv)
+    print(f"  item_count: {result['item_count']}")
     for message in result["errors"]:
         print(f"  [경고] {message}")
     print(f"  guide_version: {result['version']}")
@@ -241,17 +278,22 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     initializer = sub.add_parser("init-db", help="스키마 생성 + 번들 CSV 적재")
     initializer.add_argument("--data-dir", type=Path, help="data 디렉터리 경로")
+    initializer.add_argument(
+        "--no-guide", action="store_true", help="번들 가이드 본문 적재 생략"
+    )
 
     loader = sub.add_parser(
         "load-data", help="기존 DB 에 data/*.csv 재적재 (CSV 수정 후 반영)"
     )
     loader.add_argument("--data-dir", type=Path, help="data 디렉터리 경로")
+    loader.add_argument(
+        "--no-guide", action="store_true", help="번들 가이드 본문 적재 생략"
+    )
 
     guide = sub.add_parser(
-        "import-guide", help="가이드 본문 CSV 적재 (저작권 대상. 사용자가 직접 준비)"
+        "import-guide", help="가이드 본문 CSV 교체 (다른 판으로 갈아끼울 때)"
     )
     guide.add_argument("items", type=Path, help="guide_items CSV")
-    guide.add_argument("--images", type=Path, help="guide_item_images CSV")
 
     importer = sub.add_parser(
         "import-scan", help="외부에서 실행한 nuclei JSONL 을 스캔으로 적재"
@@ -266,11 +308,11 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command == "init-db":
-        init_db(data_dir=args.data_dir)
+        init_db(data_dir=args.data_dir, load_guide=not args.no_guide)
     elif args.command == "load-data":
-        reload_data(data_dir=args.data_dir)
+        reload_data(data_dir=args.data_dir, load_guide=not args.no_guide)
     elif args.command == "import-guide":
-        import_guide(args.items, args.images)
+        import_guide(args.items)
     elif args.command == "import-scan":
         import_scan(args.jsonl, args.target, args.nuclei_version)
 

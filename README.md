@@ -30,11 +30,11 @@ Nuclei 기반 웹 취약점 **진단** 도구. 스캔 실행, 결과 정리, 보
 **PDF 는 서버가 생성하지 않음.** 보고서 HTML 을 브라우저·앱에서 인쇄(Ctrl/Cmd+P)한 뒤
 "PDF 로 저장" 선택. HTML 이 폰트를 포함한 자체 완결형 파일이라 그대로 공유 가능
 
-가이드 본문(점검항목 382개)은 저작권상 저장소에 미포함. 파일 확보 후 임포트
+가이드 본문(점검항목 382개)은 저장소 포함. `init-db` 가 자동 적재하므로 별도 작업 없음.
+다른 판으로 교체할 때만 아래를 실행
 
 ```bash
-python -m app.cli import-guide data/guide_items_2026.csv \
-                   --images data/guide_items_2026_images.csv
+python -m app.cli import-guide data/guide_items_2026.csv
 ```
 
 ---
@@ -163,11 +163,12 @@ export REDAR_NUCLEI=/path/to/nuclei      # Windows: set REDAR_NUCLEI=C:\tools\nu
 ### 가이드 본문 임포트 (선택)
 
 ```bash
-python -m app.cli import-guide data/guide_items_2026.csv \
-                   --images data/guide_items_2026_images.csv
+python -m app.cli import-guide data/guide_items_2026.csv
 ```
 
-미탑재 상태에서도 보고서 Part A 는 정상 생성. Part B 만 안내 문구로 대체
+번들 본문은 `init-db` 가 이미 넣는다. 위 명령은 다른 판으로 갈아끼울 때만 쓴다.
+`init-db --no-guide` 로 비운 상태도 정상 동작이다 — Part A 는 그대로 생성되고
+Part B 만 안내 문구로 대체된다
 
 ---
 
@@ -303,7 +304,7 @@ localhost
 | 오프라인 모드 | 활성 (외부 통신 4곳 전부 차단) |
 | 스캔 허용 대상 | **비어 있음 = 전부 차단** |
 | LLM | 비활성 |
-| 가이드 본문 | 미탑재 (정상 상태) |
+| 가이드 본문 | 적재됨 (382항목). `--no-guide` 로 생략 가능 |
 | 매핑 테이블 | 적재됨 (454행) |
 
 ---
@@ -415,7 +416,7 @@ app/
 ├─ config/         설정 · 심각도 환산표
 └─ cli.py          init-db · import-scan
 frontend/          GUI (순수 HTML/CSS/JS, 빌드 도구 없음)
-db/schema.sql      19 테이블 / 5 뷰
+db/schema.sql      18 테이블 / 5 뷰
 data/*.csv         번들 매핑 데이터
 assets/fonts/      한글 폰트 (SIL OFL)
 tests/             129개
@@ -439,14 +440,14 @@ nuclei 실행 테스트는 실제 바이너리 대신 `tests/fixtures/nuclei_sam
 
 | 파일 | 소유 | 저장소 | 규모 |
 |---|---|---|---|
-| `db/schema.sql` | 우리 | 포함 | 19 테이블 / 5 뷰 |
+| `db/schema.sql` | 우리 | 포함 | 18 테이블 / 5 뷰 |
 | `data/vuln_type_rules.csv` | 우리 산출물 | 포함 | 129행 |
 | `data/guide_mappings.csv` | 우리 산출물 | 포함 | 135행 |
 | `data/guide_mappings.templates.csv` | 우리 산출물 | 포함 | 319행 |
 | `data/component_advisories.csv` | 우리 산출물 | 포함 | 951행 |
 | `assets/fonts/*.woff2` | SIL OFL 1.1 | 포함 | 나눔고딕 400/700 + D2Coding. 860KB |
-| KISA 가이드 본문 (382항목) | KISA | **미포함** | 저작권. 사용자 임포트 |
-| KISA 가이드 캡처 (370장) | KISA | **미포함** | 저작권 |
+| KISA 가이드 본문 (382항목) | KISA | **포함** | 프로젝트 내부 참조. 인용마다 출처 페이지 표기 |
+| ~~KISA 가이드 캡처~~ | KISA | **미사용** | 설계상 미채택. 스키마·코드 없음 |
 | nuclei 공식 템플릿 | ProjectDiscovery | **미포함** | 용량 |
 | nuclei 바이너리 | ProjectDiscovery | **미포함** | 플랫폼별 |
 

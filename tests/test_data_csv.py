@@ -9,6 +9,7 @@ import importlib.util
 import re
 import sqlite3
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -44,9 +45,9 @@ def _read(name: str) -> list[dict[str, str]]:
         return list(csv.DictReader(fh))
 
 
-def _fresh_db(tmp_path):
+def _fresh_db(tmp_path, load_guide=False):
     db = tmp_path / "redar.db"
-    init_db(db)
+    init_db(db, load_guide=load_guide)
     return db
 
 
@@ -176,6 +177,7 @@ def test_in_memory_schema_load_matches_file_db(tmp_path):
 
 # ────────────────────────────────────────────── 가이드 임포트 (절대규칙 3·8)
 
+# case_text 열은 스키마에 없음. CSV 에 남아 있어도 무시되어야 함
 _GUIDE_ITEMS_HEADER = (
     "item_code,item_code_raw,item_name,category,section,severity_guide,"
     "check_content,check_purpose,security_threat,reference_note,target,"
@@ -190,30 +192,22 @@ def _write_guide(tmp_path, codes=("WA-01", "WEB-25"), version="2026"):
     for i, code in enumerate(codes, start=1):
         lines.append(
             f"{code},{code},항목 {code},웹 서비스,WEB > 1,상,"
-            f"점검 내용 {code},목적,위협,참고,대상,양호,취약,조치,영향,상세,"
+            f"점검 내용 {code},목적,위협,참고,대상,양호,취약,조치 {code},영향,상세,"
             f"사례 본문 {code},출처,{i},{i},{version}"
         )
     items.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-    images = tmp_path / "guide_images_test.csv"
-    images.write_text(
-        "item_code,file_path,page,caption,sort_order\n"
-        + "".join(f"{c},/abs/{c}_01.png,{i},캡션,1\n" for i, c in enumerate(codes, 1)),
-        encoding="utf-8",
-    )
-    return items, images
+    return items
 
 
-def test_import_guide_fills_items_images_and_fts(tmp_path):
+def test_import_guide_fills_items_and_fts(tmp_path):
     from app.cli import import_guide
 
     db = _fresh_db(tmp_path)
-    items, images = _write_guide(tmp_path)
-    result = import_guide(items, images, db)
+    result = import_guide(_write_guide(tmp_path), db)
 
     # 반환 형식은 docs/00 §6 의 POST /guide/import 응답과 동일
     assert result["imported"] is True
-    assert (result["item_count"], result["image_count"]) == (2, 2)
+    assert result["item_count"] == 2
     assert result["errors"] == []
     with session(db) as conn:
         status = __import__(
@@ -224,23 +218,38 @@ def test_import_guide_fills_items_images_and_fts(tmp_path):
         assert status["version"] == "2026"
         # FTS 는 트리거가 없어 임포터가 채움. 누락 시 조용히 0건
         hit = conn.execute(
-            "SELECT item_code FROM guide_items_fts WHERE guide_items_fts MATCH '사례'"
+            "SELECT item_code FROM guide_items_fts WHERE guide_items_fts MATCH '조치'"
         ).fetchall()
         assert len(hit) == 2
 
 
-def test_import_guide_is_idempotent(tmp_path):
-    """재임포트가 이미지를 두 배로 늘리면 안 됨. guide_item_images 에 UNIQUE 가 없다"""
+def test_guide_items_has_no_case_text_column(tmp_path):
+    """case_text·guide_item_images 는 애초에 생성하지 않음. CSV 열이 남아도 무시"""
     from app.cli import import_guide
 
     db = _fresh_db(tmp_path)
-    items, images = _write_guide(tmp_path)
-    import_guide(items, images, db)
-    import_guide(items, images, db)
+    import_guide(_write_guide(tmp_path), db)
+    with session(db) as conn:
+        columns = {c["name"] for c in conn.execute("PRAGMA table_info(guide_items)")}
+        assert "case_text" not in columns
+        tables = {
+            r["name"]
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        assert "guide_item_images" not in tables
+
+
+def test_import_guide_is_idempotent(tmp_path):
+    """재임포트가 행을 두 배로 늘리면 안 됨. replace_items 가 전체 교체"""
+    from app.cli import import_guide
+
+    db = _fresh_db(tmp_path)
+    items = _write_guide(tmp_path)
+    import_guide(items, db)
+    import_guide(items, db)
 
     with session(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM guide_items").fetchone()[0] == 2
-        assert conn.execute("SELECT COUNT(*) FROM guide_item_images").fetchone()[0] == 2
         assert conn.execute("SELECT COUNT(*) FROM guide_items_fts").fetchone()[0] == 2
 
 
@@ -248,8 +257,8 @@ def test_import_guide_sets_settings_version(tmp_path):
     from app.cli import import_guide
 
     db = _fresh_db(tmp_path)
-    items, _ = _write_guide(tmp_path, version="2027")
-    import_guide(items, None, db)
+    items = _write_guide(tmp_path, version="2027")
+    import_guide(items, db)
     with session(db) as conn:
         assert settings_repo.get_all(conn)["guide_version"] == "2027"
 
@@ -257,9 +266,9 @@ def test_import_guide_sets_settings_version(tmp_path):
 def test_import_guide_requires_existing_db(tmp_path):
     from app.cli import import_guide
 
-    items, _ = _write_guide(tmp_path)
+    items = _write_guide(tmp_path)
     with pytest.raises(FileNotFoundError):
-        import_guide(items, None, tmp_path / "nope.db")
+        import_guide(items, tmp_path / "nope.db")
 
 
 def test_part_a_works_without_guide(tmp_path):
@@ -276,12 +285,42 @@ def test_part_a_works_without_guide(tmp_path):
     assert _notice_tail() in notice
 
 
-def test_guide_body_is_never_committed():
-    """가이드 본문·이미지는 저작권 대상. 저장소에 들어가면 안 된다 (절대규칙 8)"""
+def test_guide_body_is_bundled():
+    """본문 CSV 는 저장소 포함. clone 후 즉시 Part B 동작 (절대규칙 8)"""
     import subprocess
 
     tracked = subprocess.run(
         ["git", "ls-files", "data/"], capture_output=True, text=True, cwd=ROOT
     ).stdout.split()
-    leaked = [f for f in tracked if "guide_items" in f or "guide_images" in f]
-    assert not leaked, f"저작권 데이터 추적됨: {leaked}"
+    assert [f for f in tracked if "guide_items" in f]
+    # 캡처는 미채택. 21 MB 를 저장소에 넣을 이유가 없음
+    assert not [f for f in tracked if "guide_images" in f]
+
+
+def test_init_db_loads_bundled_guide_body():
+    """번들 본문이 자동 적재되어야 함. 수동 import-guide 없이 Part B 성립"""
+    import tempfile
+
+    from app.repository import guide as guide_repo
+
+    db = Path(tempfile.mkdtemp(prefix="redar-guide-")) / "redar.db"
+    init_db(db)
+    with session(db) as conn:
+        status = guide_repo.status(conn)
+        assert status["imported"] is True
+        assert status["item_count"] == 382
+        # FTS 는 트리거가 없어 임포터가 채움. 누락 시 검색이 조용히 0건
+        fts = conn.execute("SELECT COUNT(*) FROM guide_items_fts").fetchone()[0]
+        assert fts == status["item_count"]
+
+
+def test_reload_keeps_user_imported_guide(tmp_path):
+    """사용자가 넣은 판을 번들 자동 적재가 되돌리면 안 됨. 0행일 때만 채우는 이유"""
+    from app.cli import import_guide
+
+    db = _fresh_db(tmp_path)
+    import_guide(_write_guide(tmp_path, version="2099"), db)
+    init_db(db)
+
+    with session(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM guide_items").fetchone()[0] == 2
