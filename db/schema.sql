@@ -51,6 +51,11 @@ CREATE TABLE IF NOT EXISTS scans (
     selection_detail    TEXT,                        -- JSON: template_ids / tags / severity
     selection_basis     TEXT,                        -- JSON: environment_driven 선별 근거
 
+    -- 사용자 입력 원문 JSON 배열. 포트 범위('localhost:33-4444')는 개별 대상으로
+    -- 전개해 실행하므로 scan_targets 에는 전개 결과만 남음.
+    -- 보고서 개요가 '무엇을 스캔하려 했는지' 를 원문으로 표기 (절대규칙 11). 마이그레이션 003
+    target_input        TEXT,
+
     -- 실행 옵션
     collect_environment INTEGER NOT NULL DEFAULT 1,  -- boolean
     opt_threads         INTEGER NOT NULL DEFAULT 20,
@@ -86,6 +91,10 @@ CREATE TABLE IF NOT EXISTS scan_targets (
     scheme          TEXT,
     host            TEXT NOT NULL,
     port            INTEGER,
+    -- 포트 응답 여부. NULL = 확인 안 함, 1 = 응답, 0 = 무응답.
+    -- 없으면 '401개 요청 중 3개만 실제 확인' 을 보고서가 밝힐 수 없어 점검 범위가
+    -- 과장됨 (절대규칙 10). 마이그레이션 004
+    reachable       INTEGER,
     UNIQUE (scan_id, raw)
 );
 
@@ -607,8 +616,12 @@ SELECT
 -- 8. 초기값
 -- ============================================================
 
+-- 이 파일이 이미 반영한 마이그레이션. 신규 설치는 재실행 불필요.
+-- 기존 DB 는 장부에 없으므로 db/migrations/ 가 그대로 적용함 (파일 삭제 금지)
 INSERT OR IGNORE INTO schema_version (version) VALUES (1);
 INSERT OR IGNORE INTO schema_version (version) VALUES (2);
+INSERT OR IGNORE INTO schema_version (version) VALUES (3);   -- scans.target_input
+INSERT OR IGNORE INTO schema_version (version) VALUES (4);   -- scan_targets.reachable
 
 -- settings 기본값은 data/settings_defaults.csv 가 유일한 출처다.
 -- 초기 데이터를 SQL 에 두면 CSV 와 값이 갈라지고 재적재 경로가 두 개가 된다.

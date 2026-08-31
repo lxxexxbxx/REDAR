@@ -241,8 +241,22 @@ def test_tauri_resolves_backend_from_resource_dir():
     assert ".sidecar(" not in text
 
 
+def _can_symlink(directory) -> bool:
+    """심볼릭 링크 생성 가능 여부. Windows 는 개발자 모드·관리자 권한 필요"""
+    probe = directory / "symlink-probe"
+    try:
+        probe.symlink_to(directory, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        return False
+    probe.unlink()
+    return True
+
+
 def test_stage_backend_dereferences_symlinks(tmp_path, monkeypatch):
     """Python.framework 의 심볼릭 링크에서 Tauri 리소스 복사가 실패"""
+    if not _can_symlink(tmp_path):
+        # macOS 번들 시나리오. 링크를 만들 수 없으면 재현 자체가 불가
+        pytest.skip("심볼릭 링크 생성 권한 없음 (Windows 개발자 모드 필요)")
     build = _load_build()
     source = tmp_path / "dist" / "redar-backend"
     (source / "_internal" / "Python.framework").mkdir(parents=True)

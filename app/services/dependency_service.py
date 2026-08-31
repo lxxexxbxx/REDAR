@@ -38,6 +38,9 @@ logger = logging.getLogger(__name__)
 
 WINDOWS = sys.platform == "win32"
 EXE = ".exe" if WINDOWS else ""
+# Windows 는 실행 권한 비트가 없고 확장자가 실행 가능 여부를 결정.
+# os.access(X_OK) 는 아무 파일에나 True 라 텍스트 파일 고정을 못 걸러냄
+_WINDOWS_EXEC_SUFFIXES = frozenset({".exe", ".bat", ".cmd", ".com"})
 
 # 설치가 쓰는 외부 주소. 통신 지점 4번의 실제 대상
 GO_INDEX_URL = "https://go.dev/dl/?mode=json"
@@ -195,6 +198,13 @@ def _blocked_reason(offline: bool, enabled: bool) -> str | None:
 
 # ────────────────────────────────────────────── 경로 지정 · 반입
 
+def _is_executable(target: Path) -> bool:
+    """실행 가능 여부. 플랫폼별 판정 기준이 다름"""
+    if WINDOWS:
+        return target.suffix.lower() in _WINDOWS_EXEC_SUFFIXES
+    return os.access(target, os.X_OK)
+
+
 def set_path(conn: sqlite3.Connection, key: str, path: str | None) -> dict[str, Any]:
     """특정 버전을 쓰도록 경로를 고정. 통신 없음"""
     dependency = get(key)
@@ -205,7 +215,7 @@ def set_path(conn: sqlite3.Connection, key: str, path: str | None) -> dict[str, 
                 "INVALID_REQUEST", f"파일 없음: {target}",
                 details=[{"field": "path", "reason": str(target)}],
             )
-        if not os.access(target, os.X_OK):
+        if not _is_executable(target):
             raise ScanError(
                 "INVALID_REQUEST", f"실행 권한 없음: {target}",
                 details=[{"field": "path", "reason": "not executable"}],

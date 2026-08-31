@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import os
 import stat
+from functools import lru_cache
+from pathlib import Path
 
 import pytest
 
+from app.adapters.nuclei import version_check
 from app.config import settings
 from app.repository import settings_repo
 from app.services import dependency_service
@@ -27,15 +30,50 @@ def home(tmp_path, monkeypatch):
     settings.set_configured_nuclei(None)
 
 
+WINDOWS = dependency_service.WINDOWS
+# Windows 는 nuclei.exe. 고정하면 반입 경로 단언이 헛돎
+NUCLEI_FILE = dependency_service.get("nuclei").filename
+
+
 @pytest.fixture
 def fake_binary(tmp_path):
-    """-version 에 응답하는 가짜 실행 파일"""
+    """-version 에 응답하는 가짜 실행 파일. 확장자·형식은 플랫폼에 맞춤
+
+    Windows 는 실행 권한 비트가 없고 확장자로 실행 가능 여부를 판정하므로
+    sh 스크립트를 그대로 두면 경로 고정 자체가 거부됨
+    """
+    if WINDOWS:
+        path = tmp_path / "fake-nuclei.cmd"
+        path.write_text("@echo Nuclei Engine Version: v9.9.9\r\n", encoding="utf-8")
+        return path
     path = tmp_path / "fake-nuclei"
     path.write_text(
         "#!/bin/sh\necho 'Nuclei Engine Version: v9.9.9'\n", encoding="utf-8"
     )
     path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     return path
+
+
+@pytest.fixture
+def probe_version(monkeypatch):
+    """반입 경로의 버전 탐지 주입. Windows 에서만 동작
+
+    반입은 payload 를 nuclei.exe 로 저장하는데 가짜는 실제 PE 가 아니라 실행 불가.
+    OS 실행만 대체하고 반입·롤백·설정 저장 로직은 그대로 검증.
+    POSIX 는 sh 스크립트가 실제로 돌기 때문에 손대지 않음
+    """
+    if not WINDOWS:
+        return
+
+    @lru_cache(maxsize=1)
+    def fake() -> str | None:
+        exe = settings.nuclei_bin()
+        if not exe or not Path(exe).is_file():
+            return None
+        # 실행 불가 파일 롤백 테스트가 살아 있어야 하므로 내용을 확인
+        return "9.9.9" if b"9.9.9" in Path(exe).read_bytes() else None
+
+    monkeypatch.setattr(version_check, "version", fake)
 
 
 @pytest.fixture
@@ -116,7 +154,8 @@ def test_unknown_dependency_rejected(conn):
 
 # ─────────────────────────────── 반입 (통신 없음. 폐쇄망 경로)
 
-def test_import_works_offline(conn, home, fake_binary, clean_settings):
+def test_import_works_offline(conn, home, fake_binary, probe_version,
+                              clean_settings):
     """오프라인에서도 반입은 동작해야 한다. 폐쇄망의 유일한 경로"""
     settings_repo.put_many(conn, {"offline_mode": True})
     result = dependency_service.import_binary(
@@ -125,21 +164,23 @@ def test_import_works_offline(conn, home, fake_binary, clean_settings):
     entry = next(i for i in result["items"] if i["key"] == "nuclei")
     assert entry["available"] is True
     assert entry["source"] == "configured"
-    assert (home / "bin" / "nuclei").is_file()
+    assert (home / "bin" / NUCLEI_FILE).is_file()
     assert len(result["sha256"]) == 64
 
 
-def test_imported_binary_is_executable(conn, home, fake_binary, clean_settings):
+def test_imported_binary_is_executable(conn, home, fake_binary, probe_version,
+                                       clean_settings):
     dependency_service.import_binary(conn, "nuclei", fake_binary.read_bytes())
-    target = home / "bin" / "nuclei"
-    assert os.access(target, os.X_OK)
+    target = home / "bin" / NUCLEI_FILE
+    # 판정 기준이 플랫폼마다 달라 서비스와 같은 술어를 씀 (Windows 는 확장자)
+    assert dependency_service._is_executable(target)
 
 
 def test_unrunnable_import_is_rejected_and_rolled_back(conn, home, clean_settings):
     """실행되지 않는 파일을 등록한 채로 두면 스캔이 조용히 실패"""
     with pytest.raises(ScanError, match="실행 불가"):
         dependency_service.import_binary(conn, "nuclei", b"not-a-binary")
-    assert not (home / "bin" / "nuclei").exists()
+    assert not (home / "bin" / NUCLEI_FILE).exists()
     assert not settings_repo.get_all(conn).get("dep_nuclei_path")
 
 
@@ -210,7 +251,8 @@ def test_status_includes_manual_guidance(conn, home, clean_settings):
 
 # ─────────────────────────────── API
 
-def test_dependency_endpoints(db_path, monkeypatch, home, fake_binary):
+def test_dependency_endpoints(db_path, monkeypatch, home, fake_binary,
+                              probe_version):
     from fastapi.testclient import TestClient
 
     from app.main import app

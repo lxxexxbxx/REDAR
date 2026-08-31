@@ -28,30 +28,34 @@ def test_schema_object_counts(conn):
     ).fetchone()[0] == 5
 
 
-def test_migration_numbers_exceed_schema_baseline(conn):
-    """schema.sql 말미가 기록해둔 버전 이하의 마이그레이션은
-    '적용 완료' 로 간주되어 조용히 건너뛰어진다. 실패해도 오류가 없어 발견이 늦다"""
-    baseline = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
-    files = sorted(settings.MIGRATIONS_DIR.glob("*.sql"))
-    skipped = [
-        f.name for f in files if int(f.name.split("_", 1)[0]) <= _schema_baseline()
-    ]
-    assert not skipped, f"schema.sql 이 이미 적용 표시한 번호: {skipped}"
-    # 실제로 전부 적용되었는지도 확인
-    assert baseline >= max(
-        (int(f.name.split("_", 1)[0]) for f in files), default=0
-    )
+def test_every_migration_is_reflected_in_schema(conn):
+    """마이그레이션을 추가하면 schema.sql 도 함께 고친다 (docs/02 §5.6).
+
+    스키마 파일이 신규 설치의 유일한 출처. 반영을 빠뜨리면 신규 DB 가 마이그레이션에
+    의존하고 스키마 파일만 봐서는 테이블 실제 모양을 알 수 없음.
+    번호가 스탬프되어 있어야 신규 DB 가 중복 적용을 건너뜀
+    """
+    files = {
+        int(f.name.split("_", 1)[0]): f.name
+        for f in settings.MIGRATIONS_DIR.glob("*.sql")
+    }
+    assert files, "마이그레이션 파일 없음. 기존 DB 가 컬럼을 받을 경로가 사라짐"
+
+    missing = sorted(name for v, name in files.items() if v not in _schema_stamps())
+    assert not missing, f"schema.sql 에 미반영: {missing}"
+
+    applied = {r["version"] for r in conn.execute("SELECT version FROM schema_version")}
+    assert set(files) <= applied
 
 
-def _schema_baseline() -> int:
-    """schema.sql 이 스스로 적용됨으로 기록하는 최대 버전"""
+def _schema_stamps() -> set[int]:
+    """schema.sql 이 스스로 반영 완료로 기록하는 버전 전체"""
     text = settings.SCHEMA_PATH.read_text(encoding="utf-8")
-    versions = [
+    return {
         int(line.rsplit("(", 1)[1].split(")")[0])
         for line in text.splitlines()
         if "INTO schema_version" in line and "VALUES" in line
-    ]
-    return max(versions, default=0)
+    }
 
 
 def test_migrations_applied(conn):

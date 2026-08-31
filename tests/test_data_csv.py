@@ -239,6 +239,70 @@ def test_guide_items_has_no_case_text_column(tmp_path):
         assert "guide_item_images" not in tables
 
 
+def _probe_migrations(tmp_path, monkeypatch, version="002"):
+    """합성 마이그레이션 1개. 002 = schema.sql 말미가 기록하는 번호"""
+    migrations = tmp_path / f"migrations{version}"
+    migrations.mkdir()
+    (migrations / f"{version}_probe.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS migration_probe (ok INTEGER);", encoding="utf-8"
+    )
+    monkeypatch.setattr(settings, "MIGRATIONS_DIR", migrations)
+
+
+def _table_names(conn):
+    return {
+        r["name"]
+        for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+
+
+def test_migration_applies_to_existing_db(tmp_path, monkeypatch):
+    """장부는 schema.sql 적용 **전에** 읽어야 함.
+
+    schema.sql 말미가 반영 완료 버전을 기록하므로, 뒤에 읽으면 미적용 마이그레이션이
+    '적용 완료'로 보여 오류 없이 건너뜀
+    """
+    _probe_migrations(tmp_path, monkeypatch)
+    db = _fresh_db(tmp_path)
+    with session(db) as conn:                       # 002 이전 DB 로 되돌림
+        conn.execute("DELETE FROM schema_version WHERE version = 2")
+        conn.commit()
+
+    init_db(db)
+
+    with session(db) as conn:
+        assert "migration_probe" in _table_names(conn)
+        ledger = {
+            r["version"] for r in conn.execute("SELECT version FROM schema_version")
+        }
+        assert 2 in ledger
+
+
+def test_new_db_skips_migration_stamped_by_schema(tmp_path, monkeypatch):
+    """schema.sql 이 기록한 번호는 이미 반영됨. 신규 DB 에서 다시 돌리면 안 됨"""
+    _probe_migrations(tmp_path, monkeypatch, "002")
+    init_db(tmp_path / "stamped.db", load_guide=False)
+
+    with session(tmp_path / "stamped.db") as conn:
+        assert "migration_probe" not in _table_names(conn)
+
+
+def test_new_db_applies_migration_missing_from_schema(tmp_path, monkeypatch):
+    """schema.sql 이 기록하지 않은 번호는 스키마에 빠진 변경. 신규 DB 도 적용해야 함.
+
+    건너뛰면 clone 직후 DB 에 최신 컬럼이 없고, 증상은 런타임에서야 드러남
+    """
+    _probe_migrations(tmp_path, monkeypatch, "009")
+    init_db(tmp_path / "unstamped.db", load_guide=False)
+
+    with session(tmp_path / "unstamped.db") as conn:
+        assert "migration_probe" in _table_names(conn)
+        ledger = {
+            r["version"] for r in conn.execute("SELECT version FROM schema_version")
+        }
+        assert 9 in ledger
+
+
 def test_import_guide_is_idempotent(tmp_path):
     """재임포트가 행을 두 배로 늘리면 안 됨. replace_items 가 전체 교체"""
     from app.cli import import_guide

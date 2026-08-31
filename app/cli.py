@@ -146,15 +146,29 @@ def load_data(
     return loaded
 
 
-def _apply_migrations(conn: sqlite3.Connection) -> list[int]:
-    applied = {r["version"] for r in conn.execute("SELECT version FROM schema_version")}
+def _ledger(conn: sqlite3.Connection) -> set[int] | None:
+    """적용된 마이그레이션 버전. schema_version 부재(신규 DB) 면 None.
+
+    기존 DB 는 schema.sql 적용 **전에** 읽어야 함. schema.sql 끝에서 반영 완료 버전을
+    기록하므로 뒤에 읽으면 미적용 마이그레이션을 통째로 건너뜀
+    """
+    try:
+        return {r["version"] for r in conn.execute("SELECT version FROM schema_version")}
+    except sqlite3.OperationalError:
+        return None                      # schema_version 부재 = 최초 생성
+
+
+def _apply_migrations(conn: sqlite3.Connection, applied: set[int]) -> list[int]:
     done = []
     for f in sorted(settings.MIGRATIONS_DIR.glob("*.sql")):
         version = int(f.name.split("_", 1)[0])
         if version in applied:
             continue
         conn.executescript(f.read_text(encoding="utf-8"))
-        conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+        # OR IGNORE: schema.sql 이 같은 커넥션에서 이미 이 버전을 기록해 둠
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version) VALUES (?)", (version,)
+        )
         conn.commit()
         done.append(version)
     return done
@@ -169,8 +183,13 @@ def init_db(
     target = db_path or settings.DB_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     with session(target) as conn:
+        applied = _ledger(conn)
         conn.executescript(settings.SCHEMA_PATH.read_text(encoding="utf-8"))
-        for version in _apply_migrations(conn):
+        if applied is None:
+            # 신규 DB. schema.sql 이 기록한 번호 = 이미 반영된 변경.
+            # 미기록 마이그레이션은 schema.sql 에 빠진 것이므로 신규 DB 도 적용 필요
+            applied = _ledger(conn) or set()
+        for version in _apply_migrations(conn, applied):
             print(f"  migration {version:03d} applied")
         load_data(conn, data_dir, load_guide)
         _print_totals(conn)
