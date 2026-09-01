@@ -148,11 +148,18 @@ def _tag_for(product: str) -> str | None:
 def select_templates(
     conn: sqlite3.Connection, results: list[EnvironmentResult]
 ) -> Selection:
-    """탐지된 구성요소·스택에 연결된 템플릿만 선택
+    """환경 조사 결과를 기록. **템플릿을 걸러내지 않는다**
 
-    분모(total_available)는 로컬 템플릿 인벤토리. M5 가 채우기 전에는 0 이며,
-    그 상태에서는 id 선별이 성립하지 않으므로 태그 선별로만 동작함
-    0 을 임의의 다른 수치로 채우면 보고서 부록의 선별 근거가 거짓이 됨
+    이전에는 탐지된 구성요소·스택으로 -id 와 -tags 를 만들어 넘겼다. 두 가지 문제:
+
+      1. nuclei 는 서로 다른 필터를 AND 로 묶는다. -id(플러그인 CVE 몇 건) 와
+         -tags(wordpress) 를 함께 주면 교집합만 남아 사실상 아무것도 안 돈다.
+         실제로 WordPress 대상은 취약 버전인데도 0건, 아무것도 탐지되지 않아
+         필터가 비었던 Langflow 대상만 검출되는 비대칭이 나타났다
+      2. 진단 도구에서 선별로 놓치는 것은 시간을 아끼는 것보다 훨씬 나쁘다
+
+    이제 보유 템플릿 전부를 실행하고, 환경 조사 결과는 보고서 근거로만 쓴다.
+    범위를 좁히려면 사용자가 '조건 필터 선별' 을 직접 고른다
     """
     slugs = sorted({
         c["slug"] for r in results for c in r.components
@@ -193,17 +200,21 @@ def select_templates(
     selected = env_repo.templates_for_ids(conn, candidates)
 
     return Selection(
-        template_ids=selected,
-        tags=tags,
+        # 필터를 넘기지 않음 = 보유 템플릿 전부 실행
+        template_ids=[],
+        tags=[],
         basis={
             "matched_components": matched_components,
             "matched_stack": matched_stack,
-            "total_selected": len(selected),
+            # 전부 실행하므로 선별 수는 곧 보유 수
+            "total_selected": available,
             "total_available": available,
-            # 분모의 출처. 0 이면 인벤토리 미탑재 상태임을 보고서가 설명할 수 있어야 함
             "universe": "templates",
+            # 환경에서 도출된 후보. 실행 범위를 좁히는 데는 쓰지 않고 근거로만 남김
             "candidate_templates": len(candidates),
-            "selection_tags": tags,
+            "environment_templates": selected,
+            "environment_tags": tags,
+            "filtered": False,
         },
     )
 

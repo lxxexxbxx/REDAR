@@ -14,14 +14,23 @@ let sweepTimer = null;
 /* 끝난 작업을 남겨두는 시간. 결과를 볼 틈 없이 사라지면 토스트와 다를 바 없음 */
 const KEEP_DONE_MS = 20000;
 
-export function begin(label, detail = "") {
+export function begin(label, detail = "", { onCancel } = {}) {
   const id = `task-${++seq}`;
   tasks.set(id, {
-    id, label, detail, state: "run", percent: null, at: Date.now(),
+    id, label, detail, state: "run", percent: null, at: Date.now(), onCancel,
   });
   collapsed = false;                  // 새 작업이 시작되면 펼쳐서 보여줌
   render();
   return id;
+}
+
+/* 로그 보기·저장은 도크 공통 동작. app.js 가 구현을 넣어준다
+ * (tasks -> app 방향 import 를 만들지 않기 위함) */
+const hooks = { onShowLog: null, onSaveLog: null };
+
+export function setLogHooks({ onShowLog, onSaveLog }) {
+  hooks.onShowLog = onShowLog;
+  hooks.onSaveLog = onSaveLog;
 }
 
 export function update(id, patch) {
@@ -63,9 +72,14 @@ const running = () => [...tasks.values()].filter((t) => t.state === "run");
 
 function row(task) {
   const mark = { run: "…", done: "완료", fail: "실패" }[task.state];
+  const cancellable = task.state === "run" && task.onCancel;
   return `<div class="task task-${task.state}">
     <div class="task-head">
       <b>${esc(task.label)}</b>
+      ${cancellable
+        ? `<button class="task-cancel" data-dock="cancel"
+                   data-task="${esc(task.id)}">중단</button>`
+        : ""}
       <span class="task-mark">${esc(mark)}</span>
     </div>
     ${task.detail ? `<small>${esc(task.detail)}</small>` : ""}
@@ -100,15 +114,35 @@ function render() {
     </button>
     ${collapsed ? "" : `<div class="dock-body">${
       [...tasks.values()].reverse().map(row).join("")
-    }</div>`}`;
+    }</div>
+    <div class="dock-foot">
+      <button class="sm ghost" data-dock="log">로그 보기</button>
+      <button class="sm ghost" data-dock="save">로그 저장</button>
+    </div>`}`;
 }
 
 /* 도크 클릭 처리. app.js 의 전역 핸들러가 호출 */
 export function handleDockClick(target) {
-  if (!target.closest('[data-dock="toggle"]')) return false;
-  collapsed = !collapsed;
-  render();
-  return true;
+  const action = target.closest("[data-dock]")?.dataset.dock;
+  if (!action) return false;
+
+  if (action === "toggle") {
+    collapsed = !collapsed;
+    render();
+    return true;
+  }
+  if (action === "log") { hooks.onShowLog?.(); return true; }
+  if (action === "save") { hooks.onSaveLog?.(); return true; }
+  if (action === "cancel") {
+    const id = target.closest("[data-task]")?.dataset.task;
+    const task = tasks.get(id);
+    if (task?.onCancel) {
+      update(id, { detail: "중단 요청됨" });
+      Promise.resolve(task.onCancel()).catch(() => fail(id, "중단 실패"));
+    }
+    return true;
+  }
+  return false;
 }
 
 /* 작업으로 감싸 실행. 성공·실패 표시를 빠뜨리지 않게 함 */

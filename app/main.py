@@ -9,9 +9,10 @@ from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.adapters.nuclei import version as nuclei_version
+from app.adapters import logbuffer
 from app.api import (
-    compare, dependencies, errors, guide, reports, scans, settings_api,
-    templates,
+    compare, dependencies, errors, guide, logs, remediation, reports, scans,
+    settings_api, templates,
 )
 from app.config import settings
 from app.repository.db import session
@@ -46,6 +47,11 @@ app.include_router(guide.router, prefix=API_PREFIX)
 app.include_router(templates.router, prefix=API_PREFIX)
 app.include_router(reports.router, prefix=API_PREFIX)
 app.include_router(dependencies.router, prefix=API_PREFIX)
+app.include_router(remediation.router, prefix=API_PREFIX)
+app.include_router(logs.router, prefix=API_PREFIX)
+
+# 처리 과정 로그를 메모리에 모음. 파일로 남기지 않음 (용량 증가 방지)
+logbuffer.install()
 
 
 @app.get(f"{API_PREFIX}/health")

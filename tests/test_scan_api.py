@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.domain.allowlist import host_allowed, normalize_entry, target_allowed
+from app.repository import settings_repo
 from app.main import app
 from app.repository.db import session
 from app.services import scan_service
@@ -196,12 +197,29 @@ def test_hostname_not_resolved_to_ip():
     assert host_allowed("localhost", ["127.0.0.0/8"]) is False
 
 
-def test_scan_rejected_when_target_not_allowlisted(client):
+def test_scan_registers_typed_target(client, conn):
+    """스캔 화면 입력이 곧 동의. 같은 값을 설정에 한 번 더 적게 하지 않음
+    (절대규칙 6 개정). 등록 결과는 목록에 남아 추적 가능해야 함"""
     response = _create(client, ["http://evil.example.com"])
-    assert response.status_code == 400
-    body = response.json()
-    assert body["error"]["code"] == "INVALID_REQUEST"
-    assert "not allowed" in body["error"]["details"][0]["reason"]
+    assert response.status_code == 202
+    assert response.json()["auto_allowed"] == ["evil.example.com"]
+    # 호스트로 정규화되어 저장됨
+    assert "evil.example.com" in settings_repo.target_allowlist(conn)
+    conn.execute("UPDATE settings SET value = '[]' WHERE key = 'target_allowlist'")
+    conn.commit()
+
+
+def test_already_allowed_target_not_reported_as_added(client, allowlisted):
+    """이미 있는 대상을 다시 스캔할 때 '추가됨' 으로 알리면 거짓 알림"""
+    response = _create(client, ["localhost"])
+    assert response.status_code == 202
+    assert response.json()["auto_allowed"] == []
+
+
+def test_gate_still_applies_outside_scan_screen(conn):
+    """게이트를 스캔 화면 경로에서만 열었다. 판정 함수 자체는 그대로여야 함"""
+    assert target_allowed("evil.example.com", []) is False
+    assert target_allowed("evil.example.com", ["localhost"]) is False
 
 
 # ------------------------------------------------------------- 오류 형식
@@ -576,7 +594,9 @@ def test_preflight_reports_every_blocker(conn, monkeypatch):
     monkeypatch.setattr(scan_service.settings, "nuclei_bin", lambda: None)
     monkeypatch.setattr(scan_service.settings, "nuclei_template_store", lambda: None)
     codes = {b["code"] for b in scan_service.preflight(conn)["blockers"]}
-    assert codes == {"NUCLEI_MISSING", "ALLOWLIST_EMPTY", "NO_TEMPLATES"}
+    # 허용 목록 비어 있음은 더 이상 차단 사유가 아니다. 스캔 화면 입력이 곧 등록이라
+    # 여기서 막으면 첫 스캔을 시작할 방법이 없음 (절대규칙 6 개정)
+    assert codes == {"NUCLEI_MISSING", "NO_TEMPLATES"}
 
 
 def test_scan_rejected_without_templates(client, conn, allowlisted, monkeypatch):
@@ -631,22 +651,107 @@ def test_range_over_max_rejected(client, allowlisted):
     assert response.json()["error"]["code"] == "INVALID_REQUEST"
 
 
-def test_range_allowlist_checked_by_host(client, conn):
-    """범위 표기도 호스트로 판정. 포트 때문에 허용 대상이 거부되면 안 됨"""
-    conn.execute(
-        "INSERT INTO settings (key, value) VALUES ('target_allowlist', ?)"
-        " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-        (json.dumps(["localhost"]),),
-    )
-    conn.commit()
+def test_range_registers_host_once(client, conn):
+    """범위 표기도 호스트 기준. 401개 포트를 목록에 401줄로 넣으면 안 됨"""
     try:
-        assert _create(client, ["localhost:7860-7862"]).status_code == 202
-        denied = _create(client, ["evil.example.com:80-82"])
-        assert denied.status_code == 400
-        assert denied.json()["error"]["code"] == "INVALID_REQUEST"
+        response = _create(client, ["target.local:7860-7862"])
+        assert response.status_code == 202
+        assert response.json()["auto_allowed"] == ["target.local"]
+        assert settings_repo.target_allowlist(conn) == ["target.local"]
     finally:
         conn.execute("UPDATE settings SET value = '[]' WHERE key = 'target_allowlist'")
         conn.commit()
+
+
+def test_already_allowed_range_not_reregistered(client, conn, allowlisted):
+    """localhost 가 이미 있으면 포트 범위로 다시 스캔해도 추가 없음"""
+    response = _create(client, ["localhost:7860-7862"])
+    assert response.status_code == 202
+    assert response.json()["auto_allowed"] == []
+
+
+# ------------------------------------------------------------- 처리 로그
+
+def test_findings_appear_in_log(db_path, allowlisted, scannable):
+    """탐지 결과는 stdout 으로 온다. 로그에 넣지 않으면 진행률만 찍혀
+    '무엇이 잡혔는지' 를 로그에서 볼 수 없음"""
+    from app.adapters import logbuffer
+
+    logbuffer.clear()
+    scan_service.set_service(_service(db_path))
+    with TestClient(app) as client:
+        scan_id = _create(client, ["http://localhost:7860"]).json()["scan_id"]
+        _wait_done(client, scan_id)
+    scan_service.set_service(None)
+
+    found = [i for i in logbuffer.entries() if i["source"] == "탐지"]
+    assert found, "탐지 줄이 로그에 있어야 함"
+    # 심각도와 대상이 함께 보여야 어떤 항목인지 알 수 있음
+    assert any("[" in i["message"] and "→" in i["message"] for i in found)
+
+
+def test_executed_command_logged(db_path, allowlisted, scannable):
+    """'왜 안 잡혔나' 는 무엇을 실행했는지 모르면 답할 수 없음"""
+    from app.adapters import logbuffer
+
+    logbuffer.clear()
+    scan_service.set_service(_service(db_path))
+    with TestClient(app) as client:
+        scan_id = _create(client, ["http://localhost:7860"]).json()["scan_id"]
+        _wait_done(client, scan_id)
+    scan_service.set_service(None)
+
+    assert any("nuclei 실행" in i["message"] for i in logbuffer.entries())
+
+
+def test_stats_line_is_readable():
+    """원문 JSON 은 한 줄이 길어 읽히지 않음"""
+    from app.adapters.nuclei.progress import Progress
+
+    line = scan_service._stats_line(
+        Progress(percent=46, requests_done=8843, requests_total=19000, errors=41), 3
+    )
+    assert "46%" in line
+    assert "8843/19000" in line
+    assert "탐지 3건" in line
+    assert "오류 41건" in line
+    assert "{" not in line
+
+
+# ------------------------------------------------------------- 템플릿 선별 범위
+
+def test_id_and_tags_never_sent_together():
+    """nuclei 는 서로 다른 필터를 AND 로 묶는다. 둘 다 주면 교집합만 남아
+    의도한 것보다 훨씬 적게 실행됨. 조립 단계에서 막아야 함"""
+    from app.adapters.nuclei import runner
+
+    with pytest.raises(ValueError):
+        runner.build_command(
+            runner.RunOptions(
+                targets=["localhost"], template_ids=["a"], tags=["wordpress"],
+            ),
+            exe="/tmp/nuclei",
+        )
+
+
+def test_environment_mode_runs_all_templates(conn):
+    """환경 조사로 범위를 좁히지 않는다. 진단 도구에서 선별로 놓치는 것은
+    시간을 아끼는 것보다 나쁨"""
+    from app.services import environment_service
+
+    result = environment_service.EnvironmentResult(
+        profile_id="env_x", target_host="wp.local",
+        stack={"application": {"product": "WordPress", "version": "6.4.2"}},
+        components=[{"type": "wp_plugin", "slug": "contact-form-7",
+                     "version": "5.9", "confidence": "high"}],
+    )
+    selection = environment_service.select_templates(conn, [result])
+
+    assert selection.template_ids == []
+    assert selection.tags == []
+    assert selection.basis["filtered"] is False
+    # 환경 근거는 남아야 보고서가 무엇을 봤는지 설명할 수 있음
+    assert selection.basis["matched_stack"][0]["product"] == "WordPress"
 
 
 # ------------------------------------------------------------- 대상 응답 확인

@@ -92,6 +92,8 @@ def create_scan(body: CreateScanRequest) -> dict[str, Any]:
         "scan_id": view["scan_id"],
         "status": view.get("status", ScanStatus.QUEUED.value),
         "created_at": view.get("created_at"),
+        # 스캔 화면 입력으로 허용 목록에 새로 등록된 호스트
+        "auto_allowed": view.get("auto_allowed") or [],
     }
 
 

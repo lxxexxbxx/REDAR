@@ -41,9 +41,12 @@ def build(
     report_id: str,
     include_evidence: bool = True,
     exclude_false_positives: bool = True,
-    use_llm: bool = False,
 ) -> dict[str, Any]:
-    """스캔 1건의 Report JSON. 결정론적이며 LLM 은 산문 필드만 나중에 덮음"""
+    """스캔 1건의 Report JSON. **완전히 결정론적.** LLM 이 개입하지 않음
+
+    같은 스캔에 항상 같은 보고서가 나와야 근거 대조가 가능하다.
+    LLM 조치 가이드는 이 JSON 을 입력으로 받는 별도 기능이며 보고서를 바꾸지 않음
+    """
     scan = scan_repo.get_scan(conn, scan_id)
     if scan is None:
         raise ValueError(f"스캔 없음: {scan_id}")
@@ -66,7 +69,7 @@ def build(
         "report_id": report_id,
         "scan_id": scan_id,
         "generated_at": None,          # 저장 시점에 채운다
-        "meta": _meta(scan, profiles, guide_status, use_llm),
+        "meta": _meta(scan, profiles, guide_status),
         "executive_summary": {
             "total_findings": len(findings),
             "by_severity": by_severity,
@@ -110,7 +113,7 @@ def build(
             }
             for f in false_positives
         ],
-        "appendix": _appendix(conn, scan_id, use_llm),
+        "appendix": _appendix(conn, scan_id),
     }
 
 
@@ -130,7 +133,6 @@ def _meta(
     scan: dict[str, Any],
     profiles: list[dict[str, Any]],
     guide_status: dict[str, Any],
-    use_llm: bool,
 ) -> dict[str, Any]:
     hosts = scan.get("targets") or []
     # 입력 원문. 포트 범위는 전개 전 표기를 개요에 남김
@@ -172,9 +174,11 @@ def _meta(
             "run": sorted({c for p in profiles for c in p["collectors_run"]}),
             "failed": sorted({c for p in profiles for c in p["collectors_failed"]}),
         },
+        # 보고서에는 LLM 을 쓰지 않는다. 키는 유지 - 목차·meta 구조가 고정이며
+        # 과거 보고서와 형태가 갈리면 비교가 깨짐 (절대규칙 4)
         "llm": {
-            "used": False, "provider": "null" if not use_llm else None,
-            "model": None, "prompt_version": None, "requested": use_llm,
+            "used": False, "provider": "null",
+            "model": None, "prompt_version": None, "requested": False,
         },
     }
 
@@ -374,9 +378,7 @@ def _unmapped(
     ]
 
 
-def _appendix(
-    conn: sqlite3.Connection, scan_id: str, use_llm: bool
-) -> dict[str, Any]:
+def _appendix(conn: sqlite3.Connection, scan_id: str) -> dict[str, Any]:
     return {
         "severity_conversion_table": [
             {

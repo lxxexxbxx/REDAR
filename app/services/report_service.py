@@ -31,8 +31,10 @@ PDF_NOTE = (
     " 생성합니다. 보고서 HTML 은 폰트를 포함한 자체 완결형 파일입니다."
 )
 
+# 보고서에는 LLM 을 쓰지 않는다. 근거성이 핵심이라 생성 문장이 섞이면 원문 대조가
+# 불가능해짐. LLM 은 별도 '조치 가이드' 기능으로만 존재 (remediation_service)
+# opt_use_llm 컬럼은 스키마 동결로 남겨두고 항상 0
 DEFAULT_OPTIONS = {
-    "use_llm": False,
     "include_guide_mapping": True,
     "include_evidence": True,
     "exclude_false_positives": True,
@@ -58,15 +60,8 @@ def create(
             conn, scan_id, report_id=report_id,
             include_evidence=opts["include_evidence"],
             exclude_false_positives=opts["exclude_false_positives"],
-            use_llm=opts["use_llm"],
         )
         report["generated_at"] = datetime.now().isoformat(timespec="seconds")
-
-        if opts["use_llm"]:
-            # M9. 실패해도 템플릿 문장이 남아 있어야 한다 (절대규칙 2)
-            from app.services import narrative_service
-
-            report = narrative_service.apply(conn, report)
 
         llm_meta = report["meta"]["llm"]
         report_repo.finish(

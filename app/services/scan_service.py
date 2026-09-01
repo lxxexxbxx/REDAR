@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from app import __version__
-from app.adapters import portprobe
+from app.adapters import logbuffer, portprobe
 from app.adapters.nuclei import parser, progress, runner
 from app.adapters.nuclei import version as nuclei_version
 from app.config import settings
@@ -35,6 +35,25 @@ TOOL_VERSION = __version__
 # SSE finding 이벤트 상한. 초과분은 이벤트만 생략되며 DB 저장은 그대로 (docs/00 §2)
 _FINDING_EVENTS_PER_SEC = 10
 _EVENT_QUEUE_MAX = 2000
+# 무활동 마감. nuclei 가 템플릿 1만 개를 로딩하는 동안은 아무 이벤트도 없음
+_IDLE_TIMEOUT_SEC = 180.0
+# 연결 유지 신호 주기. 프록시·브라우저가 조용한 연결을 끊지 않게 함
+_HEARTBEAT_SEC = 10.0
+
+
+def _stats_line(stats, found: int) -> str:
+    """nuclei 진행 통계를 한 줄로. 원문 JSON 은 길어서 읽히지 않음"""
+    parts = []
+    if stats.percent is not None:
+        parts.append(f"{stats.percent:g}%")
+    if stats.requests_total:
+        parts.append(f"요청 {stats.requests_done or 0}/{stats.requests_total}")
+    elif stats.requests_done:
+        parts.append(f"요청 {stats.requests_done}")
+    parts.append(f"탐지 {found}건")
+    if stats.errors:
+        parts.append(f"오류 {stats.errors}건")
+    return " · ".join(parts)
 
 
 def preflight(conn) -> dict[str, Any]:
@@ -55,13 +74,8 @@ def preflight(conn) -> dict[str, Any]:
             "action": "설정 → 의존성에서 설치하거나 파일 반입",
             "goto": "settings",
         })
-    if not settings_repo.target_allowlist(conn):
-        blockers.append({
-            "code": "ALLOWLIST_EMPTY",
-            "message": "허용된 스캔 대상 없음. 기본값이 전부 차단",
-            "action": "설정 → 스캔 허용 대상에 진단할 주소 등록",
-            "goto": "settings",
-        })
+    # 허용 목록이 비어 있어도 막지 않는다. 스캔 화면 입력이 곧 등록이므로
+    # 여기서 막으면 첫 스캔을 시작할 방법이 없음 (절대규칙 6 개정)
     if not official and not custom and not store:
         blockers.append({
             "code": "NO_TEMPLATES",
@@ -205,16 +219,17 @@ class ScanService:
         with session(self._db_path) as conn:
             allowlist = settings_repo.target_allowlist(conn)
             # 판정은 호스트 기준. 전개 결과 전체를 검사하면 같은 호스트를 수천 번 봄
-            rejected = rejected_targets(target_range.hosts(req.targets), allowlist)
+            hosts = target_range.hosts(req.targets)
+            rejected = rejected_targets(hosts, allowlist)
             if rejected:
-                raise ScanError(
-                    "INVALID_REQUEST",
-                    "허용 목록에 없는 대상. 설정에서 대상 등록 필요",
-                    details=[
-                        {"field": "targets", "reason": f"not allowed: {t}"}
-                        for t in rejected
-                    ],
-                )
+                # 사용자가 방금 직접 입력한 대상이므로 그 입력이 곧 동의다.
+                # 같은 값을 설정에 한 번 더 적게 하는 것은 통제가 아니라 반복 작업이며,
+                # 등록 결과는 허용 목록에 남아 무엇을 스캔했는지 추적 가능
+                # (절대규칙 6 개정. 임포트·드라이런·API 직접 호출에는 게이트 유지)
+                auto_allowed = settings_repo.add_allowlist(conn, rejected)
+                logger.info("허용 목록 자동 등록 %s", auto_allowed)
+            else:
+                auto_allowed = []
 
             # 템플릿 0개면 nuclei 가 아무것도 실행하지 않고 성공으로 끝남.
             # 그대로 두면 '탐지 0건' 이 '양호' 로 오독됨 (절대규칙 10)
@@ -269,7 +284,10 @@ class ScanService:
                 self._active = run
                 run.thread.start()
 
-            return scan_repo.get_scan(conn, scan_id) or {"scan_id": scan_id}
+            view = scan_repo.get_scan(conn, scan_id) or {"scan_id": scan_id}
+            # 자동 등록한 호스트. 화면이 '허용 목록에 추가됨' 을 알려줄 근거
+            view["auto_allowed"] = auto_allowed
+            return view
 
     # -------------------------------------------------------------- 실행
 
@@ -282,7 +300,10 @@ class ScanService:
                 rules = load_vuln_type_rules(conn)
                 scan_repo.set_status(conn, run.scan_id, ScanStatus.RUNNING)
                 self._emit(run, "progress", {
-                    "scan_id": run.scan_id, "percent": 0, "phase": "selecting_templates",
+                    # percent 는 None. 이 단계는 총량을 알 수 없음.
+                    # 0 을 보내면 화면이 '0% 에서 멈춤' 으로 표시됨
+                    "scan_id": run.scan_id, "percent": None,
+                    "phase": "selecting_templates",
                     "templates_done": 0, "templates_total": None, "findings_so_far": 0,
                 })
 
@@ -307,6 +328,10 @@ class ScanService:
                         rate_limit=req.rate_limit,
                     )
                 )
+                # 실행 명령을 남긴다. '왜 안 잡혔나' 는 무엇을 실행했는지 모르면
+                # 답할 수 없다. 실제로 -id 와 -tags 가 함께 나가 대부분이
+                # 실행되지 않던 문제를 이 기록 없이 한참 뒤에야 찾았음
+                logger.info("nuclei 실행: %s", " ".join(command))
 
                 with FindingBatchWriter(conn) as writer:
                     self._stream(run, command, rules, writer, conn)
@@ -354,16 +379,21 @@ class ScanService:
         무엇을 건너뛰었는지는 DB 에 남겨 보고서가 점검 범위를 밝힐 수 있게 함
         """
         self._emit(run, "progress", {
-            "scan_id": run.scan_id, "percent": 0, "phase": "probing_targets",
+            "scan_id": run.scan_id, "percent": None, "phase": "probing_targets",
             "templates_done": 0, "templates_total": None,
             "findings_so_far": run.findings_so_far,
         })
+        logger.info("대상 응답 확인 시작: %d건", len(req.targets))
         try:
             alive = self._prober(req.targets)
         except Exception:  # noqa: BLE001 - 사전 확인 실패가 스캔을 막지 않음
             logger.warning("대상 응답 확인 실패. 전부 스캔", exc_info=True)
             return list(req.targets)
 
+        logger.info(
+            "대상 응답 확인 완료: 응답 %d건 · 무응답 %d건",
+            len(alive), len(req.targets) - len(alive),
+        )
         scan_repo.mark_reachable(conn, run.scan_id, alive)
         if not alive:
             # 하나도 응답하지 않으면 0건으로 끝내지 않고 이유를 밝힘 (절대규칙 10)
@@ -379,7 +409,8 @@ class ScanService:
         environment_driven 이 아니면 선별 결과를 쓰지 않고 조사 기록만 남김
         """
         self._emit(run, "progress", {
-            "scan_id": run.scan_id, "percent": 0, "phase": "collecting_environment",
+            "scan_id": run.scan_id, "percent": None,
+            "phase": "collecting_environment",
             "templates_done": 0, "templates_total": None,
             "findings_so_far": run.findings_so_far,
         })
@@ -411,6 +442,17 @@ class ScanService:
             writer.add(finding)
             run.findings_so_far += 1
 
+            # 탐지 결과는 stdout 으로 온다. 로그에 넣지 않으면 stats 만 찍혀
+            # '무엇이 잡혔는지' 를 로그에서 볼 수 없음
+            cve = ", ".join(finding.cve_ids) if finding.cve_ids else finding.template_id
+            logbuffer.append(
+                "탐지",
+                f"[{finding.severity.value.upper()}] {cve} · {finding.name}"
+                f" → {finding.target.raw}",
+                level="WARN" if finding.severity.value in ("critical", "high")
+                else "INFO",
+            )
+
             now = time.monotonic()
             if now - last_event >= 1.0:
                 last_event, emitted_this_sec = now, 0
@@ -428,7 +470,12 @@ class ScanService:
         def on_stderr(line: str) -> None:
             stats = progress.parse_stats_line(line)
             if stats is None:
+                # stats 가 아닌 줄은 nuclei 가 남긴 경고·오류다. 버리지 않고
+                # 로그 버퍼에 넣어 화면에서 그대로 볼 수 있게 함
+                logbuffer.append("nuclei", line)
                 return
+            # 원문 JSON 은 한 줄이 길어 읽을 수 없다. 필요한 값만 추려 남김
+            logbuffer.append("진행", _stats_line(stats, run.findings_so_far))
             scan_repo.set_status(
                 conn, run.scan_id, ScanStatus.RUNNING,
                 templates_total=stats.requests_total,
@@ -456,24 +503,55 @@ class ScanService:
         try:
             run.events.put_nowait((event, data))
         except queue.Full:
-            # 구독자가 없거나 느린 경우. 스캔을 막지 않음
-            logger.debug("이벤트 큐 가득 참, 이벤트 폐기")
+            # 진행률·탐지는 버려도 되지만 종료 신호는 버리면 화면이 영원히
+            # '스캔 중' 으로 남는다. 자리를 만들어서라도 반드시 넣음
+            if event in (None, "done"):
+                self._force_emit(run, event, data)
+            else:
+                logger.debug("이벤트 큐 가득 참, 이벤트 폐기")
 
-    def events(self, scan_id: str, timeout: float = 30.0) -> Iterator[tuple[str, dict]]:
-        """SSE 구독. 스트림 종료 신호를 받으면 종료."""
+    def _force_emit(self, run: _Run, event: str | None, data: dict | None) -> None:
+        for _ in range(_EVENT_QUEUE_MAX):
+            try:
+                run.events.put_nowait((event, data))
+                return
+            except queue.Full:
+                try:
+                    run.events.get_nowait()      # 가장 오래된 진행률을 버림
+                except queue.Empty:
+                    continue
+        logger.warning("종료 신호를 큐에 넣지 못함 %s", run.scan_id)
+
+    def events(self, scan_id: str, timeout: float = _IDLE_TIMEOUT_SEC
+               ) -> Iterator[tuple[str, dict]]:
+        """SSE 구독. 스트림 종료 신호를 받으면 종료.
+
+        timeout 은 **무활동** 기준이다. 구독 시작 기준 절대 시간으로 두면
+        템플릿 1만 개 로딩처럼 조용한 구간이 있는 실제 스캔에서 스트림이 먼저
+        끊기고, 화면은 done 을 못 받아 영원히 '스캔 중' 으로 남는다
+        """
         run = self._active
         if run is None or run.scan_id != scan_id:
             # 구독 시점에 이미 끝난 스캔. 클라이언트가 무한 대기하지 않도록 done 1건만
             yield "done", self._final_state(scan_id)
             return
-        deadline = time.monotonic() + timeout
+        idle_until = time.monotonic() + timeout
+        next_beat = time.monotonic() + _HEARTBEAT_SEC
         while True:
             try:
                 event, data = run.events.get(timeout=0.5)
             except queue.Empty:
-                if time.monotonic() > deadline:
+                now = time.monotonic()
+                if now > idle_until:
+                    # 무활동으로 끊기 전에 최종 상태를 알려줌
+                    yield "done", self._final_state(scan_id)
                     return
+                if now >= next_beat:
+                    next_beat = now + _HEARTBEAT_SEC
+                    # 연결 유지용. 클라이언트는 무시하고 프록시는 끊지 않음
+                    yield "ping", {"scan_id": scan_id}
                 continue
+            idle_until = time.monotonic() + timeout
             if event is None:
                 return
             yield event, data

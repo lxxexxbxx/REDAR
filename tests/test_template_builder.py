@@ -444,14 +444,26 @@ def test_dryrun_reports_match_with_evidence(conn, allowlisted):
     assert result["duration_ms"] >= 0
 
 
-def test_dryrun_enforces_allowlist(conn, allowlisted):
-    with pytest.raises(ScanError) as exc:
+def test_dryrun_records_target(conn, allowlisted):
+    """입력한 대상을 기록. 게이트로 막지 않되 무엇에 요청했는지는 남아야 함
+    (절대규칙 6 개정 - 설정에서 대상을 등록하는 화면이 없어졌음)"""
+    from app.repository import settings_repo
+
+    service.dryrun(
+        conn, builder.build(VALID_FORM), "http://evil.example.net:8080/x",
+        runner=_dryrun_runner(set()),
+    )
+    # 호스트로 정규화되어 기록됨
+    assert "evil.example.net" in settings_repo.target_allowlist(conn)
+
+
+def test_dryrun_rejects_malformed_target(conn, allowlisted):
+    """형식 검사는 그대로. 해석 불가 대상에 요청을 보내면 안 됨"""
+    with pytest.raises(ValueError):
         service.dryrun(
-            conn, builder.build(VALID_FORM), "http://evil.example.net",
+            conn, builder.build(VALID_FORM), "http://h:abc/",
             runner=_dryrun_runner(set()),
         )
-    assert exc.value.code == "INVALID_REQUEST"
-    assert "허용 목록" in exc.value.message
 
 
 # ─────────────────────────────────────────── sync (완료 조건 5)

@@ -83,6 +83,27 @@ def target_allowlist(conn: sqlite3.Connection) -> list[str]:
     return as_list(row["value"] if row else None)
 
 
+def add_allowlist(conn: sqlite3.Connection, hosts: list[str]) -> list[str]:
+    """허용 목록에 호스트 추가. 이미 있는 값은 건너뜀. 추가된 것만 반환
+
+    스캔 화면 입력을 그대로 등록하는 경로. 등록 기록이 남아야 무엇을 스캔했는지
+    추적할 수 있으므로, 판정을 건너뛰지 않고 목록 자체를 갱신한다
+    """
+    from app.domain import allowlist as allowlist_mod
+
+    current = target_allowlist(conn)
+    known = set(current)
+    added = []
+    for host in hosts:
+        entry = allowlist_mod.normalize_entry(host)
+        if entry and entry not in known:
+            known.add(entry)
+            added.append(entry)
+    if added:
+        put_many(conn, {"target_allowlist": current + added})
+    return added
+
+
 def offline_mode(conn: sqlite3.Connection) -> bool:
     row = conn.execute(
         "SELECT value FROM settings WHERE key = 'offline_mode'"

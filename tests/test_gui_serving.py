@@ -61,6 +61,37 @@ def test_every_module_import_resolves():
     assert not missing, missing
 
 
+def test_report_options_match_backend_schema():
+    """GUI 가 보내는 옵션이 스키마에 없으면 extra='forbid' 로 400.
+    화면에서 눌러봐야 알게 되므로 정적으로 잡음"""
+    from app.api.reports import ReportOptions
+
+    allowed = set(ReportOptions.model_fields)
+    source = (FRONTEND / "js" / "reports.js").read_text(encoding="utf-8")
+    body = source.split("api.createReport(")[1].split("})")[0]
+    sent = set(re.findall(r"^\s*([a-z_]+):", body, re.M))
+    assert sent <= allowed, f"스키마에 없는 옵션: {sent - allowed}"
+    assert sent, "옵션을 하나도 보내지 않으면 검사가 무의미"
+
+
+def test_scan_done_updates_dock_before_dom():
+    """다른 화면으로 옮기면 스캔 화면 요소가 없다. 그 DOM 접근이 먼저 오면
+    예외가 나고 도크가 영원히 '진행 중' 으로 남는다 (실제 발생)"""
+    source = (FRONTEND / "js" / "app.js").read_text(encoding="utf-8")
+    body = source.split("done(event) {")[1].split("\n    },")[0]
+    dock = min(body.index("tasks.done"), body.index("tasks.fail"))
+    dom = body.index("getElementById")
+    assert dock < dom, "도크 갱신이 DOM 접근보다 먼저여야 함"
+
+
+def test_scan_handlers_guard_missing_elements():
+    """스캔 화면을 떠난 뒤 도착하는 이벤트가 예외를 내면 안 됨"""
+    source = (FRONTEND / "js" / "app.js").read_text(encoding="utf-8")
+    body = source.split("state.unsubscribe = subscribeScan(")[1].split("\n  });")[0]
+    bare = re.findall(r'getElementById\("([\w-]+)"\)\.\w', body)
+    assert not bare, f"보호되지 않은 DOM 접근: {bare}"
+
+
 def test_task_dock_mounted_outside_view():
     """작업 도크가 #view 안에 있으면 화면 전환마다 지워진다"""
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")

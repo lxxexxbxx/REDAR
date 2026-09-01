@@ -379,14 +379,10 @@ def dryrun(
     matcher 를 하나만 남긴 변형 템플릿을 함께 실행해 실패 지점을 특정함
     nuclei 는 매칭된 결과만 출력하므로 원본만으로는 어느 matcher 가 걸렸는지 알 수 없음
     """
-    allowlist = settings_repo.target_allowlist(conn)
-    if rejected_targets([target], allowlist):
-        raise ScanError(
-            "INVALID_REQUEST",
-            "허용 목록에 없는 대상. 설정에서 대상 등록 필요",
-            details=[{"field": "target", "reason": target}],
-        )
     urlmod.parse(target)                       # 형식 오류는 여기서 걸린다
+    # 사용자가 방금 입력한 대상이므로 그 입력이 곧 동의. 스캔과 같은 기준
+    # (절대규칙 6 개정). 기록은 남겨 무엇에 요청을 보냈는지 추적 가능
+    settings_repo.add_allowlist(conn, [target])
 
     document = yaml.safe_load(yaml_text)
     if not isinstance(document, dict):

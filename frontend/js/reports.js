@@ -52,11 +52,11 @@ export async function viewReport() {
           <span class="t-body"><b>탐지 근거 포함</b>
             <small>요청·응답 원문을 보고서에 포함. 민감 정보가 섞일 수 있어 공유 전 확인 권장</small></span>
         </div>
-        <div class="toggle">
-          <input type="checkbox" id="rpt-llm">
-          <span class="t-body"><b>LLM 서술 사용</b>
-            <small>끄면 미리 정해둔 문장 사용. 취약점 판정과 조치 문구는 어떤 경우에도 LLM 이 만들지 않음</small></span>
-        </div>
+        <p style="color:var(--faint);font-size:12px;margin:10px 0 0">
+          보고서는 LLM 을 쓰지 않습니다. 같은 스캔에 항상 같은 보고서가 나와야 근거
+          대조가 가능하므로 문장까지 전부 사전 정의값입니다. 조치 절차를 LLM 으로
+          받아 보시려면 <b>조치 가이드</b> 메뉴를 쓰세요.
+        </p>
         <div class="actions">
           <button class="primary" data-rpt="create">보고서 생성</button>
         </div>` : `
@@ -293,7 +293,6 @@ export async function handleReportClick(target) {
         "보고서 생성", scanId,
         () => api.createReport(scanId, {
           include_evidence: document.getElementById("rpt-evidence").checked,
-          use_llm: document.getElementById("rpt-llm").checked,
         }),
       );
       toast(`보고서 생성 완료 · ${created.files.join(", ")}`);

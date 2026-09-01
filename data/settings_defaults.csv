@@ -3,6 +3,9 @@ offline_mode,true,켜져 있으면 외부 통신 4곳 전부 차단
 llm_enabled,false,기본 Provider 는 NullProvider (절대규칙 2)
 llm_provider,null,
 llm_mask_identifiers,true,호스트·IP·경로를 TARGET_1 형태로 치환
+llm_remediation_guide_enabled,false,조치 가이드 메뉴 노출 여부. 끄면 메뉴 자체가 없음
+llm_endpoint,https://monogpt.kr/api/monorouter/v1,MonoGPT base URL. /chat/completions 는 어댑터가 붙임
+llm_model,gpt-5.5,MonoGPT 모델 id. 자격증명 아님
 target_allowlist,[],비어 있음 = 전부 차단 (절대규칙 6)
 scan_default_threads,20,
 scan_default_timeout,10,

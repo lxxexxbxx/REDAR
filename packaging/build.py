@@ -235,8 +235,16 @@ def venv_python() -> Path:
 
 
 def in_target_venv() -> bool:
+    """대상 가상환경 안에서 실행 중인지.
+
+    sys.executable 을 resolve() 로 비교하면 안 된다. 가상환경의 bin/python 은
+    베이스 인터프리터를 가리키는 심볼릭 링크라 양쪽이 같은 실경로로 접히고,
+    시스템 파이썬을 가상환경으로 오인한다. 그 상태로 pip 을 돌리면 시스템
+    파이썬에 설치를 시도해 PEP 668(externally-managed-environment)로 막힘
+    가상환경 안에서는 sys.prefix 가 가상환경 경로다. 이것이 정본 판정
+    """
     try:
-        return Path(sys.executable).resolve() == venv_python().resolve()
+        return Path(sys.prefix).resolve() == VENV_DIR.resolve()
     except OSError:
         return False
 

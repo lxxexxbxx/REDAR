@@ -99,6 +99,8 @@ class TargetContext:
     http: Callable[..., Response] | None = None
     # 앞선 수집기 결과. applicable() 이 상위 판단을 참조 (docs/01 §4.1)
     collected: dict[str, CollectResult] = field(default_factory=dict)
+    # 응답 캐시. 대상 1개 조사 동안만 유효
+    _responses: dict[tuple[str, str], Response] = field(default_factory=dict)
 
     @property
     def origin(self) -> str:
@@ -112,8 +114,20 @@ class TargetContext:
         return f"{self.host}:{self.port}" if self.port else self.host
 
     def get(self, path: str, *, method: str = "GET") -> Response:
+        """같은 경로는 한 번만 요청.
+
+        수집기 여러 개가 각자 '/' 를 읽으면 같은 요청이 대상에 반복된다.
+        대상 부하와 조사 시간이 수집기 수만큼 늘어남
+        """
+        cached = self._responses.get((method, path))
+        if cached is not None:
+            return cached
         fetch = self.http or fetch_url
-        return fetch(f"{self.origin}{path}", method=method, timeout=self.timeout_sec)
+        response = fetch(
+            f"{self.origin}{path}", method=method, timeout=self.timeout_sec
+        )
+        self._responses[(method, path)] = response
+        return response
 
     def component_slugs(self, *types: str) -> set[str]:
         """앞선 수집기가 찾은 구성요소 슬러그. 제한 플러그인 존재 판단 등에 사용"""

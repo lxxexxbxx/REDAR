@@ -58,6 +58,11 @@ def build_command(opts: RunOptions, exe: str | None = None) -> list[str]:
     # -t 는 경로, -id 는 템플릿 id 필터. id 를 -t 로 넘기면 경로로 해석되어 실패
     for path in opts.template_paths:
         cmd += ["-t", path]
+    # -id 와 -tags 를 함께 주지 않는다. nuclei 는 서로 다른 필터를 AND 로 묶어
+    # 교집합만 남기므로, 둘 다 주면 의도한 것보다 훨씬 적게 실행된다
+    # (실측: id 몇 건 + tags wordpress -> 사실상 0건)
+    if opts.template_ids and opts.tags:
+        raise ValueError("template_ids 와 tags 는 함께 지정할 수 없음")
     if opts.template_ids:
         cmd += ["-id", ",".join(opts.template_ids)]
     if opts.tags:

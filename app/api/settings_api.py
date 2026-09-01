@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.adapters.llm.masking import Masker
 from app.adapters.nuclei import version as nuclei_version
 from app.domain import allowlist
 from app.repository import settings_repo
@@ -27,6 +28,10 @@ class LlmSettings(BaseModel):
     temperature: float | None = None
     mask_identifiers: bool | None = None
     require_preview_approval: bool | None = None
+    # 조치 가이드 기능 토글. 꺼져 있으면 GUI 메뉴 자체가 없음
+    remediation_guide_enabled: bool | None = None
+    # 자격증명. 저장만 하고 조회 응답에는 넣지 않음
+    api_key: str | None = None
 
 
 class ScanDefaults(BaseModel):
@@ -84,6 +89,12 @@ def _view(raw: dict[str, str]) -> dict[str, Any]:
             "require_preview_approval": settings_repo.as_bool(
                 raw.get("llm_require_preview_approval"), default=True
             ),
+            # 조치 가이드 메뉴 노출 여부. 꺼져 있으면 화면 자체가 없음
+            "remediation_guide_enabled": settings_repo.as_bool(
+                raw.get("llm_remediation_guide_enabled")
+            ),
+            # 키 자체는 절대 내보내지 않음. 설정 여부만 알려줌
+            "api_key_set": bool(raw.get("llm_api_key")),
         },
         "scan_defaults": {
             "threads": settings_repo.as_int(raw.get("scan_default_threads"), 20),
@@ -107,24 +118,36 @@ class LlmPreviewRequest(BaseModel):
 
 @router.post("/settings/llm/preview")
 def llm_preview(body: LlmPreviewRequest) -> dict[str, Any]:
-    """전송 데이터 미리보기. 응답 본문·추출값은 포함되지 않음 (docs/01 §7.4)"""
-    from app.domain.ids import new_id
-    from app.report import builder
+    """전송 데이터 미리보기. 응답 본문·추출값은 포함되지 않음 (docs/01 §7.4).
+
+    보고서 서술 레이어가 제거되면서 대상이 조치 가이드 전송값으로 바뀜.
+    화면은 프롬프트 생성 결과로도 확인하지만, 보내기 전에 무엇이 나가는지
+    따로 볼 수 있어야 함
+    """
     from app.repository import reports as report_repo
-    from app.services import narrative_service
+    from app.services import remediation_service
     from app.services.scan_service import ScanError
 
     with session() as conn:
-        if body.report_id:
-            view = report_repo.get(conn, body.report_id)
-            if view is None or view["report"] is None:
-                raise ScanError("NOT_FOUND", "보고서 없음", status_code=404)
-            report = view["report"]
-        elif body.scan_id:
-            report = builder.build(conn, body.scan_id, report_id=new_id("rpt"))
-        else:
-            raise ScanError("INVALID_REQUEST", "scan_id 또는 report_id 필요")
-        return narrative_service.preview(conn, report)
+        if not body.report_id:
+            raise ScanError("INVALID_REQUEST", "report_id 필요")
+        view = report_repo.get(conn, body.report_id)
+        if view is None or view["report"] is None:
+            raise ScanError("NOT_FOUND", "보고서 없음", status_code=404)
+
+        raw = settings_repo.get_all(conn)
+        masker = (
+            Masker() if settings_repo.as_bool(
+                raw.get("llm_mask_identifiers"), default=True
+            ) else None
+        )
+        context = remediation_service.report_context(view["report"])
+        return {
+            "masked": masker is not None,
+            "mask_map_size": len(masker.mapping) if masker else 0,
+            "payload": masker.mask_context(context) if masker else context,
+            "excluded": ["요청·응답 원문", "추출값", "내부 경로", "자격증명"],
+        }
 
 
 @router.post("/settings/llm/test")
@@ -132,6 +155,7 @@ def llm_test() -> dict[str, Any]:
     """연결 테스트. 오프라인 모드에서는 호출하지 않음 (절대규칙 5)"""
     from app.adapters.llm import get_provider
     from app.adapters.llm.base import LlmError
+    from app.services import remediation_service
 
     with session() as conn:
         raw = settings_repo.get_all(conn)
@@ -141,15 +165,21 @@ def llm_test() -> dict[str, Any]:
     if offline:
         return {"ok": False, "reason": "오프라인 모드. LLM 호출 안 함"}
     if not enabled:
-        return {"ok": False, "reason": "LLM 통신 지점이 비활성 상태입니다."}
+        return {"ok": False, "reason": "LLM 통신 지점 비활성"}
+    if not raw.get("llm_api_key"):
+        return {"ok": False, "reason": "API 키 미입력"}
 
-    provider = get_provider(raw.get("llm_provider"), {
-        "endpoint": raw.get("llm_endpoint"),
-        "api_key": raw.get("llm_api_key"),
-        "model": raw.get("llm_model"),
-    })
+    # Provider 미지정은 조치 가이드와 같은 기본값을 씀 (remediation_service)
+    provider = get_provider(
+        remediation_service.provider_name(raw),
+        {
+            "endpoint": raw.get("llm_endpoint"),
+            "api_key": raw.get("llm_api_key"),
+            "model": raw.get("llm_model"),
+        },
+    )
     if provider.name == "null":
-        return {"ok": False, "reason": "Provider 미설정 · NullProvider"}
+        return {"ok": False, "reason": "알 수 없는 Provider"}
     try:
         text = provider.narrate("executive_summary", {"total_findings": 0})
     except LlmError as exc:

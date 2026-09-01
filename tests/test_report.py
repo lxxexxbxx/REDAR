@@ -389,6 +389,25 @@ def test_tc_r12_no_active_content(conn, guide_loaded, scan_with_findings):
     assert "onerror" in html
 
 
+def test_disposition_survives_non_ascii_filename():
+    """대상 요약에서 만든 파일명에 '외 3건'·'포트 12개' 처럼 한글이 들어간다.
+    HTTP 헤더는 latin-1 이라 그대로 넣으면 500 (RFC 5987 로 실어야 함)"""
+    from app.api.reports import _disposition
+
+    header = _disposition("report_대상없음_외3건_20260831.html")
+    header.encode("latin-1")                     # 인코딩되지 않으면 여기서 실패
+    assert "filename*=UTF-8''" in header
+    assert 'filename="' in header                # 구형 클라이언트용 ASCII 이름
+
+
+def test_download_filename_from_summary(conn, guide_loaded, scan_with_findings):
+    """파일명이 실제로 만들어지고 확장자가 맞는지"""
+    report = _report(conn, scan_with_findings)
+    name = renderer.filename(report, "html")
+    assert name.startswith("report_")
+    assert name.endswith(".html")
+
+
 def test_toc_links_to_every_section(conn, guide_loaded, scan_with_findings):
     """목차 항목이 전부 실제 앵커로 이어져야 함. 끊긴 링크는 눌러야 알게 됨"""
     html = renderer.render_html(_report(conn, scan_with_findings))

@@ -4,7 +4,7 @@
 치환하지 않으면 내부 호스트명과 경로가 외부 API 로 나감
 
 응답 본문·추출값은 애초에 컨텍스트에 넣지 않음. 마스킹은 2차 방어이며
-1차 방어는 화이트리스트 (narrative_service.build_context)
+1차 방어는 화이트리스트 (remediation_service.report_context)
 """
 from __future__ import annotations
 

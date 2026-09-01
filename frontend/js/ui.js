@@ -114,14 +114,14 @@ export function targetProbe(scan) {
       <h2>응답 ${alive.length}개 · 무응답 ${dead.length}개</h2>
     </div>
     <div class="hintbox">
-      <b>응답한 대상 — 실제로 점검함</b>
+      <b>응답한 대상 — 실제로 점검한 곳입니다</b>
       <div class="chips">${alive.length
         ? alive.map((t) => `<span class="chip strong">${esc(t)}</span>`).join(" ")
-        : "<small>없음</small>"}</div>
+        : "<small>없습니다.</small>"}</div>
     </div>
     ${dead.length ? `<div class="hintbox">
-      <b>무응답 — 연결되지 않아 점검하지 않음</b>
-      <small>보고서에는 개수만 기록되고 목록은 실리지 않음</small>
+      <b>무응답 — 연결되지 않아 점검하지 않았습니다</b>
+      <small>보고서에는 개수만 기록되고 목록은 실리지 않습니다.</small>
       <div class="chips" style="margin-top:6px">${
         dead.slice(0, 40).map((t) => `<span class="chip">${esc(t)}</span>`).join(" ")
       }${dead.length > 40 ? ` <span class="chip">외 ${dead.length - 40}개</span>` : ""}</div>
@@ -341,18 +341,21 @@ export function toast(message, kind = "ok") {
 export function selectionBasis(basis) {
   if (!basis) return "";
   const total = basis.total_available ?? 0;
-  const selected = basis.total_selected ?? 0;
+  const candidates = basis.candidate_templates ?? 0;
+  // 환경 조사는 기록용이며 실행 범위를 좁히지 않는다. 문구가 '선별' 로 남으면
+  // 실제로 무엇을 돌렸는지 거짓으로 읽힘
   const line = total
-    ? `보유 템플릿 ${total.toLocaleString()}개 중 <strong>${selected.toLocaleString()}개</strong>를 환경 기반으로 선별`
-    : `환경 기반 후보 <strong>${(basis.candidate_templates ?? 0).toLocaleString()}개</strong> 확인.
-       로컬 템플릿 목록이 비어 있어 태그 선별로 실행됨`;
-  const tags = basis.selection_tags || [];
+    ? `보유 템플릿 <strong>${total.toLocaleString()}개</strong>를 전부 실행했습니다.`
+    : "보유 템플릿이 없어 nuclei 기본 저장소로 실행했습니다.";
+  const tags = basis.environment_tags || [];
   return `<div class="coverage" style="border-left-color:var(--sev-low)">
     ${line}
     <div style="margin-top:6px;color:var(--faint)">
-      구성요소 ${(basis.matched_components || []).length}건 ·
-      스택 ${(basis.matched_stack || []).length}건 매칭${
-        tags.length ? ` · 태그 ${esc(tags.join(", "))}` : ""}
+      환경 조사 결과 구성요소 ${(basis.matched_components || []).length}건 ·
+      스택 ${(basis.matched_stack || []).length}건을 확인했습니다${
+        tags.length ? ` (태그 ${esc(tags.join(", "))})` : ""}.
+      ${candidates ? `이 중 ${candidates}건이 환경에 직접 대응하는 템플릿입니다.` : ""}
+      선별 근거로만 기록하며 실행 범위는 줄이지 않습니다.
     </div>
   </div>`;
 }

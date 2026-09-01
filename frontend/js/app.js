@@ -5,6 +5,7 @@ import {
   handleTemplateChange, handleTemplateClick, viewTemplates,
 } from "./templates.js";
 import { handleReportClick, viewReport } from "./reports.js";
+import { handleRemediationClick, viewRemediation } from "./remediation.js";
 import * as tasks from "./tasks.js";
 import {
   dependencyPanel, handleDependencyChange, handleDependencyClick,
@@ -26,8 +27,16 @@ const NAV = [
   { path: "results", label: "탐지 결과" },
   { path: "templates", label: "템플릿" },
   { path: "report", label: "보고서" },
+  // 설정 토글이 꺼져 있으면 메뉴 자체가 없음 (사용자 요구)
+  { path: "remediation", label: "조치 가이드", optional: "remediation" },
   { path: "settings", label: "설정" },
 ];
+
+/* 조건부 메뉴 노출 여부. 설정을 끄면 화면으로 갈 길이 없어야 함 */
+function navVisible(item) {
+  if (item.optional !== "remediation") return true;
+  return Boolean(state.settings?.llm?.remediation_guide_enabled);
+}
 
 const state = {
   health: null,
@@ -51,8 +60,11 @@ const go = (path) => { location.hash = `#/${path}`; };
 /* ------------------------------------------------------------ 상태 띠 */
 
 function renderStateStrip() {
-  const { health, guide, settings } = state;
-  const allowCount = settings?.target_allowlist?.length ?? 0;
+  const { health, guide, settings, preflight } = state;
+  const templates = preflight?.templates;
+  const templateCount = templates
+    ? (templates.official ?? 0) + (templates.custom ?? 0)
+    : null;
   const external = (settings?.external_endpoints || []).filter((e) => e.enabled);
 
   const cells = [
@@ -72,10 +84,10 @@ function renderStateStrip() {
       dot: guide?.imported ? "on" : "off",
     },
     {
-      label: "스캔 대상",
-      // 0이면 모든 스캔 거부. 눈에 띄어야 함
-      value: allowCount ? `${allowCount}건 허용` : "허용 대상 없음",
-      dot: allowCount ? "on" : "alert",
+      label: "템플릿",
+      // 0개면 스캔이 성립하지 않음. 눈에 띄어야 함 (절대규칙 10)
+      value: templateCount ? `${templateCount}개` : "없음",
+      dot: templateCount ? "on" : "alert",
     },
     {
       label: "외부 통신",
@@ -95,7 +107,7 @@ function renderStateStrip() {
 }
 
 function renderNav(current) {
-  document.getElementById("nav").innerHTML = NAV.map((item) => `
+  document.getElementById("nav").innerHTML = NAV.filter(navVisible).map((item) => `
     <a href="#/${item.path}"${item.path === current ? ' aria-current="page"' : ""}>
       <span>${esc(item.label)}</span>
       ${item.tag ? `<span class="tag">${esc(item.tag)}</span>` : ""}
@@ -125,7 +137,8 @@ async function viewDashboard() {
     <div class="view-head">
       <div class="eyebrow">진단 현황</div>
       <h1>대시보드</h1>
-      <p>가장 최근 스캔의 심각도·유형 분포. 탐지가 0건인 항목도 사라지지 않고 그대로 표시</p>
+      <p>가장 최근 스캔의 심각도·유형 분포입니다. 탐지가 0건인 항목도 사라지지 않고
+         그대로 표시됩니다.</p>
     </div>
 
     <div class="grid-2">
@@ -207,7 +220,7 @@ async function viewDashboard() {
       ${items.length ? scanTable(items) : emptyState({
         eyebrow: "기록 없음",
         title: "스캔 이력 없음",
-        body: "스캔을 실행하면 여기에 기록됨",
+        body: "스캔을 실행하면 여기에 기록됩니다.",
       })}
     </div>`;
 }
@@ -238,10 +251,9 @@ function scanTable(items) {
 
 /* 준비 상태 문구. 막힌 이유마다 다음 행동을 한 곳에 모음 */
 const BLOCKER_HINT = {
-  NUCLEI_MISSING: "탐지 엔진이 없으면 스캔 자체가 실행되지 않음",
-  ALLOWLIST_EMPTY: "허락 없이 남의 서버를 스캔하지 않도록, 등록한 대상만 진단하는 구조",
-  NO_TEMPLATES: "템플릿은 \"이런 취약점이 있는지 확인하는 방법\"을 적어둔 파일. "
-              + "하나도 없으면 스캔은 끝나지만 결과는 항상 0건",
+  NUCLEI_MISSING: "탐지 엔진이 없으면 스캔 자체가 실행되지 않습니다.",
+  NO_TEMPLATES: "템플릿은 \"이런 취약점이 있는지 확인하는 방법\"을 적어둔 파일입니다. "
+              + "하나도 없으면 스캔은 끝나지만 결과는 항상 0건입니다.",
 };
 
 function preflightPanel(ready) {
@@ -252,11 +264,11 @@ function preflightPanel(ready) {
       ? `공식 ${t.official}개 · 직접 작성 ${t.custom}개`
       : `nuclei 기본 저장소 사용 · ${t.nuclei_store}`;
     return `<div class="coverage" style="border-left-color:var(--ok)">
-      <strong>스캔 준비 완료</strong> 템플릿 ${esc(detail)}
+      <strong>스캔 준비가 끝났습니다.</strong> 템플릿 ${esc(detail)}
     </div>`;
   }
   return `<div class="coverage" style="border-left-color:var(--brand)">
-    <strong>지금은 스캔할 수 없음</strong> 아래를 먼저 해결 필요
+    <strong>지금은 스캔할 수 없습니다.</strong> 아래를 먼저 해결해 주세요.
     ${ready.blockers.map((b) => `
       <div class="blocker">
         <b>${esc(b.message)}</b>
@@ -282,15 +294,15 @@ async function refreshPreflight() {
 }
 
 function viewScan() {
+  // 이전에 스캔한 대상. 빠른 재입력용 기록이며 시작을 막는 조건이 아님
   const allowlist = state.settings?.target_allowlist || [];
-  const blocked = allowlist.length === 0;
 
   view().innerHTML = `
     <div class="view-head">
       <div class="eyebrow">스캔 설정</div>
       <h1>스캔</h1>
-      <p>대상 주소를 넣고 진단 방식을 고르면 끝. 잘 모르겠으면 기본값 그대로 두고
-         <b>스캔 시작</b> 을 누르면 됨</p>
+      <p>대상 주소를 넣고 진단 방식을 고르시면 됩니다. 잘 모르겠으면 기본값을
+         그대로 두고 <b>스캔 시작</b>을 누르세요.</p>
     </div>
 
     <div id="preflight"></div>
@@ -312,13 +324,13 @@ function viewScan() {
         <small class="mono" id="target-count"></small>
       </label>
       <div class="hintbox">
-        <b>등록된 대상</b>
+        <b>이전에 스캔한 대상</b>
         ${allowlist.length
           ? `<div class="chips">${allowlist.map((h) =>
               `<button type="button" class="chip pick" data-pick="${esc(h)}">${esc(h)}</button>`
             ).join(" ")}</div>
-             <small>누르면 위 칸에 자동 입력</small>`
-          : `<small>없음. 설정에서 등록 필요</small>`}
+             <small>누르면 위 칸에 자동으로 입력됩니다.</small>`
+          : `<small>아직 없습니다. 위에 주소를 넣으면 자동으로 등록됩니다.</small>`}
       </div>
       <div class="actions">
         <input type="file" id="target-file" accept=".txt,.csv" class="sr-only">
@@ -331,8 +343,9 @@ function viewScan() {
       <div class="panel-head">
         <div class="eyebrow">2단계</div>
         <h2>진단 항목 선별</h2>
-        <p class="lede">nuclei 는 "이런 취약점이 있는지 확인하는 방법"을 적어둔 파일(템플릿)을
-           하나씩 실행해서 진단. 그 파일을 몇 개나, 어떤 기준으로 고를지 선택</p>
+        <p class="lede">nuclei 는 "이런 취약점이 있는지 확인하는 방법"을 적어둔
+           파일(템플릿)을 하나씩 실행해서 진단합니다. 그 파일을 몇 개나, 어떤 기준으로
+           고를지 선택하세요.</p>
       </div>
       <div class="choices" id="mode">
         ${SCAN_MODES.map((m, i) => `
@@ -351,42 +364,56 @@ function viewScan() {
       <div class="panel-head">
         <div class="eyebrow">3단계</div>
         <h2>실행 옵션</h2>
-        <p class="lede">그대로 둬도 무방. 대상 서버가 느리거나 부하를 줄이고 싶을 때만 조정</p>
+        <p class="lede">그대로 두셔도 됩니다. 대상 서버가 느리거나 부하를 줄이고 싶을 때만
+           조정하세요.</p>
       </div>
       <div class="row" style="align-items:flex-start;gap:20px">
         <label class="field" style="flex:1;min-width:150px">
           <span>동시 실행</span>
           <input type="number" id="threads" value="${state.settings?.scan_defaults?.threads ?? 20}" min="1" max="200">
-          <small>한 번에 보낼 요청 수. 낮출수록 느리지만 부하 적음</small>
+          <small>한 번에 보낼 요청 수입니다. 낮출수록 느리지만 부하가 적습니다.</small>
         </label>
         <label class="field" style="flex:1;min-width:150px">
           <span>응답 대기 · 초</span>
           <input type="number" id="timeout" value="${state.settings?.scan_defaults?.timeout_sec ?? 10}" min="1" max="300">
-          <small>이 시간 안에 답이 없으면 넘어감</small>
+          <small>이 시간 안에 답이 없으면 넘어갑니다.</small>
         </label>
         <label class="field" style="flex:1;min-width:150px">
           <span>재시도</span>
           <input type="number" id="retries" value="${state.settings?.scan_defaults?.retries ?? 1}" min="0" max="10">
-          <small>실패한 요청을 다시 보낼 횟수</small>
+          <small>실패한 요청을 다시 보낼 횟수입니다.</small>
         </label>
         <label class="field" style="flex:1;min-width:150px">
           <span>초당 요청 상한</span>
           <input type="number" id="ratelimit" placeholder="제한 없음" min="1">
-          <small>운영 중인 서버라면 지정 권장</small>
+          <small>운영 중인 서버라면 지정하시길 권장합니다.</small>
         </label>
       </div>
       <div class="toggle">
         <input type="checkbox" id="collect-env" checked>
         <span class="t-body">
           <b>대상 환경 먼저 조사</b>
-          <small>어떤 웹서버·CMS·플러그인을 쓰는지 확인. 보고서에 대상 정보가 함께 실림</small>
+          <small>어떤 웹서버·CMS·플러그인을 쓰는지 확인합니다. 보고서에 대상 정보가
+            함께 실립니다.</small>
         </span>
       </div>
       <div id="range-notice"></div>
       <div class="actions">
-        <button class="primary" id="start"${blocked ? " disabled" : ""}>스캔 시작</button>
+        <button class="primary" id="start">스캔 시작</button>
         <span id="start-note" style="color:var(--faint);font-size:12px"></span>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head spread">
+        <div>
+          <h2>처리 로그</h2>
+          <p class="lede">nuclei 출력과 내부 처리 과정을 그대로 보여줍니다.
+             메모리에만 남으며 파일로 저장하지 않습니다.</p>
+        </div>
+        <button class="sm ghost" id="log-toggle">펼치기</button>
+      </div>
+      <pre class="logview" id="logview" hidden></pre>
     </div>
 
     <div class="panel" id="live" hidden>
@@ -413,6 +440,7 @@ function viewScan() {
 
   renderModeFields();
   document.getElementById("mode").addEventListener("change", renderModeFields);
+  document.getElementById("log-toggle").addEventListener("click", toggleLog);
   const targetBox = document.getElementById("targets");
   targetBox.addEventListener("input", renderTargetCount);
   renderTargetCount();
@@ -450,21 +478,21 @@ function renderTargetCount() {
 const SCAN_MODES = [
   {
     value: "environment_driven",
-    title: "환경 기반 자동 선별",
+    title: "전체 검사",
     badge: "권장",
-    body: "대상이 무엇으로 만들어졌는지 먼저 살펴본 뒤, 그 환경에 해당하는 항목만 검사. "
-        + "쓸데없는 요청이 적어 빠르고 부하도 적음",
+    body: "대상 환경을 먼저 조사해 보고서에 기록한 뒤, 보유한 템플릿을 전부 "
+        + "실행합니다. 시간은 더 걸리지만 놓치는 항목이 없습니다.",
   },
   {
     value: "filter",
     title: "조건 필터 선별",
-    body: "주제(태그)와 심각도로 범위 지정. 예를 들어 워드프레스 관련 항목만, "
-        + "또는 위험도가 높은 것만 검사",
+    body: "주제(태그)와 심각도로 범위를 지정합니다. 예를 들어 워드프레스 관련 항목만, "
+        + "또는 위험도가 높은 것만 검사할 수 있습니다.",
   },
   {
     value: "explicit",
     title: "템플릿 직접 지정",
-    body: "검사할 템플릿 ID 를 직접 입력. 특정 취약점 하나를 다시 확인할 때 사용",
+    body: "검사할 템플릿 ID 를 직접 입력합니다. 특정 취약점 하나를 다시 확인할 때 쓰세요.",
   },
 ];
 
@@ -500,9 +528,10 @@ function renderModeFields() {
   if (mode === "environment_driven") {
     host.innerHTML = `
       <div class="hintbox">
-        <b>추가 입력 없음</b>
-        <small>대상 조사 결과에 따라 검사 항목이 정해짐. 조사에서 아무것도 못 찾으면
-          검사 항목이 0개가 될 수 있으며, 이때는 <b>조건 필터 선별</b> 사용</small>
+        <b>추가 입력이 없습니다</b>
+        <small>보유한 템플릿을 전부 실행합니다. 환경 조사 결과는 보고서에 기록되지만
+          검사 범위를 줄이는 데는 쓰지 않습니다. 범위를 좁히려면
+          <b>조건 필터 선별</b>을 고르세요.</small>
       </div>`;
     return;
   }
@@ -512,7 +541,7 @@ function renderModeFields() {
       <label class="field">
         <span>템플릿 ID · 쉼표 구분</span>
         <input type="text" id="template-ids" placeholder="CVE-2026-33017, wordpress-detect">
-        <small>템플릿 화면 목록에서 ID 확인 가능</small>
+        <small>템플릿 화면 목록에서 ID 를 확인하실 수 있습니다.</small>
       </label>`;
     return;
   }
@@ -526,7 +555,8 @@ function renderModeFields() {
           `<button type="button" class="chip pick" data-tag="${esc(p.tag)}">${esc(p.label)}</button>`
         ).join(" ")}
       </div>
-      <small>눌러서 추가. 여러 개면 쉼표로 구분되며 하나라도 맞으면 검사 대상</small>
+      <small>눌러서 추가하세요. 여러 개면 쉼표로 구분되며 하나라도 맞으면
+        검사 대상이 됩니다.</small>
     </label>
     <label class="field">
       <span>심각도</span>
@@ -535,7 +565,7 @@ function renderModeFields() {
           `<button type="button" class="chip pick sev-pick" data-sev="${key}">${esc(SEVERITY_LABEL[key])}</button>`
         ).join(" ")}
       </div>
-      <small>아무것도 고르지 않으면 전체 심각도 검사</small>
+      <small>아무것도 고르지 않으면 전체 심각도를 검사합니다.</small>
     </label>`;
 }
 
@@ -586,15 +616,18 @@ function buildScanPayload() {
 async function startScan() {
   const payload = buildScanPayload();
   if (!payload.targets.length) {
-    toast("스캔 대상 입력 필요", "err");
+    toast("스캔 대상을 입력하세요.", "err");
     return;
   }
 
   const button = document.getElementById("start");
   button.disabled = true;
   try {
-    const { scan_id } = await api.createScan(payload);
+    const { scan_id, auto_allowed } = await api.createScan(payload);
     rangeNotice("");
+    if (auto_allowed?.length) {
+      toast(`${auto_allowed.join(", ")} 를 스캔 대상 목록에 추가했습니다.`);
+    }
     state.scanId = scan_id;
     attachLiveFeed(scan_id);
   } catch (error) {
@@ -616,6 +649,70 @@ async function startScan() {
     }
     showApiError(error);
   }
+}
+
+/* 처리 로그. 서버는 메모리 링 버퍼만 들고 있어 커서 방식으로 폴링한다.
+ * 화면을 접으면 폴링도 멈춘다 - 안 보는 동안 요청을 돌릴 이유가 없음 */
+const logState = { cursor: 0, timer: null, lines: [] };
+const LOG_MAX_LINES = 800;
+
+function toggleLog() {
+  const view = document.getElementById("logview");
+  const button = document.getElementById("log-toggle");
+  const open = view.hidden;
+  view.hidden = !open;
+  button.textContent = open ? "접기" : "펼치기";
+  if (open) startLogPolling();
+  else stopLogPolling();
+}
+
+function startLogPolling() {
+  if (logState.timer) return;
+  pollLogs();
+  logState.timer = setInterval(pollLogs, 1000);
+}
+
+export function stopLogPolling() {
+  clearInterval(logState.timer);
+  logState.timer = null;
+}
+
+async function pollLogs() {
+  const view = document.getElementById("logview");
+  if (!view || view.hidden) { stopLogPolling(); return; }
+  try {
+    const { items, cursor } = await api.logs(logState.cursor);
+    logState.cursor = cursor;
+    if (!items.length) return;
+    for (const item of items) {
+      const text =
+        `${fmtClock(item.at)} ${item.source.padEnd(6)} ${item.message}`;
+      // 탐지·오류는 눈에 띄어야 함. 나머지는 배경처럼 흘러감
+      const tone = item.source === "탐지" ? "found"
+        : (item.level === "WARN" || item.level === "WARNING"
+           || item.level === "ERROR") ? "warn" : "";
+      logState.lines.push(
+        tone ? `<span class="log-${tone}">${esc(text)}</span>` : esc(text)
+      );
+    }
+    // 화면에 쌓아두는 양도 제한. 서버 버퍼와 별개로 브라우저 메모리를 아낌
+    if (logState.lines.length > LOG_MAX_LINES) {
+      logState.lines = logState.lines.slice(-LOG_MAX_LINES);
+    }
+    const atBottom =
+      view.scrollHeight - view.scrollTop - view.clientHeight < 40;
+    // 줄 내용은 esc() 로 이스케이프한 뒤 색상 span 만 붙임
+    view.innerHTML = logState.lines.join("\n");
+    if (atBottom) view.scrollTop = view.scrollHeight;   // 읽는 중이면 안 끌어당김
+  } catch {
+    // 백엔드가 잠깐 응답하지 않는 경우. 다음 주기에 재시도
+  }
+}
+
+function fmtClock(seconds) {
+  const d = new Date(seconds * 1000);
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map((n) => String(n).padStart(2, "0")).join(":");
 }
 
 /* 범위 확인 막대. 스캔 버튼 바로 위에 붙여 놓쳐지지 않게 함 */
@@ -665,52 +762,80 @@ function attachLiveFeed(scanId) {
   };
 
   // 하단 도크에도 같은 진행을 보냄. 다른 화면으로 옮겨도 상태가 보임
-  const dockId = tasks.begin("스캔", scanId);
+  let lastPhase = "준비";
+  const dockId = tasks.begin("스캔", scanId, {
+    onCancel: () => api.cancelScan(scanId),
+  });
 
   state.unsubscribe?.();
   state.unsubscribe = subscribeScan(scanId, {
     progress(event) {
-      if (event.percent !== null && event.percent !== undefined) {
-        bar.style.width = `${event.percent}%`;
-      }
-      phase.textContent = PHASE_LABEL[event.phase] || event.phase || "진행";
+      // 퍼센트를 모르는 구간(대상 확인·템플릿 로딩)은 계속 왕복시킴.
+      // 0% 로 멈춰 있는 바는 '멈췄다' 로 읽힘.
+      // scanning 이전 단계는 총량을 모르므로 0 도 '모름' 으로 취급
+      const known = Number(event.percent) > 0 || event.phase === "scanning";
+      let label = PHASE_LABEL[event.phase] || event.phase || "진행";
       if (event.templates_total) {
-        phase.textContent +=
-          ` · ${event.templates_done ?? 0} / ${event.templates_total}`;
+        label += ` · ${event.templates_done ?? 0} / ${event.templates_total}`;
       }
+      // 도크가 먼저. 화면을 떠나 아래 요소가 없어도 상태는 갱신되어야 함
       tasks.update(dockId, {
-        detail: phase.textContent,
-        percent: event.percent ?? null,
+        detail: label,
+        // 도크도 같은 기준. 모르면 null 을 넣어 왕복 막대로 표시됨
+        percent: known ? Number(event.percent) : null,
       });
+      lastPhase = label;
+
+      progress?.classList.toggle("sweeping", !known);
+      if (bar) bar.style.width = known ? `${event.percent}%` : "";
+      if (phase) phase.textContent = label;
     },
     finding(event) {
       found += 1;
-      countLabel.textContent = `탐지 ${found}건`;
-      tasks.update(dockId, { detail: `${phase.textContent} · 탐지 ${found}건` });
+      tasks.update(dockId, { detail: `${lastPhase} · 탐지 ${found}건` });
+
+      if (countLabel) countLabel.textContent = `탐지 ${found}건`;
+      const rows = document.getElementById("live-rows");
+      if (!rows) return;
       const row = document.createElement("tr");
       row.innerHTML = `
         <td>${severityTag(event.severity)}</td>
         <td>${esc(event.name)}</td>
         <td>${esc(VULN_TYPE_LABEL[event.vuln_type] || event.vuln_type || "—")}</td>
         <td class="mono">${target(event.target)}</td>`;
-      document.getElementById("live-rows").prepend(row);
+      rows.prepend(row);
     },
     done(event) {
-      progress.classList.remove("sweeping");
-      bar.style.width = "100%";
-      phase.textContent = SCAN_STATUS_LABEL[event.status] || event.status;
-      document.getElementById("start").disabled = false;
-      document.getElementById("cancel").disabled = true;
+      // 도크부터 갱신한다. 아래 DOM 접근은 다른 화면으로 옮기면 null 이 되는데,
+      // 그 예외가 여기서 터지면 도크가 영원히 '진행 중' 으로 남는다 (실제 발생)
       if (event.error) {
         tasks.fail(dockId, `${event.error.code}: ${event.error.message}`);
-        toast(`${event.error.code}: ${event.error.message}`, "err");
       } else if (event.status === "completed") {
         tasks.done(dockId, `탐지 ${found}건`);
-        toast("스캔 완료");
-        document.getElementById("start-note").innerHTML =
-          `<button class="sm" data-open="${esc(scanId)}">결과 보기</button>`;
       } else {
         tasks.done(dockId, SCAN_STATUS_LABEL[event.status] || event.status);
+      }
+
+      if (event.error) {
+        toast(`${event.error.code}: ${event.error.message}`, "err");
+      } else if (event.status === "completed") {
+        toast("스캔을 완료했습니다.");
+      }
+
+      // 스캔 화면을 떠났으면 아래 요소가 없다. 없으면 건너뜀
+      progress?.classList.remove("sweeping");
+      if (bar) bar.style.width = "100%";
+      if (phase) {
+        phase.textContent = SCAN_STATUS_LABEL[event.status] || event.status;
+      }
+      const startButton = document.getElementById("start");
+      if (startButton) startButton.disabled = false;
+      const cancelButton = document.getElementById("cancel");
+      if (cancelButton) cancelButton.disabled = true;
+      const note = document.getElementById("start-note");
+      if (note && !event.error && event.status === "completed") {
+        note.innerHTML =
+          `<button class="sm" data-open="${esc(scanId)}">결과 보기</button>`;
       }
     },
   });
@@ -734,7 +859,7 @@ async function viewResults(params) {
         ${items.length ? scanTable(items) : emptyState({
           eyebrow: "기록 없음",
           title: "조회할 스캔 없음",
-          body: "스캔을 먼저 실행 필요",
+          body: "스캔을 먼저 실행하세요.",
           cta: '<button class="primary" data-go="scan">스캔 실행</button>',
         })}
       </div>`;
@@ -856,7 +981,8 @@ async function viewResults(params) {
       ${data.items.length ? findingTable(data.items) : emptyState({
         eyebrow: "해당 없음",
         title: "조건에 맞는 결과 없음",
-        body: "필터 해제 또는 다른 스캔 선택. 탐지 0건이 곧 안전을 뜻하지는 않음",
+        body: "필터를 해제하거나 다른 스캔을 선택하세요. "
+            + "탐지 0건이 곧 안전을 뜻하지는 않습니다.",
       })}
     </div>`;
 }
@@ -981,7 +1107,7 @@ async function openFinding(findingId) {
     const copy = event.target.closest("[data-copy]");
     if (copy) {
       await navigator.clipboard?.writeText(f.evidence.curl_command);
-      toast("명령 복사됨");
+      toast("명령을 복사했습니다.");
       return;
     }
     const status = event.target.closest("[data-status]")?.dataset.status;
@@ -991,7 +1117,7 @@ async function openFinding(findingId) {
           status,
           note: drawer.querySelector("#fp-note").value || null,
         });
-        toast(`상태 변경됨 · ${FINDING_STATUS_LABEL[status]}`);
+        toast(`상태를 '${FINDING_STATUS_LABEL[status]}' 로 변경했습니다.`);
         drawer.remove();
         render();
       } catch (error) {
@@ -1009,41 +1135,21 @@ function viewSettings() {
   const s = state.settings || {};
   view().innerHTML = `
     <div class="view-head">
-      <div class="eyebrow">환경 설정</div>
       <h1>설정</h1>
-      <p>어디를 스캔할 수 있는지, 어디로 통신할 수 있는지 지정. 처음 상태는 전부 차단</p>
+      <p>외부로 나가는 통신과 스캔 기본값을 지정합니다. 스캔 대상은 스캔 화면에서
+         바로 입력하시면 됩니다.</p>
     </div>
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">필수</div>
-        <h2>스캔 허용 대상</h2>
-      </div>
-      <label class="field">
-        <span>진단할 대상 · 한 줄에 하나</span>
-        <textarea id="allowlist" placeholder="192.168.1.50&#10;target.local&#10;192.168.1.0/24">${esc((s.target_allowlist || []).join("\n"))}</textarea>
-        <small>
-          주소를 통째로 붙여넣어도 됨. <span class="mono">http://192.168.1.50:8080/admin</span> 은
-          저장할 때 <span class="mono">192.168.1.50</span> 으로 정리됨.
-          한 대역을 통째로 허용하려면 <span class="mono">192.168.1.0/24</span> 처럼 입력.
-          여기 없는 대상은 스캔이 거부되며, 이름은 그대로 비교하고 DNS 조회는 하지 않음
-        </small>
-      </label>
-      <div class="actions">
-        <button class="primary" data-save="allowlist">허용 대상 저장</button>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <div class="eyebrow">외부 통신</div>
-        <h2>네트워크 통제</h2>
+        <h2>외부 통신 설정</h2>
       </div>
       <div class="toggle">
         <input type="checkbox" id="offline" ${s.offline_mode ? "checked" : ""}>
         <span class="t-body">
           <b>오프라인 모드</b>
-          <small>켜면 아래 네 곳을 개별 설정과 무관하게 전부 차단. 끄면 아래에서 하나씩 선택 가능</small>
+          <small>켜면 아래 네 곳을 개별 설정과 무관하게 전부 차단합니다.
+            끄면 아래에서 하나씩 선택하실 수 있습니다.</small>
         </span>
       </div>
       <p id="endpoint-note" style="color:var(--warn);font-size:12px;margin:4px 0 0">${
@@ -1057,7 +1163,8 @@ function viewSettings() {
                    ${s.offline_mode ? "disabled" : ""}>
             <span class="t-body">
               <b>${esc(ENDPOINT_LABEL[endpoint.key] || endpoint.key)}</b>
-              <small class="mono">${esc(endpoint.url || "—")}</small>
+              ${endpoint.url
+                ? `<small class="mono">${esc(endpoint.url)}</small>` : ""}
             </span>
           </div>`).join("")}
       </div>
@@ -1072,8 +1179,7 @@ function viewSettings() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">기본값</div>
-        <h2>스캔 옵션 기본값</h2>
+        <h2>스캔 옵션</h2>
       </div>
       <div class="row" style="align-items:flex-start;gap:20px">
         <label class="field" style="flex:1"><span>동시 실행</span>
@@ -1090,7 +1196,6 @@ function viewSettings() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">필수 도구</div>
         <h2>의존성</h2>
       </div>
       ${dependencyPanel(state.dependencies)}
@@ -1098,25 +1203,50 @@ function viewSettings() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">선택</div>
         <h2>LLM 설정</h2>
       </div>
       <div class="toggle">
-        <input type="checkbox" id="llm-enabled" ${s.llm?.enabled ? "checked" : ""}>
+        <input type="checkbox" id="llm-guide" ${
+          s.llm?.remediation_guide_enabled ? "checked" : ""
+        }>
         <span class="t-body">
-          <b>보고서 서술문 생성에 LLM 사용</b>
-          <small>끄면 미리 정해둔 문장 사용. 취약점 판정과 조치 문구는 어떤 경우에도 LLM 이 만들지 않음</small>
+          <b>LLM 조치상세방안 가이드</b>
+          <small>켜면 <b>조치 가이드</b> 메뉴가 생깁니다. 보고서를 근거로 조치 절차를
+            받아 보실 수 있습니다. 끄면 메뉴 자체가 사라집니다.</small>
         </span>
       </div>
       <div class="toggle">
         <input type="checkbox" id="llm-mask" ${s.llm?.mask_identifiers !== false ? "checked" : ""}>
         <span class="t-body">
           <b>식별자 마스킹</b>
-          <small>주소·IP·경로를 TARGET_1 같은 가짜 이름으로 바꿔 전송</small>
+          <small>주소·IP·경로를 TARGET_1 같은 가짜 이름으로 바꿔 전송하고
+            응답에서 되돌립니다.</small>
         </span>
       </div>
+      <div class="row" style="align-items:flex-start;gap:20px;margin-top:10px">
+        <label class="field" style="flex:2;min-width:220px">
+          <span>MonoGPT API 키</span>
+          <input type="password" id="llm-key" autocomplete="off"
+                 placeholder="${s.llm?.api_key_set ? "설정됨 · 바꿀 때만 입력" : "mr_..."}">
+          <small>이 PC 의 DB 에만 저장됩니다. 화면·API 응답으로 다시 내보내지 않습니다.</small>
+        </label>
+        <label class="field" style="flex:1;min-width:150px">
+          <span>모델</span>
+          <input type="text" id="llm-model" value="${esc(s.llm?.model || "")}"
+                 placeholder="gpt-5.5">
+          <small>gpt-5.5 · claude-haiku-4.5 · gemini-3.5-flash</small>
+        </label>
+      </div>
+      <label class="field">
+        <span>base URL</span>
+        <input type="text" id="llm-endpoint" value="${esc(s.llm?.endpoint || "")}"
+               placeholder="https://monogpt.kr/api/monorouter/v1">
+        <small>끝에 <span class="mono">/chat/completions</span> 는 자동으로 붙습니다.</small>
+      </label>
       <p style="color:var(--faint);font-size:12px;margin:10px 0 14px">
-        요청·응답 원문과 추출값은 어떤 경우에도 전송하지 않음. 보고서의 설명 문장에만 사용
+        <b>보고서에는 LLM 을 쓰지 않음.</b> 근거성이 중요해 생성 문장을 섞지 않음.
+        조치 가이드는 완성된 보고서를 입력으로 받는 별도 기능이며 보고서를 바꾸지 않음.
+        요청·응답 원문과 추출값은 어떤 경우에도 전송하지 않음
       </p>
       <div class="actions">
         <button class="primary" data-save="llm">LLM 설정 저장</button>
@@ -1125,7 +1255,6 @@ function viewSettings() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">상태</div>
         <h2>도구 정보</h2>
       </div>
       <dl class="kv">
@@ -1148,9 +1277,7 @@ const ENDPOINT_LABEL = {
 
 async function saveSettings(kind) {
   const patch = {};
-  if (kind === "allowlist") {
-    patch.target_allowlist = splitList(document.getElementById("allowlist").value);
-  } else if (kind === "network") {
+  if (kind === "network") {
     patch.offline_mode = document.getElementById("offline").checked;
     patch.external_endpoints = Array.from(
       document.querySelectorAll("[data-endpoint]")
@@ -1162,17 +1289,24 @@ async function saveSettings(kind) {
       retries: Number(document.getElementById("d-retries").value),
     };
   } else if (kind === "llm") {
+    const key = document.getElementById("llm-key").value.trim();
     patch.llm = {
-      enabled: document.getElementById("llm-enabled").checked,
+      remediation_guide_enabled: document.getElementById("llm-guide").checked,
       mask_identifiers: document.getElementById("llm-mask").checked,
+      model: document.getElementById("llm-model").value.trim() || null,
+      endpoint: document.getElementById("llm-endpoint").value.trim() || null,
+      // 빈 칸이면 기존 키 유지. 빈 값을 보내면 저장된 키가 지워짐
+      ...(key ? { api_key: key } : {}),
     };
   }
 
   try {
     state.settings = await api.saveSettings(patch);
     renderStateStrip();
-    toast("저장됨");
-    if (kind === "network" || kind === "allowlist") render();
+    toast("저장했습니다.");
+    // llm 저장은 메뉴 구성을 바꿈 (조치 가이드 노출). 레일까지 다시 그림
+    // llm 저장은 메뉴 구성을 바꿈 (조치 가이드 노출). 레일까지 다시 그림
+    if (kind === "network" || kind === "llm") render();
   } catch (error) {
     showApiError(error);
   }
@@ -1187,15 +1321,18 @@ function showApiError(error) {
     const detail = error.details?.[0]?.reason;
     toast(detail ? `${error.message} (${detail})` : error.message, "err");
   } else {
-    toast("요청 처리 실패", "err");
+    toast("요청을 처리하지 못했습니다.", "err");
   }
 }
 
 async function refreshContext() {
   const results = await Promise.allSettled([
     api.health(), api.guideStatus(), api.settings(), api.dependencies(),
+    // 상태 띠가 템플릿 수를 보여주므로 함께 읽음
+    api.scanPreflight(),
   ]);
-  [state.health, state.guide, state.settings, state.dependencies] =
+  [state.health, state.guide, state.settings, state.dependencies,
+   state.preflight] =
     results.map((r) => (r.status === "fulfilled" ? r.value : null));
   renderStateStrip();
 }
@@ -1210,6 +1347,7 @@ async function render() {
   const { path, params } = route();
   renderNav(path === "results-list" ? "results" : path);
   document.querySelector(".drawer")?.remove();
+  stopLogPolling();               // 화면을 떠나면 폴링 중단
 
   try {
     if (path === "dashboard") await viewDashboard();
@@ -1220,12 +1358,20 @@ async function render() {
       await viewResults(new URLSearchParams());
     } else if (path === "templates") await viewTemplates();
     else if (path === "report") await viewReport();
-    else if (path === "settings") viewSettings();
+    else if (path === "remediation") {
+      // 기능이 꺼진 상태에서 주소를 직접 입력해도 들어가지 못해야 함
+      if (!state.settings?.llm?.remediation_guide_enabled) {
+        toast("조치 가이드 기능이 꺼져 있습니다.", "err");
+        go("settings");
+        return;
+      }
+      await viewRemediation(view());
+    } else if (path === "settings") viewSettings();
     else go("dashboard");
   } catch (error) {
     view().innerHTML = emptyState({
       eyebrow: "오류",
-      title: "화면을 불러오지 못함",
+      title: "화면을 불러오지 못했습니다",
       body: esc(error.message || "알 수 없는 오류"),
       cta: '<button class="primary" data-reload>다시 시도</button>',
     });
@@ -1256,7 +1402,7 @@ document.addEventListener("click", async (event) => {
     event.stopPropagation();
     const ok = await confirmDialog({
       title: "스캔 삭제",
-      body: "이 스캔의 탐지 결과와 보고서까지 함께 삭제됨. 되돌릴 수 없음",
+      body: "이 스캔의 탐지 결과와 보고서까지 함께 삭제됩니다. 되돌릴 수 없습니다.",
       confirmLabel: "삭제",
       danger: true,
     });
@@ -1264,7 +1410,7 @@ document.addEventListener("click", async (event) => {
     try {
       await api.deleteScan(deleteId);
       if (state.scanId === deleteId) state.scanId = null;
-      toast("삭제됨");
+      toast("삭제했습니다.");
       render();
     } catch (error) { showApiError(error); }
     return;
@@ -1287,7 +1433,7 @@ document.addEventListener("click", async (event) => {
   if (t.closest("#cancel")) {
     try {
       await api.cancelScan(state.scanId);
-      toast("중단 요청됨");
+      toast("중단을 요청했습니다.");
     } catch (error) { showApiError(error); }
     return;
   }
@@ -1302,6 +1448,7 @@ document.addEventListener("click", async (event) => {
     if (await handleDependencyClick(t, refreshAndRender)) return;
     if (await handleTemplateClick(t)) return;
     if (await handleReportClick(t)) return;
+    if (await handleRemediationClick(t)) return;
   } catch (error) { showApiError(error); }
 });
 
@@ -1348,6 +1495,35 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("hashchange", render);
+
+/* 도크의 로그 버튼 구현. tasks -> app 방향 import 를 만들지 않으려고 주입 */
+tasks.setLogHooks({
+  onShowLog: async () => {
+    if (route().path !== "scan") {
+      go("scan");
+      await render();
+    }
+    const view = document.getElementById("logview");
+    if (view?.hidden) document.getElementById("log-toggle")?.click();
+    view?.scrollIntoView({ behavior: "smooth", block: "center" });
+  },
+  onSaveLog: async () => {
+    try {
+      const { text, filename } = await api.downloadLogs();
+      const url = URL.createObjectURL(
+        new Blob([text], { type: "text/plain;charset=utf-8" })
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast(`${filename} 으로 저장했습니다.`);
+    } catch (error) {
+      showApiError(error);
+    }
+  },
+});
 
 (async function boot() {
   await refreshContext();

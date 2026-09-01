@@ -57,6 +57,18 @@ export const api = {
 
   listScans: (params = {}) => request("/scans" + query(params)),
   scanPreflight: () => request("/scans/preflight"),
+  logs: (after = 0) => request(`/logs${query({ after })}`),
+  downloadLogs: async () => {
+    // 본문이 JSON 이 아니라 원문. request() 를 쓰지 않고 직접 읽음
+    const response = await fetch(`${BASE}/logs/download`);
+    if (!response.ok) {
+      throw new ApiError(response.status, "DOWNLOAD_FAILED",
+        `로그를 내려받지 못했습니다 (HTTP ${response.status}).`);
+    }
+    const disposition = response.headers.get("content-disposition") || "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    return { text: await response.text(), filename: match?.[1] || "redar_log.txt" };
+  },
   getScan: (id) => request(`/scans/${encodeURIComponent(id)}`),
   createScan: (payload) =>
     request("/scans", { method: "POST", body: JSON.stringify(payload) }),
@@ -106,8 +118,20 @@ export const api = {
     const response = await fetch(
       `${BASE}/reports/${encodeURIComponent(id)}/download?format=${format}`
     );
-    if (!response.ok) throw new ApiError(response.status, "DOWNLOAD_FAILED",
-      "보고서 내려받기 실패");
+    if (!response.ok) {
+      // 서버가 준 사유를 살림. 'DOWNLOAD_FAILED' 만 보이면 원인을 알 수 없음
+      let detail = "";
+      try {
+        const body = await response.json();
+        detail = body?.error?.message || "";
+      } catch {
+        detail = (await response.text().catch(() => "")).slice(0, 200);
+      }
+      throw new ApiError(
+        response.status, "DOWNLOAD_FAILED",
+        `보고서 내려받기 실패 (HTTP ${response.status})${detail ? `: ${detail}` : ""}`,
+      );
+    }
     const disposition = response.headers.get("content-disposition") || "";
     const match = disposition.match(/filename="([^"]+)"/);
     return { text: await response.text(), filename: match?.[1] || `report.${format}` };
@@ -137,6 +161,15 @@ export const api = {
     request("/templates/validate", { method: "POST", body: JSON.stringify(payload) }),
   dryrunTemplate: (payload) =>
     request("/templates/dryrun", { method: "POST", body: JSON.stringify(payload) }),
+  remediationStatus: () => request("/remediation/status"),
+  remediationPrompt: (reportId) =>
+    request(`/remediation/${encodeURIComponent(reportId)}/prompt`,
+      { method: "POST" }),
+  remediationChat: (messages, confirm) =>
+    request("/remediation/chat", {
+      method: "POST", body: JSON.stringify({ messages, confirm }),
+    }),
+
   syncTemplates: () => request("/templates/sync", { method: "POST" }),
   reindexTemplates: () => request("/templates/reindex", { method: "POST" }),
 
@@ -150,6 +183,15 @@ export const api = {
 /* 스캔 진행률 구독. progress / finding / done 이벤트를 넘긴다 */
 export function subscribeScan(scanId, handlers) {
   const source = new EventSource(`${BASE}/scans/${encodeURIComponent(scanId)}/stream`);
+  let finished = false;
+  let poller = null;
+
+  const stop = () => {
+    finished = true;
+    clearInterval(poller);
+    source.close();
+  };
+
   for (const name of ["progress", "finding", "done"]) {
     source.addEventListener(name, (event) => {
       let payload = {};
@@ -158,11 +200,36 @@ export function subscribeScan(scanId, handlers) {
       } catch {
         return;
       }
+      if (name === "done") stop();
       handlers[name]?.(payload);
-      // done 이후 서버가 스트림 종료. 재연결 시도 차단
-      if (name === "done") source.close();
     });
   }
-  source.onerror = () => source.close();
-  return () => source.close();
+
+  /* SSE 가 끊겨도 완료를 놓치지 않게 상태를 직접 확인.
+   *
+   * 스트림이 죽으면 화면이 영원히 '스캔 중' 으로 남는다. 실제로 그랬음.
+   * 재연결 대신 폴링으로 최종 상태를 확인하고 done 을 한 번 만들어 준다 */
+  const TERMINAL = new Set(["completed", "failed", "canceled"]);
+  source.onerror = () => {
+    source.close();
+    if (finished || poller) return;
+    poller = setInterval(async () => {
+      try {
+        const view = await api.getScan(scanId);
+        if (!TERMINAL.has(view.status)) return;
+        stop();
+        handlers.done?.({
+          scan_id: scanId,
+          status: view.status,
+          duration_sec: view.duration_sec,
+          findings_total: null,
+          error: view.error,
+        });
+      } catch {
+        // 백엔드가 잠깐 응답하지 않는 경우. 다음 주기에 재시도
+      }
+    }, 2000);
+  };
+
+  return stop;
 }

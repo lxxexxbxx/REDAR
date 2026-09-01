@@ -170,7 +170,8 @@ def insert(
         " VALUES (?, ?, 'generating', ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             report_id, scan_id,
-            int(options["use_llm"]), int(options["include_guide_mapping"]),
+            # 보고서는 LLM 을 쓰지 않음. 컬럼은 스키마 동결로 남아 항상 0
+            0, int(options["include_guide_mapping"]),
             int(options["include_evidence"]), int(options["exclude_false_positives"]),
             int(guide_status["imported"]), guide_status["version"],
             guide_status["item_count"], guide_status["items_covered"],

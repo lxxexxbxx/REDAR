@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -276,6 +277,30 @@ def test_stage_backend_dereferences_symlinks(tmp_path, monkeypatch):
     assert [p for p in stage.rglob("*") if p.is_symlink()] == []
 
 
+def test_hidden_imports_all_exist():
+    """삭제한 모듈이 목록에 남으면 빌드가 ERROR 를 뿜는다.
+    실패로 끝나지 않아 놓치기 쉬움"""
+    text = SPEC.read_text(encoding="utf-8")
+    block = text.split("hiddenimports = [")[1].split("]")[0]
+    missing = [
+        name for name in re.findall(r'"([\w.]+)"', block)
+        if name.startswith("app.") and importlib.util.find_spec(name) is None
+    ]
+    assert not missing, f"존재하지 않는 hiddenimports: {missing}"
+
+
+def test_collectors_all_in_hidden_imports():
+    """pkgutil 자동 등록은 PyInstaller 의 정적 분석에 안 잡힌다.
+    수집기를 추가하고 spec 을 빠뜨리면 번들에서만 사라짐"""
+    text = SPEC.read_text(encoding="utf-8")
+    modules = {
+        f.stem for f in (ROOT / "app" / "collectors").glob("*.py")
+        if f.stem not in ("__init__", "base")
+    }
+    missing = [m for m in modules if f'"app.collectors.{m}"' not in text]
+    assert not missing, f"spec 에 빠진 수집기: {missing}"
+
+
 def test_spec_has_no_onefile_branch():
     """onefile 은 실행마다 9~18초가 걸림 (onedir 0.3초. 실측)"""
     text = SPEC.read_text(encoding="utf-8")
@@ -512,6 +537,25 @@ def test_build_reexec_does_not_recurse(monkeypatch):
     assert build.in_target_venv() is True        # 테스트는 venv 안에서 돔
     build.ensure_venv()
     assert calls == []                           # 재실행하지 않음
+
+
+def test_venv_detection_true_only_inside(monkeypatch, tmp_path):
+    """sys.executable 을 resolve() 로 비교하면 가상환경의 bin/python 심볼릭 링크가
+    베이스 인터프리터로 접혀 시스템 파이썬을 가상환경으로 오인한다.
+    그 상태로 pip 을 돌리면 PEP 668 로 막힘. sys.prefix 가 정본 판정
+
+    bin/python 을 만들지 않는다 - 옛 구현은 여기서 False 를 내며 실패해야 함
+    """
+    build = _load_build()
+    monkeypatch.setattr(build, "VENV_DIR", tmp_path / ".venv")
+    (tmp_path / ".venv").mkdir()
+
+    monkeypatch.setattr(build.sys, "prefix", str(tmp_path / ".venv"))
+    assert build.in_target_venv() is True
+
+    # 시스템 파이썬. 가상환경 bin/python 이 이쪽을 가리켜도 False 여야 함
+    monkeypatch.setattr(build.sys, "prefix", "/opt/homebrew")
+    assert build.in_target_venv() is False
 
 
 def test_build_installs_deps_even_inside_venv(monkeypatch):

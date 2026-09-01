@@ -65,12 +65,18 @@ def _ctx(table: dict[str, Response], **kwargs) -> TargetContext:
     )
 
 
+def _collector(key: str):
+    """키로 조회. 위치로 집으면 수집기가 늘 때마다 테스트가 깨짐"""
+    return next(c for c in collectors.registry() if c.key == key)
+
+
 # ─────────────────────────────────────────────── 레지스트리 · 순서
 
 def test_registry_discovers_collectors_from_files():
     """파일 추가만으로 등록되어야 한다. 등록표를 따로 두면 누락이 생김"""
     keys = [c.key for c in collectors.registry()]
-    assert keys == ["generic-http", "wordpress", "apache"]
+    # 순서도 규약이다. framework 는 wordpress 뒤에 와야 '이미 확정됐는지' 를 볼 수 있음
+    assert keys == ["generic-http", "wordpress", "framework", "apache"]
 
 
 def test_registry_order_is_generic_then_app_then_middleware():
@@ -157,8 +163,8 @@ def test_every_exposure_is_reported_even_when_false():
 
 def test_wordpress_version_and_components():
     ctx = _ctx(_wordpress_site())
-    ctx.collected["generic-http"] = collectors.registry()[0].collect(ctx)
-    result = collectors.registry()[1].collect(ctx)
+    ctx.collected["generic-http"] = _collector("generic-http").collect(ctx)
+    result = _collector("wordpress").collect(ctx)
 
     assert result.application.product == "WordPress"
     assert result.application.version == "6.4.2"
@@ -179,13 +185,13 @@ def test_version_unknown_is_none_and_low():
         "/": Response(200, {}, '<link href="/wp-content/plugins/x/a.css">',
                       "http://wp.local/"),
     })
-    result = collectors.registry()[1].collect(ctx)
+    result = _collector("wordpress").collect(ctx)
     assert result.application.version is None
     assert result.application.confidence is Confidence.LOW
 
 
 def test_plaintext_target_is_tls_weak():
-    result = collectors.registry()[0].collect(_ctx(_wordpress_site()))
+    result = _collector("generic-http").collect(_ctx(_wordpress_site()))
     tls = next(e for e in result.exposures if e.key == "tls_weak_config")
     assert tls.value is True
     assert "평문" in tls.evidence
@@ -197,7 +203,7 @@ def test_login_ratelimit_not_claimed_when_limiter_present():
     ctx = _ctx(_wordpress_site(
         **{"/": Response(200, {}, html, "http://wp.local/")}
     ))
-    result = collectors.registry()[1].collect(ctx)
+    result = _collector("wordpress").collect(ctx)
     exposure = next(e for e in result.exposures if e.key == "wp_login_no_ratelimit")
     assert exposure.value is False
     assert "wordfence" in exposure.evidence
@@ -207,7 +213,7 @@ def test_admin_redirect_to_login_is_not_public():
     ctx = _ctx(_wordpress_site(**{
         "/wp-admin/": Response(200, {}, "", "http://wp.local/wp-login.php?redirect_to=x")
     }))
-    result = collectors.registry()[1].collect(ctx)
+    result = _collector("wordpress").collect(ctx)
     exposure = next(e for e in result.exposures if e.key == "admin_page_public")
     assert exposure.value is False
 
@@ -220,7 +226,7 @@ def test_backup_file_evidence_has_no_body():
             200, {}, secret, "http://wp.local/wp-config.php.bak"
         )
     }))
-    result = collectors.registry()[1].collect(ctx)
+    result = _collector("wordpress").collect(ctx)
     exposure = next(e for e in result.exposures if e.key == "dir_backup_files")
     assert exposure.value is True
     assert "hunter2" not in exposure.evidence
@@ -231,7 +237,7 @@ def test_wordpress_skipped_on_non_wordpress_target():
     """무관한 대상에 8회 요청하지 않음"""
     ctx = _ctx({"/": Response(200, {"server": "nginx"}, "<html>plain</html>",
                               "http://x.local/")})
-    assert collectors.registry()[1].applicable(ctx) is False
+    assert _collector("wordpress").applicable(ctx) is False
 
 
 # ─────────────────────────────────────────────── 실패 격리 (M4 규칙 2)
@@ -293,7 +299,9 @@ def test_profile_round_trip(conn, collected):
     assert profile["application"]["product"] == "WordPress"
     assert profile["application"]["version"] == "6.4.2"
     assert len(profile["exposures"]) == 11
-    assert profile["collectors_run"] == ["generic-http", "wordpress", "apache"]
+    assert profile["collectors_run"] == [
+        "generic-http", "wordpress", "framework", "apache",
+    ]
     assert profile["collectors_failed"] == []
 
 
@@ -325,15 +333,22 @@ def test_selection_basis_records_evidence(conn, collected):
     assert all(m["templates"] for m in basis["matched_components"])
     assert {"product": "WordPress", "version": "6.4.2", "templates": []} in \
         basis["matched_stack"]
-    assert "wordpress" in basis["selection_tags"]
-    # 분모는 로컬 인벤토리. M5 전에는 0 이며 그 사실을 근거에 남김
+    assert "wordpress" in basis["environment_tags"]
+    # 분모는 로컬 인벤토리
     assert basis["universe"] == "templates"
     assert basis["total_available"] == env_repo.local_template_count(conn)
     assert basis["candidate_templates"] > 0
+    # 환경 근거는 남기되 실행 범위를 좁히지는 않음
+    assert basis["filtered"] is False
+    assert basis["total_selected"] == basis["total_available"]
 
 
-def test_selection_only_runs_templates_in_inventory(conn, collected):
-    """인벤토리에 있는 것만 실행 대상. 없는 id 를 nuclei 에 넘기지 않음"""
+def test_environment_never_narrows_execution(conn, collected):
+    """환경 조사로 실행 범위를 좁히지 않는다.
+
+    이전에는 인벤토리에 있는 id 만 골라 -id 로 넘겼고, 태그와 함께 나가면서
+    nuclei 가 교집합만 실행해 취약한 대상이 0건으로 끝났다 (실측)
+    """
     conn.execute(
         "INSERT OR IGNORE INTO templates"
         " (template_id, source, file_path, name) VALUES"
@@ -342,9 +357,11 @@ def test_selection_only_runs_templates_in_inventory(conn, collected):
     conn.commit()
     try:
         selection = svc.select_templates(conn, [collected])
-        assert selection.template_ids == ["wp-contact-form-7-fpd"]
-        assert selection.basis["total_selected"] == 1
-        assert selection.basis["total_available"] == 1
+        assert selection.template_ids == []
+        assert selection.tags == []
+        # 환경에서 도출된 후보는 근거로만 남음
+        assert selection.basis["environment_templates"] == ["wp-contact-form-7-fpd"]
+        assert selection.basis["total_selected"] == 1     # 보유 전부가 실행 대상
     finally:
         conn.execute("DELETE FROM templates WHERE template_id = 'wp-contact-form-7-fpd'")
         conn.commit()
@@ -371,7 +388,6 @@ def test_template_ids_use_id_flag_not_t():
             targets=["http://wp.local"],
             template_ids=["CVE-2026-33017", "wp-contact-form-7-fpd"],
             template_paths=["templates/custom"],
-            tags=["wordpress"],
         ),
         exe="/usr/bin/nuclei",
     )
