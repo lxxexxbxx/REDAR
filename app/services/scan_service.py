@@ -70,8 +70,8 @@ def preflight(conn) -> dict[str, Any]:
     if not settings.nuclei_bin():
         blockers.append({
             "code": "NUCLEI_MISSING",
-            "message": "nuclei 없음. 탐지 실행 불가",
-            "action": "설정 → 의존성에서 설치하거나 파일 반입",
+            "message": "nuclei 가 없어 스캔할 수 없습니다.",
+            "action": "의존성 설정 열기",
             "goto": "settings",
         })
     # 허용 목록이 비어 있어도 막지 않는다. 스캔 화면 입력이 곧 등록이므로
@@ -79,8 +79,8 @@ def preflight(conn) -> dict[str, Any]:
     if not official and not custom and not store:
         blockers.append({
             "code": "NO_TEMPLATES",
-            "message": "실행할 템플릿 0개. 스캔해도 항상 탐지 0건",
-            "action": "템플릿 화면에서 공식 템플릿 갱신, 또는 직접 작성",
+            "message": "실행할 템플릿이 0개라 스캔해도 결과가 항상 0건입니다.",
+            "action": "템플릿 화면 열기",
             "goto": "templates",
         })
 
@@ -180,7 +180,7 @@ class ScanService:
 
     def create(self, req: ScanRequest) -> dict[str, Any]:
         if not req.targets:
-            raise ScanError("INVALID_REQUEST", "스캔 대상 비어 있음")
+            raise ScanError("INVALID_REQUEST", "스캔 대상을 입력하세요.")
         if req.mode == "environment_driven" and not req.collect_environment:
             # 환경 조사 없이 환경 기반 선별은 성립하지 않음. 조용히 filter 로
             # 대체하면 보고서의 선별 근거가 사라짐
@@ -190,7 +190,7 @@ class ScanService:
                 details=[{"field": "collect_environment", "reason": "required"}],
             )
         if req.mode not in ("explicit", "filter", "environment_driven"):
-            raise ScanError("INVALID_REQUEST", f"알 수 없는 모드: {req.mode}")
+            raise ScanError("INVALID_REQUEST", f"알 수 없는 모드입니다: {req.mode}")
 
         # 'host:33-4444' 를 개별 대상으로 전개. nuclei 에는 포트 범위 옵션이 없음
         try:

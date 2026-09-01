@@ -150,9 +150,9 @@ def _values(finding: dict[str, Any], column: str) -> list[str]:
 
 # 점검 가능 근거가 없으면 safe 로 두지 않음. '점검하지 않은 것' 이
 # '양호' 로 둔갑하는 것이 보고서에서 가장 위험한 오류 (절대규칙 10)
-_UNCHECKED_NOTE = "점검 범위 외 — 원격 스캔으로 확인할 수 없는 항목"
-_EXPOSURE_SAFE_NOTE = "환경 조사에서 확인됨 · 노출 없음"
-_FINDING_SAFE_NOTE = "점검 대상 스택 확인됨 · 탐지 없음"
+_UNCHECKED_NOTE = "점검 범위 외 - 웹 요청으로 확인할 수 없는 항목"
+_EXPOSURE_SAFE_NOTE = "환경 조사에서 확인했으며 노출이 없습니다."
+_FINDING_SAFE_NOTE = "점검 대상 스택을 확인했으며 탐지가 없습니다."
 
 
 @dataclass(frozen=True)

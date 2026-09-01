@@ -120,19 +120,19 @@ def build(form: dict[str, Any]) -> str:
     info_in = _section_dict(form, "info")
     template_id = str(info_in.get("id") or "").strip()
     if not TEMPLATE_ID_RE.match(template_id):
-        raise BuildError("info.id", "템플릿 ID 는 소문자·숫자·하이픈만 허용")
+        raise BuildError("info.id", "템플릿 ID 는 소문자·숫자·하이픈만 쓸 수 있습니다.")
 
     name = str(info_in.get("name") or "").strip()
     if not name:
-        raise BuildError("info.name", "이름 없음")
+        raise BuildError("info.name", "이름을 입력하세요.")
 
     severity = str(info_in.get("severity") or "").strip()
     if severity not in {s.value for s in Severity}:
-        raise BuildError("info.severity", "severity 값 오류")
+        raise BuildError("info.severity", "severity 값이 올바르지 않습니다.")
 
     author = str(info_in.get("author") or "").strip()
     if not author:
-        raise BuildError("info.author", "작성자 없음. nuclei 필수 항목")
+        raise BuildError("info.author", "작성자를 입력하세요. nuclei 필수 항목입니다.")
 
     info: dict[str, Any] = {"name": name, "author": author, "severity": severity}
     if info_in.get("description"):
@@ -156,7 +156,7 @@ def build(form: dict[str, Any]) -> str:
 def _section_dict(form: dict[str, Any], key: str) -> dict[str, Any]:
     value = form.get(key) or {}
     if not isinstance(value, dict):
-        raise BuildError(key, f"{key} 는 객체 형식 필요")
+        raise BuildError(key, f"{key} 는 객체 형식이어야 합니다.")
     return value
 
 
@@ -187,7 +187,7 @@ def _classification(raw: dict[str, Any]) -> dict[str, Any]:
         except (TypeError, ValueError) as exc:
             raise BuildError("classification.cvss_score", "숫자가 아닙니다.") from exc
         if not 0 <= value <= 10:
-            raise BuildError("classification.cvss_score", "0~10 범위 초과")
+            raise BuildError("classification.cvss_score", "0~10 범위를 벗어났습니다.")
         out["cvss-score"] = value
     return out
 
@@ -195,23 +195,23 @@ def _classification(raw: dict[str, Any]) -> dict[str, Any]:
 def _requests(form: dict[str, Any]) -> list[dict[str, Any]]:
     entries = form.get("http") or []
     if not isinstance(entries, list) or not entries:
-        raise BuildError("http", "요청 시나리오 최소 1개 필요")
+        raise BuildError("http", "요청 시나리오가 최소 1개 필요합니다.")
 
     matchers = _matchers(form.get("matchers"))
     condition = form.get("matchers-condition") or "and"
     if condition not in CONDITIONS:
-        raise BuildError("matchers-condition", "and 또는 or 만 허용")
+        raise BuildError("matchers-condition", "and 또는 or 만 쓸 수 있습니다.")
 
     requests: list[dict[str, Any]] = []
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
-            raise BuildError(f"http[{index}]", "객체 형식 필요")
+            raise BuildError(f"http[{index}]", "객체 형식이어야 합니다.")
         method = str(entry.get("method") or "GET").upper()
         if method not in HTTP_METHODS:
             raise BuildError(f"http[{index}].method", "허용되지 않은 메서드입니다.")
         path = str(entry.get("path") or "").strip()
         if not path:
-            raise BuildError(f"http[{index}].path", "경로 없음")
+            raise BuildError(f"http[{index}].path", "경로를 입력하세요.")
 
         request: dict[str, Any] = {"method": method, "path": [path]}
         headers = entry.get("headers")
@@ -233,17 +233,17 @@ def _requests(form: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _matchers(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list) or not raw:
-        raise BuildError("matchers", "탐지 조건 최소 1개 필요")
+        raise BuildError("matchers", "탐지 조건이 최소 1개 필요합니다.")
     out: list[dict[str, Any]] = []
     for index, item in enumerate(raw):
         if not isinstance(item, dict):
-            raise BuildError(f"matchers[{index}]", "객체 형식 필요")
+            raise BuildError(f"matchers[{index}]", "객체 형식이어야 합니다.")
         kind = str(item.get("type") or "").strip()
         if kind not in MATCHER_TYPES:
             raise BuildError(f"matchers[{index}].type", "허용되지 않은 조건 종류입니다.")
         values = _as_list(f"matchers[{index}].values", item.get("values") or [])
         if not values:
-            raise BuildError(f"matchers[{index}].values", "값 없음")
+            raise BuildError(f"matchers[{index}].values", "값을 입력하세요.")
 
         matcher: dict[str, Any] = {"type": kind}
         # 드라이런이 matcher 별 결과를 특정하려면 이름이 필요 (M5 완료 조건)
@@ -258,13 +258,13 @@ def _matchers(raw: Any) -> list[dict[str, Any]]:
         else:
             part = str(item.get("part") or "body")
             if part not in MATCHER_PARTS:
-                raise BuildError(f"matchers[{index}].part", "검사 대상 값 오류")
+                raise BuildError(f"matchers[{index}].part", "검사 대상 값이 올바르지 않습니다.")
             matcher["part"] = part
             matcher[{"word": "words", "regex": "regex", "dsl": "dsl"}[kind]] = values
         item_condition = str(item.get("condition") or "").strip()
         if item_condition:
             if item_condition not in CONDITIONS:
-                raise BuildError(f"matchers[{index}].condition", "and 또는 or 만 허용")
+                raise BuildError(f"matchers[{index}].condition", "and 또는 or 만 쓸 수 있습니다.")
             matcher["condition"] = item_condition
         out.append(matcher)
     return out

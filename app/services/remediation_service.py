@@ -32,7 +32,9 @@ from app.services.scan_service import ScanError
 MAX_MESSAGES = 20
 MAX_MESSAGE_CHARS = 8000
 # 가이드는 절차 문서라 길다
-GUIDE_MAX_TOKENS = 6000
+# 조치 가이드는 문서 한 편이다. 실측 21,000자 완결에 출력 약 9,000토큰 필요.
+# 추론 모델은 이 예산을 추론과 나눠 쓰므로 여유를 둠 (부족하면 본문이 0자)
+GUIDE_MAX_TOKENS = 16000
 # 설정이 비어 있을 때 쓸 Provider. 통신 구현이 하나뿐임
 DEFAULT_PROVIDER = "monogpt"
 # '미설정' 으로 볼 값. settings_defaults.csv 가 문자열 'null' 을 넣으므로
@@ -70,7 +72,7 @@ def _provider(raw: dict[str, str]):
         "api_key": raw.get("llm_api_key"),
         "model": raw.get("llm_model"),
     })
-    if not hasattr(provider, "complete"):
+    if provider.name == "null":
         raise ScanError(
             "LLM_UNAVAILABLE",
             f"알 수 없는 LLM Provider: {provider_name(raw)}",
@@ -170,12 +172,22 @@ def report_context(report: dict[str, Any]) -> dict[str, Any]:
         "remediation": [
             {
                 "item_code": item.get("item_code"),
-                "item_name": item.get("item_name"),
-                "fixed_version": item.get("fixed_version"),
+                # 보고서 remediation 항목의 이름 키는 'title' (builder._remediation)
+                "item_name": item.get("title"),
                 # 가이드 원문은 그대로 인용. 재작성 요구하지 않음 (절대규칙 9)
                 "guide_remediation_original": item.get("guide_remediation_original"),
             }
             for item in (report.get("remediation") or [])
+        ][:30],
+        # 패치 목표 버전은 조치 항목이 아니라 패치 계획에 있음 (builder._patch_plan)
+        "patch_plan": [
+            {
+                "slug": row.get("slug"),
+                "installed_version": row.get("installed_version"),
+                "upgrade_to_at_least": row.get("upgrade_to_at_least"),
+            }
+            for row in (report.get("patch_plan") or [])
+            if row.get("upgrade_to_at_least")
         ][:30],
     }
 
@@ -197,7 +209,7 @@ def build_prompt(conn: sqlite3.Connection, report_id: str) -> dict[str, Any]:
     row = report_repo.get(conn, report_id)
     report = (row or {}).get("report")
     if report is None:
-        raise ScanError("NOT_FOUND", "보고서 없음", status_code=404)
+        raise ScanError("NOT_FOUND", "보고서를 찾을 수 없습니다.", status_code=404)
 
     context = report_context(report)
     return {
@@ -261,9 +273,9 @@ def render_prompt(context: dict[str, Any]) -> str:
 
     exposures = context.get("exposures") or []
     if exposures:
-        lines += ["", "### 확인된 노출 항목 — 조치 대상"]
+        lines += ["", "### 확인된 노출 항목 - 조치 대상"]
         for e in exposures:
-            path = f" — `{e['path']}`" if e.get("path") else ""
+            path = f" - `{e['path']}`" if e.get("path") else ""
             lines.append(f"- {e.get('key')}{path}")
 
     failed = context.get("collectors_failed") or []
@@ -305,13 +317,21 @@ def render_prompt(context: dict[str, Any]) -> str:
         ]
         for item in remediation:
             lines.append(f"### {item.get('item_code')} {item.get('item_name') or ''}")
-            if item.get("fixed_version"):
-                lines.append(f"패치 목표 버전: {item['fixed_version']}")
             lines += ["```", str(item["guide_remediation_original"]).strip(), "```", ""]
+
+    patches = context.get("patch_plan") or []
+    if patches:
+        lines += ["", "## 패치 목표 버전"]
+        for row in patches:
+            lines.append(
+                f"- `{row['slug']}` {row.get('installed_version') or '버전 미확인'}"
+                f" -> {row['upgrade_to_at_least']} 이상"
+            )
+        lines.append("")
 
     lines += [
         "## 주의",
-        "- 탐지되지 않은 항목을 '양호' 로 단정하지 말 것. 원격 스캔은 계정 관리·"
+        "- 탐지되지 않은 항목을 '양호' 로 단정하지 말 것. 웹 요청으로는 계정 관리·"
         "파일 권한·서비스 데몬 설정을 볼 수 없음",
         "- 조치 전 대상 파일 백업 명령을 각 단계 첫 줄에 넣을 것",
         "- 위 환경 정보에 없는 경로·버전을 임의로 가정하지 말 것."
@@ -348,7 +368,7 @@ def ask(
         )
     cleaned = _clean(messages)
     if not cleaned:
-        raise ScanError("INVALID_REQUEST", "보낼 내용 없음")
+        raise ScanError("INVALID_REQUEST", "보낼 내용이 없습니다.")
 
     # 프롬프트에는 실제 호스트·경로가 들어 있다. 나가는 길에만 치환하고
     # 돌아온 가이드는 되돌려 실제 값으로 보여줌 (docs/01 §7.4)

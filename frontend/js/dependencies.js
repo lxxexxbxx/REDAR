@@ -18,14 +18,14 @@ const SOURCE_LABEL = {
 /* 설정 화면의 의존성 패널 */
 export function dependencyPanel(state) {
   if (!state) {
-    return `<p class="empty" style="margin:0">의존성 정보 불러오기 실패</p>`;
+    return `<p class="empty" style="margin:0">의존성 정보를 불러오지 못했습니다.</p>`;
   }
   return `
     ${state.items.map(dependencyRow).join("")}
     <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-      자동 설치는 Go 툴체인을 내려받아 <span class="mono">go install</span> 로 빌드.
-      외부 통신이 발생하므로 설정에서 <strong>의존성 자동 설치</strong> 지점을 켜야 하며,
-      오프라인 모드에서는 차단. 인터넷이 없는 환경이면 <strong>파일 반입</strong> 사용
+      자동 설치는 Go 툴체인을 내려받아 직접 빌드합니다. 외부 통신이 발생하므로
+      설정에서 <strong>의존성 자동 설치</strong> 를 켜야 하고, 오프라인 모드에서는 막힙니다.
+      인터넷이 없는 환경이면 <strong>파일 반입</strong> 을 쓰세요.
     </p>`;
 }
 
@@ -64,7 +64,7 @@ function dependencyRow(item) {
       </div>
       <p style="color:var(--faint);font-size:12px;margin:6px 0 0">
         직접 받으려면 <span class="mono">${esc(item.manual_url)}</span> 에서 내려받아
-        <span class="mono">${esc(item.import_dir)}</span> 에 두거나 위에서 반입
+        <span class="mono">${esc(item.import_dir)}</span> 에 두거나 위에서 반입하세요.
       </p>
     </div>`;
 }
@@ -104,13 +104,13 @@ export async function handleDependencyClick(target, refresh) {
   if (save) {
     const value = document.querySelector(`[data-dep-path="${save}"]`).value.trim();
     await api.setDependencyPath(save, value || null);
-    toast(value ? "경로 지정됨" : "지정 해제됨");
+    toast(value ? "경로를 지정했습니다." : "지정을 해제했습니다.");
     await refresh();
     return true;
   }
   if (clear) {
     await api.setDependencyPath(clear, null);
-    toast("지정 해제됨");
+    toast("지정을 해제했습니다.");
     await refresh();
     return true;
   }
@@ -122,17 +122,17 @@ export async function handleDependencyClick(target, refresh) {
     // 설정만으로 자동 실행되지 않음. 사용자가 매번 동의함
     const agreed = await confirmDialog({
       title: `${install} 자동 설치`,
-      body: "Go 툴체인을 내려받아 직접 빌드함. <b>외부 통신이 발생</b>하고 수 분 소요.<br><br>"
-          + "인터넷이 없는 환경이면 대신 <b>파일 반입</b> 사용",
+      body: "Go 툴체인을 내려받아 직접 빌드합니다. <b>외부 통신이 발생</b>하고 수 분 걸립니다.<br><br>"
+          + "인터넷이 없는 환경이면 대신 <b>파일 반입</b> 을 쓰세요.",
       confirmLabel: "설치",
     });
     if (!agreed) return true;
-    toast("설치 시작. 수 분 소요");
+    toast("설치를 시작했습니다. 수 분 걸립니다.");
     await tasks.track(
       `${install} 자동 설치`, "Go 툴체인 확보 후 빌드 · 수 분 소요",
       () => api.installDependency(install, true),
     );
-    toast(`${install} 설치 완료`);
+    toast(`${install} 설치를 완료했습니다.`);
     await refresh();
     return true;
   }
@@ -148,7 +148,7 @@ export async function handleDependencyChange(node, refresh) {
     `${key} 파일 반입`, `${file.name} 검증 중`,
     () => api.importDependency(key, file),
   );
-  toast("반입 완료");
+  toast("반입을 완료했습니다.");
   await refresh();
   return true;
 }

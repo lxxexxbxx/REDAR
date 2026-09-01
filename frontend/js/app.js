@@ -135,7 +135,6 @@ async function viewDashboard() {
   view().innerHTML = `
     ${missingDependencyNotice(state.dependencies)}
     <div class="view-head">
-      <div class="eyebrow">진단 현황</div>
       <h1>대시보드</h1>
       <p>가장 최근 스캔의 심각도·유형 분포입니다. 탐지가 0건인 항목도 사라지지 않고
          그대로 표시됩니다.</p>
@@ -144,7 +143,6 @@ async function viewDashboard() {
     <div class="grid-2">
       <div class="panel">
         <div class="panel-head">
-          <div class="eyebrow">심각도 · 5단계 고정</div>
           <h2>${latest ? "최근 스캔 분포" : "탐지 결과 없음"}</h2>
         </div>
         ${severityAxis(aggregations?.by_severity)}
@@ -152,7 +150,6 @@ async function viewDashboard() {
 
       <div class="panel">
         <div class="panel-head">
-          <div class="eyebrow">스캔 정보</div>
           <h2>${latest ? esc(scanTargets(latest)) : "스캔 기록 없음"}</h2>
         </div>
         ${latest ? `
@@ -168,7 +165,7 @@ async function viewDashboard() {
             <button class="primary" data-open="${esc(latest.scan_id)}">결과 보기</button>
           </div>` : `
           <p style="color:var(--muted);margin:0">
-            아직 실행한 스캔 없음. 스캔 화면에서 대상 지정 필요
+            아직 실행한 스캔이 없습니다. 스캔 화면에서 대상을 지정하세요.
           </p>
           <div class="actions">
             <button class="primary" data-go="scan">스캔 실행</button>
@@ -179,15 +176,13 @@ async function viewDashboard() {
     <div class="grid-2">
       <div class="panel">
         <div class="panel-head">
-          <div class="eyebrow">재현성</div>
           <h2>실행 환경</h2>
         </div>
         ${detail ? runEnvironment(detail) : `
-          <p style="color:var(--muted);margin:0">스캔 기록 없음</p>`}
+          <p style="color:var(--muted);margin:0">스캔 기록이 없습니다.</p>`}
       </div>
       <div class="panel">
         <div class="panel-head">
-          <div class="eyebrow">진단 대상</div>
           <h2>대상 환경</h2>
         </div>
         ${targetEnvironment(environment)}
@@ -198,14 +193,13 @@ async function viewDashboard() {
               ? ` · 실패 ${esc(environment.collectors_failed.join(", "))}` : ""}
           </p>` : `
           <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-            환경 조사를 수행한 스캔 없음. 스캔 실행 시 <b>대상 환경 먼저 조사</b> 체크 필요
+            환경 조사를 수행한 스캔이 없습니다. 스캔할 때 <b>대상 환경 먼저 조사</b> 를 켜세요.
           </p>`}
       </div>
     </div>
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">취약점 유형 · 14종 고정</div>
         <h2>유형별 분포</h2>
       </div>
       ${vulnTypeAxis(aggregations?.by_vuln_type)}
@@ -214,11 +208,9 @@ async function viewDashboard() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">이력</div>
         <h2>최근 스캔</h2>
       </div>
       ${items.length ? scanTable(items) : emptyState({
-        eyebrow: "기록 없음",
         title: "스캔 이력 없음",
         body: "스캔을 실행하면 여기에 기록됩니다.",
       })}
@@ -294,12 +286,8 @@ async function refreshPreflight() {
 }
 
 function viewScan() {
-  // 이전에 스캔한 대상. 빠른 재입력용 기록이며 시작을 막는 조건이 아님
-  const allowlist = state.settings?.target_allowlist || [];
-
   view().innerHTML = `
     <div class="view-head">
-      <div class="eyebrow">스캔 설정</div>
       <h1>스캔</h1>
       <p>대상 주소를 넣고 진단 방식을 고르시면 됩니다. 잘 모르겠으면 기본값을
          그대로 두고 <b>스캔 시작</b>을 누르세요.</p>
@@ -309,29 +297,18 @@ function viewScan() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">1단계</div>
         <h2>진단 대상</h2>
       </div>
       <label class="field">
         <span>대상 주소 · 여러 개면 줄바꿈</span>
         <textarea id="targets" placeholder="http://192.168.1.50:8080&#10;http://localhost:7860&#10;localhost:8000-8100"></textarea>
         <small>
-          <b>포트를 꼭 붙이세요.</b> 생략하면 80·443 만 검사해서 다른 포트에 떠 있는
-          서비스는 찾지 못함. 어느 포트인지 모르면
-          <span class="mono">localhost:8000-8100</span> 처럼 범위로 입력 가능
-          (범위가 넓으면 실행 전에 다시 확인)
+          <b>포트를 꼭 붙이세요.</b> 생략하면 80·443 만 검사하므로 다른 포트의 서비스는
+          찾지 못합니다. 포트를 모르면 <span class="mono">localhost:8000-8100</span> 처럼
+          범위로 넣으셔도 됩니다.
         </small>
         <small class="mono" id="target-count"></small>
       </label>
-      <div class="hintbox">
-        <b>이전에 스캔한 대상</b>
-        ${allowlist.length
-          ? `<div class="chips">${allowlist.map((h) =>
-              `<button type="button" class="chip pick" data-pick="${esc(h)}">${esc(h)}</button>`
-            ).join(" ")}</div>
-             <small>누르면 위 칸에 자동으로 입력됩니다.</small>`
-          : `<small>아직 없습니다. 위에 주소를 넣으면 자동으로 등록됩니다.</small>`}
-      </div>
       <div class="actions">
         <input type="file" id="target-file" accept=".txt,.csv" class="sr-only">
         <button class="sm ghost" id="pick-file">파일에서 불러오기</button>
@@ -341,11 +318,7 @@ function viewScan() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">2단계</div>
-        <h2>진단 항목 선별</h2>
-        <p class="lede">nuclei 는 "이런 취약점이 있는지 확인하는 방법"을 적어둔
-           파일(템플릿)을 하나씩 실행해서 진단합니다. 그 파일을 몇 개나, 어떤 기준으로
-           고를지 선택하세요.</p>
+        <h2>진단 방식</h2>
       </div>
       <div class="choices" id="mode">
         ${SCAN_MODES.map((m, i) => `
@@ -362,10 +335,7 @@ function viewScan() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">3단계</div>
         <h2>실행 옵션</h2>
-        <p class="lede">그대로 두셔도 됩니다. 대상 서버가 느리거나 부하를 줄이고 싶을 때만
-           조정하세요.</p>
       </div>
       <div class="row" style="align-items:flex-start;gap:20px">
         <label class="field" style="flex:1;min-width:150px">
@@ -419,15 +389,13 @@ function viewScan() {
     <div class="panel" id="live" hidden>
       <div class="panel-head spread">
         <div>
-          <div class="eyebrow">진행 중</div>
-          <h2 id="live-title">스캔 실행 중</h2>
+          <h2 id="live-title">스캔 상세</h2>
           <div class="mono" id="live-id" style="font-size:11.5px;color:var(--faint);margin-top:3px"></div>
         </div>
         <button class="sm danger" id="cancel">중단</button>
       </div>
       <div class="progress sweeping" id="progress"><div class="bar"></div></div>
       <div class="row mono" style="margin-top:var(--gap);font-size:12px;color:var(--muted)">
-        <span id="live-phase">준비</span>
         <span id="live-count">탐지 0건</span>
       </div>
       <div class="livefeed" style="margin-top:var(--gap)">
@@ -749,7 +717,6 @@ function attachLiveFeed(scanId) {
 
   const bar = document.querySelector("#progress .bar");
   const progress = document.getElementById("progress");
-  const phase = document.getElementById("live-phase");
   const countLabel = document.getElementById("live-count");
   let found = 0;
 
@@ -788,7 +755,6 @@ function attachLiveFeed(scanId) {
 
       progress?.classList.toggle("sweeping", !known);
       if (bar) bar.style.width = known ? `${event.percent}%` : "";
-      if (phase) phase.textContent = label;
     },
     finding(event) {
       found += 1;
@@ -801,7 +767,7 @@ function attachLiveFeed(scanId) {
       row.innerHTML = `
         <td>${severityTag(event.severity)}</td>
         <td>${esc(event.name)}</td>
-        <td>${esc(VULN_TYPE_LABEL[event.vuln_type] || event.vuln_type || "—")}</td>
+        <td>${esc(VULN_TYPE_LABEL[event.vuln_type] || event.vuln_type || "-")}</td>
         <td class="mono">${target(event.target)}</td>`;
       rows.prepend(row);
     },
@@ -825,9 +791,6 @@ function attachLiveFeed(scanId) {
       // 스캔 화면을 떠났으면 아래 요소가 없다. 없으면 건너뜀
       progress?.classList.remove("sweeping");
       if (bar) bar.style.width = "100%";
-      if (phase) {
-        phase.textContent = SCAN_STATUS_LABEL[event.status] || event.status;
-      }
       const startButton = document.getElementById("start");
       if (startButton) startButton.disabled = false;
       const cancelButton = document.getElementById("cancel");
@@ -851,13 +814,11 @@ async function viewResults(params) {
     const { items } = await api.listScans({ size: 20 });
     view().innerHTML = `
       <div class="view-head">
-        <div class="eyebrow">결과 조회</div>
         <h1>탐지 결과</h1>
-        <p>조회할 스캔 선택 필요</p>
+        <p>조회할 스캔을 선택하세요.</p>
       </div>
       <div class="panel">
         ${items.length ? scanTable(items) : emptyState({
-          eyebrow: "기록 없음",
           title: "조회할 스캔 없음",
           body: "스캔을 먼저 실행하세요.",
           cta: '<button class="primary" data-go="scan">스캔 실행</button>',
@@ -882,7 +843,6 @@ async function viewResults(params) {
   view().innerHTML = `
     <div class="view-head spread">
       <div>
-        <div class="eyebrow">결과 조회</div>
         <h1>${esc(scanTargets(scan))}</h1>
         <p class="mono" style="font-size:12.5px;color:var(--muted)">
           ${esc(scanId)} · ${esc(SCAN_STATUS_LABEL[scan.status] || scan.status)}
@@ -897,14 +857,12 @@ async function viewResults(params) {
     <div class="grid-2">
       <div class="panel">
         <div class="panel-head">
-          <div class="eyebrow">심각도 · 5단계 고정 · 오탐 제외</div>
-          <h2>분포</h2>
+          <h2>심각도 분포</h2>
         </div>
         ${severityAxis(data.aggregations.by_severity)}
       </div>
       <div class="panel">
         <div class="panel-head">
-          <div class="eyebrow">대상별</div>
           <h2>호스트 분포</h2>
         </div>
         ${Object.keys(data.aggregations.by_host).length ? `<table>
@@ -919,14 +877,12 @@ async function viewResults(params) {
     <div class="grid-2">
       <div class="panel">
         <div class="panel-head">
-          <div class="eyebrow">재현성</div>
           <h2>실행 환경</h2>
         </div>
         ${runEnvironment(scan)}
       </div>
       <div class="panel">
         <div class="panel-head">
-          <div class="eyebrow">진단 대상</div>
           <h2>대상 환경</h2>
         </div>
         ${targetEnvironment(environment)}
@@ -938,7 +894,6 @@ async function viewResults(params) {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">유형 · 14종 고정</div>
         <h2>유형별 분포</h2>
       </div>
       ${vulnTypeAxis(data.aggregations.by_vuln_type)}
@@ -948,8 +903,7 @@ async function viewResults(params) {
     <div class="panel">
       <div class="panel-head spread">
         <div>
-          <div class="eyebrow">탐지 목록</div>
-          <h2>${data.total}건</h2>
+          <h2>탐지 목록 ${data.total}건</h2>
         </div>
       </div>
       <div class="filters">
@@ -979,7 +933,6 @@ async function viewResults(params) {
         </select>
       </div>
       ${data.items.length ? findingTable(data.items) : emptyState({
-        eyebrow: "해당 없음",
         title: "조건에 맞는 결과 없음",
         body: "필터를 해제하거나 다른 스캔을 선택하세요. "
             + "탐지 0건이 곧 안전을 뜻하지는 않습니다.",
@@ -1005,7 +958,7 @@ function findingTable(items) {
         </td>
         <td>${esc(VULN_TYPE_LABEL[f.vuln_type] || f.vuln_type)}</td>
         <td class="mono">${target(f.target)}</td>
-        <td class="mono">${f.cve_ids.length ? esc(f.cve_ids.join(", ")) : "—"}</td>
+        <td class="mono">${f.cve_ids.length ? esc(f.cve_ids.join(", ")) : "-"}</td>
         <td class="num">${dash(f.cvss_score)}</td>
         <td class="nowrap">${esc(FINDING_STATUS_LABEL[f.status] || f.status)}</td>
       </tr>`).join("")}
@@ -1075,7 +1028,7 @@ async function openFinding(findingId) {
       </section>` : ""}
 
       ${f.evidence.curl_command ? `<section>
-        <h3>재현 명령 — 사용자가 직접 실행</h3>
+        <h3>재현 명령</h3>
         <pre class="evidence">${esc(f.evidence.curl_command)}</pre>
         <div class="actions">
           <button class="sm" data-copy>명령 복사</button>
@@ -1085,7 +1038,7 @@ async function openFinding(findingId) {
       <section>
         <h3>판정</h3>
         <p style="color:var(--faint);font-size:12.5px;margin:0 0 10px">
-          오탐으로 표시하면 집계에서 빠지고, 보고서 부록에 사유가 남음
+          오탐으로 표시하면 집계에서 빠지고, 보고서 부록에 사유가 남습니다.
         </p>
         <label class="field">
           <span>사유</span>
@@ -1153,7 +1106,7 @@ function viewSettings() {
         </span>
       </div>
       <p id="endpoint-note" style="color:var(--warn);font-size:12px;margin:4px 0 0">${
-        s.offline_mode ? "오프라인 모드가 켜져 있어 아래 항목은 잠김. 끄면 개별 선택 가능" : ""
+        s.offline_mode ? "오프라인 모드가 켜져 있어 아래 항목이 잠겨 있습니다. 끄면 하나씩 고르실 수 있습니다." : ""
       }</p>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)">
         ${(s.external_endpoints || []).map((endpoint) => `
@@ -1169,8 +1122,8 @@ function viewSettings() {
           </div>`).join("")}
       </div>
       <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-        REDAR 가 바깥으로 나가는 통신은 이 네 곳뿐. 켜두더라도 사용자가 직접 실행할 때만
-        통신하며 저절로 나가지 않음
+        REDAR 가 바깥으로 나가는 통신은 이 네 곳뿐입니다. 켜 두어도 직접 실행할 때만
+        통신하며 저절로 나가지 않습니다.
       </p>
       <div class="actions">
         <button class="primary" data-save="network">통신 설정 저장</button>
@@ -1244,9 +1197,9 @@ function viewSettings() {
         <small>끝에 <span class="mono">/chat/completions</span> 는 자동으로 붙습니다.</small>
       </label>
       <p style="color:var(--faint);font-size:12px;margin:10px 0 14px">
-        <b>보고서에는 LLM 을 쓰지 않음.</b> 근거성이 중요해 생성 문장을 섞지 않음.
-        조치 가이드는 완성된 보고서를 입력으로 받는 별도 기능이며 보고서를 바꾸지 않음.
-        요청·응답 원문과 추출값은 어떤 경우에도 전송하지 않음
+        <b>보고서에는 LLM 을 쓰지 않습니다.</b> 근거성이 중요해 생성 문장을 섞지 않습니다.
+        조치 가이드는 완성된 보고서를 입력으로 받는 별도 기능이라 보고서를 바꾸지 않습니다.
+        요청·응답 원문과 추출값은 어떤 경우에도 보내지 않습니다.
       </p>
       <div class="actions">
         <button class="primary" data-save="llm">LLM 설정 저장</button>
@@ -1258,7 +1211,7 @@ function viewSettings() {
         <h2>도구 정보</h2>
       </div>
       <dl class="kv">
-        <dt>nuclei</dt><dd>${state.health?.nuclei ? `v${esc(state.health.nuclei)}` : "미설치 — PATH 또는 REDAR_NUCLEI 확인"}</dd>
+        <dt>nuclei</dt><dd>${state.health?.nuclei ? `v${esc(state.health.nuclei)}` : "미설치 - PATH 또는 REDAR_NUCLEI 확인"}</dd>
         <dt>가이드 본문</dt><dd>${state.guide?.imported
           ? `${state.guide.item_count}개 항목 · ${esc(dash(state.guide.version))}`
           : "미탑재 (정상 상태)"}</dd>
@@ -1370,7 +1323,6 @@ async function render() {
     else go("dashboard");
   } catch (error) {
     view().innerHTML = emptyState({
-      eyebrow: "오류",
       title: "화면을 불러오지 못했습니다",
       body: esc(error.message || "알 수 없는 오류"),
       cta: '<button class="primary" data-reload>다시 시도</button>',
@@ -1484,8 +1436,8 @@ document.addEventListener("change", async (event) => {
       const result = await api.importTargets(file);
       document.getElementById("targets").value = result.targets.join("\n");
       toast(result.invalid_lines.length
-        ? `${result.count}건 불러옴 · ${result.invalid_lines.length}줄 건너뜀`
-        : `${result.count}건 불러옴`);
+        ? `${result.count}건을 불러왔습니다 · ${result.invalid_lines.length}줄 건너뜀`
+        : `${result.count}건을 불러왔습니다.`);
     } catch (error) { showApiError(error); }
   }
 });

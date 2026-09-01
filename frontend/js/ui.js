@@ -6,12 +6,13 @@
 
 export const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"];
 
+/* 표시값은 영문 원값. 보고서와 문자열이 같아야 대조가 됨 (docs/04 §2) */
 export const SEVERITY_LABEL = {
-  critical: "치명적",
-  high: "높음",
-  medium: "중간",
-  low: "낮음",
-  info: "정보",
+  critical: "critical",
+  high: "high",
+  medium: "medium",
+  low: "low",
+  info: "info",
 };
 
 export const VULN_TYPE_ORDER = [
@@ -57,10 +58,10 @@ export const esc = (value) =>
   }[ch]));
 
 export const dash = (value) =>
-  value === null || value === undefined || value === "" ? "—" : value;
+  value === null || value === undefined || value === "" ? "-" : value;
 
 export function fmtTime(value) {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(String(value).replace(" ", "T"));
   if (Number.isNaN(date.getTime())) return String(value);
   const pad = (n) => String(n).padStart(2, "0");
@@ -70,7 +71,7 @@ export function fmtTime(value) {
 
 export function fmtDuration(seconds) {
   // 외부 임포트 스캔은 실행 시간 부재. 0초로 표기하지 않음
-  if (seconds === null || seconds === undefined) return "—";
+  if (seconds === null || seconds === undefined) return "-";
   if (seconds < 60) return `${seconds}초`;
   const min = Math.floor(seconds / 60);
   return `${min}분 ${seconds % 60}초`;
@@ -80,7 +81,7 @@ export const severityTag = (severity) =>
   `<span class="sev sev-${esc(severity)}">${esc(SEVERITY_LABEL[severity] || severity)}</span>`;
 
 export const target = (t) =>
-  t ? esc(t.host + (t.port ? `:${t.port}` : "") + (t.path || "")) : "—";
+  t ? esc(t.host + (t.port ? `:${t.port}` : "") + (t.path || "")) : "-";
 
 /* 스캔 요약용 대상 표기.
  *
@@ -110,17 +111,16 @@ export function targetProbe(scan) {
   const alive = probe.responded || [];
   return `<div class="panel">
     <div class="panel-head">
-      <div class="eyebrow">대상 · 요청 ${probe.requested}개</div>
-      <h2>응답 ${alive.length}개 · 무응답 ${dead.length}개</h2>
+      <h2>요청 ${probe.requested}개 · 응답 ${alive.length}개 · 무응답 ${dead.length}개</h2>
     </div>
     <div class="hintbox">
-      <b>응답한 대상 — 실제로 점검한 곳입니다</b>
+      <b>응답한 대상 - 실제로 점검한 곳입니다</b>
       <div class="chips">${alive.length
         ? alive.map((t) => `<span class="chip strong">${esc(t)}</span>`).join(" ")
         : "<small>없습니다.</small>"}</div>
     </div>
     ${dead.length ? `<div class="hintbox">
-      <b>무응답 — 연결되지 않아 점검하지 않았습니다</b>
+      <b>무응답 - 연결되지 않아 점검하지 않았습니다</b>
       <small>보고서에는 개수만 기록되고 목록은 실리지 않습니다.</small>
       <div class="chips" style="margin-top:6px">${
         dead.slice(0, 40).map((t) => `<span class="chip">${esc(t)}</span>`).join(" ")
@@ -171,7 +171,7 @@ export function coverageNotice(guide) {
   return `<div class="coverage">
     ${esc(notice)}
     <div style="margin-top:6px;color:var(--faint)">
-      계정 관리·파일 권한·서비스 데몬 설정은 원격 스캐너가 볼 수 없는 영역
+      계정 관리·파일 권한·서비스 데몬 설정은 웹 요청으로 볼 수 없는 영역입니다.
     </div>
   </div>`;
 }
@@ -213,7 +213,7 @@ export const TARGET_ENV_FIELDS = [
 export function targetEnvironment(profile) {
   if (!profile) {
     return `<dl class="kv">${TARGET_ENV_FIELDS.map(([key, hint]) =>
-      `<dt>${esc(key)}</dt><dd style="color:var(--faint)">미수집 — ${esc(hint)}</dd>`
+      `<dt>${esc(key)}</dt><dd style="color:var(--faint)">미수집 - ${esc(hint)}</dd>`
     ).join("")}</dl>`;
   }
   return `<dl class="kv">
@@ -225,9 +225,8 @@ export function targetEnvironment(profile) {
   </dl>`;
 }
 
-export function emptyState({ eyebrow, title, body, cta }) {
+export function emptyState({ title, body, cta }) {
   return `<div class="empty">
-    <div class="eyebrow">${esc(eyebrow)}</div>
     <h2>${esc(title)}</h2>
     <p>${body}</p>
     ${cta ? `<div class="cta">${cta}</div>` : ""}

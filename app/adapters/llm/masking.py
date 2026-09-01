@@ -12,14 +12,23 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-# 마스킹 대상. 경로는 호스트보다 먼저 치환 - URL 안의 호스트가 먼저 바뀌면
-# 경로 패턴이 깨짐
 _URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.I)
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _HOSTNAME_RE = re.compile(
     r"\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\b", re.I
 )
 _PATH_RE = re.compile(r"(?<![\w:])/[A-Za-z0-9._\-/]{2,}")
+
+# 파일 확장자는 TLD 와 모양이 같다. 걸러내지 않으면 readme.html · wp-login.php 가
+# 호스트로 치환돼 가이드가 조치 대상 파일명을 말하지 못함 (실측)
+_FILE_SUFFIX = re.compile(
+    r"\.(?:html?|php\d?|txt|xml|json|ya?ml|js|css|md|ini|conf|cfg|log|sql|"
+    r"png|jpe?g|gif|svg|ico|zip|gz|tar|bak|old|sh|py|rb|pl|asp|aspx|jsp)$",
+    re.I,
+)
+# 토큰이 다시 토큰 안에 들어가는 것을 막음. PATH_1 -> '/TARGET_1' 같은 중첩이 생기면
+# 역치환 한 번으로 원문이 돌아오지 않아 응답에 TARGET_1 이 그대로 남음 (실측)
+_TOKEN_RE = re.compile(r"\b(?:TARGET|PATH)_\d+\b")
 
 _PREFIX = {"target": "TARGET", "path": "PATH"}
 
@@ -45,8 +54,19 @@ class Masker:
             return ""
         out = _URL_RE.sub(lambda m: self._token("target", m.group(0)), text)
         out = _IPV4_RE.sub(lambda m: self._token("target", m.group(0)), out)
-        out = _HOSTNAME_RE.sub(lambda m: self._token("target", m.group(0)), out)
-        return _PATH_RE.sub(lambda m: self._token("path", m.group(0)), out)
+        out = _HOSTNAME_RE.sub(self._host, out)
+        return _PATH_RE.sub(self._path, out)
+
+    def _host(self, match: re.Match[str]) -> str:
+        value = match.group(0)
+        # 파일명은 식별자가 아니다. 가려 봐야 얻는 것 없이 가이드만 못 쓰게 됨
+        return value if _FILE_SUFFIX.search(value) else self._token("target", value)
+
+    def _path(self, match: re.Match[str]) -> str:
+        value = match.group(0)
+        # 이미 치환된 토큰만 남은 경로는 다시 감싸지 않음 (중첩 방지)
+        return value if _TOKEN_RE.fullmatch(value.lstrip("/")) \
+            else self._token("path", value)
 
     def mask_context(self, context: dict[str, Any]) -> dict[str, Any]:
         return {key: self._mask_value(value) for key, value in context.items()}

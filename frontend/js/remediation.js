@@ -23,24 +23,22 @@ export async function viewRemediation(view) {
 
   view.innerHTML = `
     <div class="view-head">
-      <div class="eyebrow">LLM 활용</div>
       <h1>조치 가이드</h1>
-      <p>보고서를 골라 프롬프트를 만들고, 그 프롬프트로 조치 절차를 받아 봄.
-         보고서 본문은 이 기능의 결과에 영향받지 않음 — 보고서는 LLM 을 쓰지 않음</p>
+      <p>보고서를 고르면 프롬프트를 만들어 드립니다. 그 프롬프트로 조치 절차를 받아 보세요.
+         보고서 본문은 LLM 을 쓰지 않으므로 이 기능의 결과에 영향받지 않습니다.</p>
     </div>
 
     ${state.status.blocked_reason ? `
       <div class="coverage" style="border-left-color:var(--warn)">
         <strong>일부 기능 제한</strong> ${esc(state.status.blocked_reason)}
         <div style="margin-top:6px;color:var(--faint)">
-          프롬프트 생성은 통신이 없어 지금도 가능. 앱 안에서 대화하려면 위 항목 필요
+          프롬프트 생성은 통신이 없어 지금도 됩니다. 앱 안에서 대화하려면 위 항목이 필요합니다.
         </div>
         <div class="cta"><button class="sm" data-go="settings">설정으로 이동</button></div>
       </div>` : ""}
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">1단계</div>
         <h2>보고서 선택</h2>
       </div>
       ${state.reports.length ? `
@@ -59,7 +57,7 @@ export async function viewRemediation(view) {
         </div>` : `
         <div class="hintbox">
           <b>완성된 보고서 없음</b>
-          <small>보고서 화면에서 먼저 생성 필요</small>
+          <small>보고서 화면에서 먼저 생성하세요.</small>
           <div class="cta"><button class="sm" data-go="report">보고서로 이동</button></div>
         </div>`}
     </div>
@@ -76,19 +74,18 @@ function renderPrompt() {
     <div class="panel">
       <div class="panel-head spread">
         <div>
-          <div class="eyebrow">2단계 · 통신 없이 로컬 생성</div>
           <h2>프롬프트</h2>
         </div>
         <div class="row">
           <button class="sm" data-rem="copy">복사</button>
         </div>
       </div>
-      <p class="lede">이 프롬프트를 그대로 아래 대화창에 보내거나, 복사해서 외부 LLM 에
-         붙여도 됨. 같은 보고서면 항상 같은 프롬프트가 나옴</p>
+      <p class="lede">그대로 아래 대화창에 보내거나, 복사해서 외부 LLM 에 붙여도 됩니다.
+         같은 보고서라면 항상 같은 프롬프트가 나옵니다.</p>
       <pre class="promptbox" id="rem-prompt-text">${esc(state.prompt)}</pre>
       <div class="actions">
         <button class="primary" data-rem="send">이 프롬프트로 가이드 받기</button>
-        <span style="color:var(--faint);font-size:12px">보내기 전 확인창 표시</span>
+        <span style="color:var(--faint);font-size:12px">보내기 전 확인창이 뜹니다.</span>
       </div>
     </div>`;
 }
@@ -206,7 +203,7 @@ function inline(text) {
 async function copy(text, label) {
   try {
     await navigator.clipboard.writeText(text);
-    toast(`${label} 복사됨`);
+    toast(`${label}를 복사했습니다.`);
   } catch {
     // Tauri WebView 에서 클립보드가 막힐 수 있음. 선택 상태로 만들어 수동 복사 유도
     const box = document.getElementById("rem-prompt-text");
@@ -217,20 +214,20 @@ async function copy(text, label) {
       selection.removeAllRanges();
       selection.addRange(range);
     }
-    toast("복사 권한 없음. 선택된 영역을 직접 복사", "err");
+    toast("복사 권한이 없습니다. 선택된 영역을 직접 복사하세요.", "err");
   }
 }
 
 async function send(content) {
   const ok = await confirmDialog({
     title: "LLM 에 전송",
-    body: "아래 내용이 MonoGPT API 로 전송됨 — <b>외부 통신 발생</b>.<br>"
-        + `${state.status?.masked ? "호스트·IP·경로는 <b>치환</b>되어 나가고 응답에서 되돌려짐. "
-            : "<b>치환이 꺼져 있어 실제 호스트·경로가 그대로 전송됨.</b> "}`
-        + "요청·응답 원문과 추출값은 포함되지 않음",
+    body: "아래 내용을 MonoGPT API 로 보냅니다 - <b>외부 통신이 발생</b>합니다.<br>"
+        + `${state.status?.masked ? "호스트·IP·경로는 <b>치환</b>되어 나가고 응답에서 되돌립니다. "
+            : "<b>치환이 꺼져 있어 실제 호스트·경로가 그대로 나갑니다.</b> "}`
+        + "요청·응답 원문과 추출값은 보내지 않습니다.",
     confirmLabel: "전송",
   });
-  if (!ok) { toast("전송 취소됨"); return; }
+  if (!ok) { toast("전송을 취소했습니다."); return; }
 
   state.chat.push({ role: "user", content });
   state.pending = true;                     // 응답 대기 표시 (말풍선 애니메이션)
@@ -245,7 +242,7 @@ async function send(content) {
     // 실패한 질문은 대화에 남기지 않음. 다음 전송에 그대로 재전송됨
     state.chat.pop();
     if (error instanceof ApiError) toast(`${error.code}: ${error.message}`, "err");
-    else toast("전송 실패", "err");
+    else toast("전송하지 못했습니다.", "err");
   } finally {
     state.pending = false;
   }
@@ -272,7 +269,7 @@ export async function handleRemediationClick(target, rerender) {
   if (action === "ask") {
     const box = document.getElementById("rem-input");
     const text = box.value.trim();
-    if (!text) { toast("보낼 내용 입력 필요", "err"); return true; }
+    if (!text) { toast("보낼 내용을 입력하세요.", "err"); return true; }
     box.value = "";
     await send(text);
     return true;

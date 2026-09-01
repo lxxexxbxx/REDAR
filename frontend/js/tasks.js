@@ -137,8 +137,8 @@ export function handleDockClick(target) {
     const id = target.closest("[data-task]")?.dataset.task;
     const task = tasks.get(id);
     if (task?.onCancel) {
-      update(id, { detail: "중단 요청됨" });
-      Promise.resolve(task.onCancel()).catch(() => fail(id, "중단 실패"));
+      update(id, { detail: "중단을 요청했습니다." });
+      Promise.resolve(task.onCancel()).catch(() => fail(id, "중단하지 못했습니다."));
     }
     return true;
   }

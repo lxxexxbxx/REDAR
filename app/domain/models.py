@@ -31,9 +31,11 @@ EVIDENCE_TRUNCATED_MARKER = "\n...[REDAR] 응답 본문 32KB 초과로 절단됨
 
 # 자동 점검 커버리지 고지. 누락 시 '점검하지 않은 것'이 '양호'로 오독
 # (절대규칙 10, docs/04 B-1). 숫자는 실제 guide_coverage 값 사용
+# 강조 표시 대상. 보고서에서 이 문장만 굵게 렌더링 (renderer.emphasize)
+COVERAGE_CAUTION = "탐지되지 않음이 전체 시스템의 양호를 뜻하지는 않습니다."
 COVERAGE_NOTICE_TEMPLATE = (
-    "본 점검은 원격 스캔 기반. {scope}만 자동 점검 대상. "
-    "탐지되지 않음은 양호를 뜻하지 않음"
+    "본 점검은 웹 요청 기반입니다. {scope}만 자동 점검 대상입니다. "
+    + COVERAGE_CAUTION
 )
 _SCOPE_WITH_GUIDE = "가이드 전체 {items_total}개 점검항목 중 {items_covered}개"
 # 본문 미탑재 시 전체 항목 수를 알 수 없음. 0개로 표기하면 커버리지가 완전한 것처럼 읽힘
@@ -302,8 +304,6 @@ class GuideMappingItem(Strict):
     criteria_vuln: str | None = None
     remediation: str | None = None
     citation: str | None = None
-    # confidence=low + 미검수 매핑에 부착 (guide_mappings.reviewed)
-    review_required: bool = False
 
 
 class GuideMappingSummary(Strict):

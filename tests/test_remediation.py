@@ -299,3 +299,145 @@ def test_report_prose_comes_from_fallback():
     assert text and "3" in text
     assert fallback.temporary_fix()
     assert fallback.executive_summary(0, {})       # 0건에서도 문장이 나옴
+
+
+def test_request_sends_product_user_agent(monkeypatch):
+    """Cloudflare 가 'Python-urllib' 서명을 403(error code 1010)으로 차단한다.
+    기본 UA 로 되돌아가면 조치 가이드가 통째로 죽음 (실제 발생)"""
+    import json
+    import urllib.request
+
+    from app.adapters.llm.monogpt import MonoGptProvider
+
+    captured: dict[str, str] = {}
+
+    class _Response:
+        """SSE 스트림. 어댑터가 줄 단위로 순회함"""
+
+        def __iter__(self):
+            frame = {"choices": [{"delta": {"content": "ok"},
+                                  "finish_reason": "stop"}]}
+            yield b"data: " + json.dumps(frame).encode() + b"\n"
+            yield b"data: [DONE]\n"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    def _fake_urlopen(request, timeout=None):   # noqa: ARG001
+        captured.update(request.headers)
+        return _Response()
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    provider = MonoGptProvider("https://example.invalid/v1", "k", "m")
+    assert provider.complete([{"role": "user", "content": "x"}]) == "ok"
+
+    agent = captured.get("User-agent", "")
+    assert agent.startswith("REDAR/"), captured
+    assert "urllib" not in agent.lower()
+
+
+def test_error_prefers_server_korean_message():
+    """서버가 한국어 안내를 주면 그것이 화면에 떠야 함"""
+    import io
+    import json
+    import urllib.error
+
+    from app.adapters.llm import monogpt
+
+    body = json.dumps({"error": {
+        "message": "MonoRouter: API key is required.",
+        "user_message": "API Key가 필요합니다.",
+    }}).encode()
+    exc = urllib.error.HTTPError(
+        "u", 401, "Unauthorized", {}, io.BytesIO(body)  # type: ignore[arg-type]
+    )
+    assert monogpt._reason(exc) == "API Key가 필요합니다."
+
+
+def _sse(frames: list[dict], monkeypatch):
+    """SSE 응답을 흉내내는 urlopen 대체"""
+    import json
+    import urllib.request
+
+    class _Response:
+        def __iter__(self):
+            for frame in frames:
+                yield b"data: " + json.dumps(frame).encode() + b"\n"
+            yield b"data: [DONE]\n"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *_a, **_k: _Response())
+
+
+def test_request_is_streamed(monkeypatch):
+    """엔드포인트 앞단이 Cloudflare 다. 비스트리밍 장문 요청은 524 로 끊김"""
+    import json
+    import urllib.request
+
+    from app.adapters.llm.monogpt import MonoGptProvider
+
+    sent: dict = {}
+    original = urllib.request.urlopen
+
+    def _capture(request, *args, **kwargs):
+        sent.update(json.loads(request.data))
+        return original(request, *args, **kwargs)
+
+    _sse([{"choices": [{"delta": {"content": "ok"}, "finish_reason": "stop"}]}],
+         monkeypatch)
+    original = urllib.request.urlopen
+    monkeypatch.setattr(urllib.request, "urlopen", _capture)
+
+    MonoGptProvider("https://example.invalid/v1", "k", "m").complete(
+        [{"role": "user", "content": "x"}]
+    )
+    assert sent.get("stream") is True, sent
+
+
+def test_empty_body_from_reasoning_budget_is_an_error(monkeypatch):
+    """추론 모델이 출력 예산을 다 쓰면 본문이 0자로 온다. 빈 말풍선 대신 사유를 알림"""
+    from app.adapters.llm.base import LlmError
+    from app.adapters.llm.monogpt import MonoGptProvider
+
+    _sse([{"choices": [{"delta": {}, "finish_reason": "length"}]}], monkeypatch)
+    with pytest.raises(LlmError) as exc:
+        MonoGptProvider("https://example.invalid/v1", "k", "m").complete(
+            [{"role": "user", "content": "x"}], max_tokens=6000
+        )
+    assert "6000" in str(exc.value)
+    assert "모델" in str(exc.value)
+
+
+def test_masking_leaves_filenames_alone():
+    """파일 확장자는 TLD 와 모양이 같다. 가려 버리면 가이드가 조치 대상 파일을
+    말하지 못함 - 실제로 readme.html 이 TARGET_1 로 나갔다"""
+    from app.adapters.llm.masking import Masker
+
+    masker = Masker()
+    # 맨 파일명은 식별자가 아니므로 그대로 둠
+    assert masker.mask("readme.html 과 wp-login.php 를 점검") == \
+        "readme.html 과 wp-login.php 를 점검"
+    # 경로와 호스트는 계속 가림 (역치환으로 복원됨)
+    assert "wp-login.php" not in masker.mask("/wp-login.php")
+    assert "wp.local" not in masker.mask("wp.local 확인")
+
+
+def test_masking_round_trip_has_no_nested_tokens():
+    """PATH_1 -> '/TARGET_1' 처럼 토큰이 겹치면 역치환 한 번으로 못 돌아온다.
+    응답에 TARGET_1 이 그대로 남아 사용자가 조치 대상을 알 수 없음 (실제 발생)"""
+    from app.adapters.llm.masking import Masker
+
+    text = ("http://localhost:8080/readme.html 과 /wp-login.php,"
+            " 192.168.1.5, wp.local 확인")
+    masker = Masker()
+    masked = masker.mask(text)
+    assert not [o for o in masker.mapping if "TARGET_" in o or "PATH_" in o]
+    assert masker.unmask(masked) == text

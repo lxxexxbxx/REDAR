@@ -43,7 +43,7 @@ def parse(raw: str | None) -> UrlParts:
     """URL 또는 host[:port] 분해. 분해 불가 시 ValueError."""
     text = (raw or "").strip()
     if not text:
-        raise ValueError("빈 대상 문자열")
+        raise ValueError("대상이 비어 있습니다.")
 
     # 'localhost:7860' 은 urlsplit 이 'localhost' 를 스킴으로 오인.
     # netloc 으로 읽히도록 '//' 를 보충

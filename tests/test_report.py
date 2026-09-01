@@ -22,22 +22,22 @@ MOCK_CSV = Path(__file__).parent / "fixtures" / "guide_items_mock.csv"
 
 # 보고서 골격. 이 목록이 바뀌면 대상마다 목차가 달라진다는 뜻임
 EXPECTED_SECTIONS = [
-    "Part A — 진단 결과",
-    "A-1. 개요 및 집계",
-    "A-2. 진단 대상 환경",
-    "A-3. 심각도별 상세",
-    "A-4. 유형별 상세",
-    "A-5. 취약점 상세",
-    "A-6. 조치 사항",
-    "A-7. 오탐 처리 내역",
-    "Part B — 주요정보통신기반시설 상세가이드 매핑",
-    "B-1. 점검항목 판정 요약",
-    "B-2. 점검항목별 상세",
-    "B-3. 미매핑 탐지 결과",
-    "부록",
-    "C-1. 심각도 환산표",
-    "C-2. 사용 템플릿 목록",
-    "C-3. 진단 범위 및 한계",
+    "1. 진단 결과",
+    "가. 개요 및 집계",
+    "나. 진단 대상 환경",
+    "다. 심각도별 상세",
+    "라. 유형별 상세",
+    "마. 취약점 상세",
+    "바. 안전 버전 업데이트",
+    "사. 오탐 처리 내역",
+    "2. 주요정보통신기반시설 상세가이드 매핑",
+    "가. 점검항목 판정 요약",
+    "나. 점검항목별 상세",
+    "다. 미매핑 탐지 결과",
+    "3. 부록",
+    "가. 심각도 환산표",
+    "나. 사용 템플릿 목록",
+    "다. 진단 범위 및 한계",
 ]
 
 _HEADINGS = re.compile(r"<h[12][^>]*>(.*?)</h[12]>", re.S)
@@ -217,7 +217,7 @@ def test_tc_r03_no_guide_part_a_intact(conn, scan_with_findings):
     report = _report(conn, scan_with_findings)
     html = renderer.render_html(report)
     assert "XSS 취약점" in html
-    assert "A-5. 취약점 상세" in html
+    assert "마. 취약점 상세" in html
 
 
 # ─────────────────────────────── TC-R05 (0건)
@@ -237,8 +237,9 @@ def test_tc_r05_zero_findings_keeps_all_sections(conn, empty_scan):
     html = renderer.render_html(report)
     assert _sections(html) == EXPECTED_SECTIONS
     assert "해당 없음" in html
-    # 0건 문구가 '양호' 로 표현되지 않아야 한다 (절대규칙 10)
-    assert _notice_tail() in html
+    # 0건 문구가 '양호' 로 표현되지 않아야 한다 (절대규칙 10).
+    # 고지 말미는 강조 태그로 감싸여 렌더링됨
+    assert f"<strong>{models.COVERAGE_CAUTION}</strong>" in html
 
 
 # ─────────────────────────────── TC-R07 (두 대상 목차 일치)
@@ -333,7 +334,97 @@ def test_tc_r10_coverage_notice_in_part_b(conn, guide_loaded, scan_with_findings
     notice = report["guide_mapping"]["coverage_notice"]
     assert "자동 점검 대상" in notice
     assert _notice_tail() in notice
-    assert notice in renderer.render_html(report)
+    # 렌더링에서 경고 문장만 굵게 분리됨. 앞부분과 강조부를 나눠 확인
+    html = renderer.render_html(report)
+    caution = report["guide_mapping"]["coverage_caution"]
+    assert notice.replace(caution, "").strip() in html
+    assert f"<strong>{caution}</strong>" in html
+
+
+
+def _section(html: str, start: str, end: str) -> str:
+    return html.split(f'id="{start}"')[1].split(f'id="{end}"')[0]
+
+
+def test_b2_hides_safe_verdicts(conn, guide_loaded, scan_with_findings):
+    """양호 항목까지 상세로 실으면 조치 대상이 묻힘. 건수는 B-1 에 남음.
+
+    픽스처 스캔은 환경 프로필이 없어 safe 가 나오지 않는다. 판정만 바꿔 렌더링 비교
+    """
+    report = _report(conn, scan_with_findings)
+    target = report["guide_mapping"]["items"][0]
+    code = target["item_code"]
+    assert code in _section(renderer.render_html(report), "sec-b2", "sec-b3")
+
+    target["verdict"] = "safe"
+    report["guide_mapping"]["summary"]["safe"] += 1
+    html = renderer.render_html(report)
+    assert code not in _section(html, "sec-b2", "sec-b3")
+    # 숨긴 건수는 B-1 집계에 남아 있어야 함 (절대규칙 10)
+    assert str(report["guide_mapping"]["summary"]["safe"]) in _section(
+        html, "sec-b1", "sec-b2"
+    )
+
+
+def test_b2_lists_vulnerable_before_not_applicable(conn, guide_loaded, scan_with_findings):
+    """조치 대상이 목록 앞에 와야 읽힘"""
+    items = _report(conn, scan_with_findings)["guide_mapping"]["items"]
+    rank = {"vulnerable": 0, "not_applicable": 1, "safe": 2}
+    order = [rank[i["verdict"]] for i in items]
+    assert order == sorted(order)
+
+
+def test_review_required_chip_is_gone(conn, guide_loaded, scan_with_findings):
+    """reviewed 를 1 로 바꾸는 경로가 없어 늘 붙던 표기. 판정 신뢰도로 오독됨"""
+    report = _report(conn, scan_with_findings)
+    assert "review_required" not in json.dumps(report, ensure_ascii=False)
+    assert "검토 필요" not in renderer.render_html(report)
+
+
+def test_guide_remediation_appears_once(conn, guide_loaded, scan_with_findings):
+    """같은 조치 원문이 A-6 과 B-2 양쪽에 실리면 원문 대조가 성립하지 않음 (절대규칙 9)"""
+    report = _report(conn, scan_with_findings)
+    html = renderer.render_html(report)
+    a6 = _section(html, "sec-a6", "sec-a7")
+    for item in report["remediation"]:
+        original = item.get("guide_remediation_original")
+        if original:
+            assert original not in a6
+
+
+
+# 심각도 한글 표기. 되살아나면 화면·보고서 문자열이 갈림 (docs/04 §2).
+# '정보' 는 유형명 '정보 노출' 과 겹쳐 태그 경계로만 확인
+_KOREAN_SEVERITY = ("치명적", "높음", "중간", "낮음")
+
+
+def test_severity_notation_is_english_everywhere(conn, guide_loaded, scan_with_findings):
+    """같은 심각도가 자리마다 critical / 치명적 / 높음 으로 갈리면 대조가 안 됨"""
+    from app.domain.enums import SEVERITY_LABELS
+
+    html = renderer.render_html(_report(conn, scan_with_findings))
+    for word in _KOREAN_SEVERITY:
+        assert word not in html, word
+    assert ">정보<" not in html
+    # 화면(ui.js)과 같은 문자열이어야 함. 어느 한쪽만 바뀌면 대조 불가
+    assert set(SEVERITY_LABELS.values()) == {s.value for s in Severity}
+
+
+def test_report_uses_no_em_dash(conn, guide_loaded, scan_with_findings):
+    """전각 대시 금지. 폰트·인쇄에서 하이픈과 구분이 어려움"""
+    assert "\u2014" not in renderer.render_html(_report(conn, scan_with_findings))
+
+
+def test_scope_notes_avoid_remote_framing(conn, guide_loaded, scan_with_findings):
+    """로컬 도구다. '원격' 은 위치가 아니라 방식을 가리켰지만 오독됨.
+    'RCE(원격 코드 실행)' 는 유형 고유명이라 대상 아님"""
+    report = _report(conn, scan_with_findings)
+    for text in (
+        report["guide_mapping"]["coverage_notice"],
+        report["appendix"]["scope_note"],
+        report["executive_summary"]["narrative"],
+    ):
+        assert "원격" not in text, text
 
 
 # ─────────────────────────────── TC-R11 (fixed_version 결측)

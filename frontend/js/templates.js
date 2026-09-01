@@ -34,16 +34,14 @@ export async function viewTemplates() {
 
   view().innerHTML = `
     <div class="view-head">
-      <div class="eyebrow">진단 항목 관리</div>
       <h1>템플릿</h1>
-      <p>진단 항목은 nuclei YAML 템플릿으로만 표현. REDAR 는 사용자 스크립트를 실행하지 않음</p>
+      <p>진단 항목은 nuclei YAML 템플릿으로만 만듭니다. 사용자 스크립트는 실행하지 않습니다.</p>
     </div>
 
     <div class="panel">
       <div class="panel-head spread">
         <div>
-          <div class="eyebrow">인벤토리 · ${state.total}개</div>
-          <h2>보유 템플릿</h2>
+          <h2>보유 템플릿 ${state.total}개</h2>
         </div>
         <div class="row">
           <button class="sm" data-tpl="reindex">폴더 재색인</button>
@@ -74,7 +72,6 @@ export async function viewTemplates() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">${state.editing ? "수정" : "새로 만들기"}</div>
         <h2>${state.editing ? esc(state.editing) : "폼으로 템플릿 작성"}</h2>
       </div>
       <form id="tpl-form" autocomplete="off">
@@ -91,12 +88,10 @@ export async function viewTemplates() {
 
     <div class="panel">
       <div class="panel-head">
-        <div class="eyebrow">시험 실행</div>
         <h2>드라이런</h2>
       </div>
       <p style="color:var(--muted);margin:0 0 12px">
-        저장 전에 대상 1개로 실제 요청을 보내 matcher 별 결과 확인.
-        허용 대상 통제는 스캔과 동일하게 적용
+        저장 전에 대상 1개로 실제 요청을 보내 matcher 별 결과를 확인합니다.
       </p>
       <label class="field">
         <span>대상</span>
@@ -125,8 +120,8 @@ function syncNotice(override) {
   // 갱신은 nuclei 가 실행한다. 통신 허용보다 이게 먼저 막힌다
   if ((ready.blockers || []).some((b) => b.code === "NUCLEI_MISSING")) {
     return `<div class="coverage" style="border-left-color:var(--brand)">
-      <strong>nuclei 없음 — 갱신 불가</strong>
-      템플릿 갱신은 nuclei 가 직접 내려받으므로 먼저 준비 필요
+      <strong>nuclei 없음 - 갱신 불가</strong>
+      템플릿은 nuclei 가 직접 내려받으므로 nuclei 부터 준비하셔야 합니다.
       <div class="cta">
         <button class="sm" data-go="settings">설정 → 의존성</button>
       </div>
@@ -135,10 +130,9 @@ function syncNotice(override) {
   if (ready.sync_allowed) return "";
 
   return `<div class="coverage" style="border-left-color:var(--warn)">
-    <strong>공식 템플릿 갱신이 막혀 있음</strong>
-    갱신은 외부 통신이라 두 가지가 모두 켜져 있어야 함 —
-    <b>오프라인 모드 끄기</b> + <b>nuclei 템플릿 갱신</b> 허용.
-    둘 중 하나만 켜면 막힘
+    <strong>공식 템플릿 갱신 차단됨</strong>
+    갱신은 외부 통신이라 <b>오프라인 모드 끄기</b> 와 <b>nuclei 템플릿 갱신</b> 허용이
+    둘 다 필요합니다.
     <div class="cta">
       <button class="sm" data-go="settings">설정에서 통신 허용</button>
     </div>
@@ -153,9 +147,8 @@ function showSyncNotice(html, color = "var(--brand)") {
 function emptyInventory() {
   if (state.total !== 0 || filters.q || filters.source || filters.severity) {
     return `<div class="empty">
-      <div class="eyebrow">결과 없음</div>
       <h2>조건에 맞는 템플릿 없음</h2>
-      <p>필터 해제 후 다시 확인</p>
+      <p>필터를 해제하고 다시 확인하세요.</p>
     </div>`;
   }
 
@@ -163,21 +156,20 @@ function emptyInventory() {
   const dir = ready?.templates?.official_dir || "templates/official";
   const blocked = ready && !ready.sync_allowed;
   return `<div class="empty">
-    <div class="eyebrow">인벤토리 비어 있음</div>
     <h2>보유한 템플릿 없음</h2>
-    <p>템플릿은 "이런 취약점이 있는지 확인하는 방법"을 적어둔 파일.
-       하나도 없으면 스캔은 끝나도 결과가 항상 0건. 아래 셋 중 하나로 채움</p>
+    <p>템플릿은 "이런 취약점이 있는지 확인하는 방법"을 적어둔 파일입니다.
+       하나도 없으면 스캔 결과가 항상 0건입니다. 아래 셋 중 하나로 채우세요.</p>
     <div class="hintbox" style="text-align:left;max-width:60ch;margin:var(--gap) auto 0">
       <b>1 · 공식 템플릿 갱신</b>
       <small>${blocked
-        ? "설정에서 오프라인 모드를 끄고 <b>nuclei 템플릿 갱신</b> 을 켜야 사용 가능. "
-          + "지금은 버튼이 잠겨 있음"
-        : "위 <b>공식 템플릿 갱신</b> 버튼. 수천 개를 내려받아 수 분 소요"}</small>
+        ? "설정에서 오프라인 모드를 끄고 <b>nuclei 템플릿 갱신</b> 을 켜야 씁니다. "
+          + "지금은 버튼이 잠겨 있습니다."
+        : "위 <b>공식 템플릿 갱신</b> 버튼을 누르세요. 수천 개를 내려받아 수 분 걸립니다."}</small>
       <b style="margin-top:10px">2 · 파일 직접 넣기</b>
-      <small>인터넷이 없는 환경용. 아래 경로에 <span class="mono">.yaml</span> 을 넣고
-        <b>폴더 재색인</b> 실행<br><span class="mono">${esc(dir)}</span></small>
+      <small>인터넷이 없는 환경용입니다. 아래 경로에 <span class="mono">.yaml</span> 을 넣고
+        <b>폴더 재색인</b> 을 실행하세요.<br><span class="mono">${esc(dir)}</span></small>
       <b style="margin-top:10px">3 · 직접 작성</b>
-      <small>아래 폼으로 진단 항목을 만들어 저장. 저장 전 드라이런으로 실제 매칭 확인 가능</small>
+      <small>아래 폼으로 진단 항목을 만들어 저장합니다. 저장 전 드라이런으로 매칭을 확인할 수 있습니다.</small>
     </div>
   </div>`;
 }
@@ -195,11 +187,11 @@ function templateTable(items) {
           ? ' <span class="chip">자산 식별</span>' : ""}</td>
         <td>${t.severity
           ? `<span class="sev sev-${esc(t.severity)}">${esc(SEVERITY_LABEL[t.severity] || t.severity)}</span>`
-          : "—"}</td>
+          : "-"}</td>
         <td>${esc(dash(t.vuln_type))}</td>
         <td>${esc(SOURCE_LABEL[t.source] || t.source)}</td>
         <td class="mono" style="font-size:11.5px;color:var(--muted)">
-          ${esc((t.tags || []).slice(0, 3).join(", ")) || "—"}</td>
+          ${esc((t.tags || []).slice(0, 3).join(", ")) || "-"}</td>
       </tr>`).join("")}
     </tbody></table>`;
 }
@@ -400,7 +392,7 @@ function renderCheck(result) {
         : (syntax.valid ? "통과" : "실패")}
       ${policy.errors?.length ? `
         <div style="margin-top:8px">${policy.errors.map((e) =>
-          `<div><span class="mono">${esc(e.field)}</span> — ${esc(e.message)}</div>`
+          `<div><span class="mono">${esc(e.field)}</span> - ${esc(e.message)}</div>`
         ).join("")}</div>` : ""}
       ${policy.warnings?.length ? `
         <div style="margin-top:8px;color:var(--warn)">${policy.warnings.map((w) =>
@@ -420,7 +412,7 @@ async function save() {
   const result = state.editing
     ? await api.updateTemplate(state.editing, form)
     : await api.createTemplate(form);
-  toast(state.editing ? "수정됨" : "저장됨");
+  toast(state.editing ? "수정했습니다." : "저장했습니다.");
   state.editing = null;
   await viewTemplates();
   renderCheck({ ...result, policy: { valid: true, warnings: result.warnings || [] },
@@ -430,11 +422,11 @@ async function save() {
 async function dryrun() {
   const target = document.getElementById("tpl-target").value.trim();
   const box = document.getElementById("tpl-dryrun");
-  if (!target) { toast("대상 입력 필요", "err"); return; }
+  if (!target) { toast("대상을 입력하세요.", "err"); return; }
 
   const built = await api.validateTemplate({ form: collectForm() });
   if (!built.policy.valid) {
-    toast("정책 검증 통과 필요", "err");
+    toast("정책 검증을 먼저 통과해야 합니다.", "err");
     renderCheck(built);
     return;
   }
@@ -452,7 +444,7 @@ async function dryrun() {
       <div style="margin-top:8px">
         ${(request.matcher_results || []).map((m) => `
           <div><span class="mono">${esc(m.name || m.type)}</span>
-            ${esc(m.type)} —
+            ${esc(m.type)} -
             <span style="color:${m.matched ? "var(--ok)" : "var(--brand)"}">
               ${m.matched ? "매칭" : "미매칭"}</span></div>`).join("")}
       </div>
@@ -470,10 +462,9 @@ async function openTemplate(templateId) {
   node.innerHTML = `
     <div class="drawer-head">
       <div>
-        <div class="eyebrow">${esc(SOURCE_LABEL[detail.source] || detail.source)}</div>
-        <h2 style="margin-top:4px">${esc(detail.name)}</h2>
+        <h2>${esc(detail.name)}</h2>
         <div class="mono" style="color:var(--faint);font-size:11.5px;margin-top:4px">
-          ${esc(detail.template_id)}</div>
+          ${esc(detail.template_id)} · ${esc(SOURCE_LABEL[detail.source] || detail.source)}</div>
       </div>
       <button class="sm ghost" data-tpl="close">닫기</button>
     </div>
@@ -483,16 +474,16 @@ async function openTemplate(templateId) {
         <dl class="kv">
           <dt>심각도</dt><dd>${esc(dash(detail.severity))}</dd>
           <dt>유형</dt><dd>${esc(dash(detail.vuln_type))}</dd>
-          <dt>CVE</dt><dd>${esc((detail.cve_ids || []).join(", ") || "—")}</dd>
-          <dt>CWE</dt><dd>${esc((detail.cwe_ids || []).join(", ") || "—")}</dd>
-          <dt>태그</dt><dd>${esc((detail.tags || []).join(", ") || "—")}</dd>
+          <dt>CVE</dt><dd>${esc((detail.cve_ids || []).join(", ") || "-")}</dd>
+          <dt>CWE</dt><dd>${esc((detail.cwe_ids || []).join(", ") || "-")}</dd>
+          <dt>태그</dt><dd>${esc((detail.tags || []).join(", ") || "-")}</dd>
         </dl>
       </section>
       ${detail.unsupported_fields?.length ? `
         <section>
           <h3>빌더 미지원 문법</h3>
           <div class="coverage" style="border-left-color:var(--warn)">
-            폼으로 편집하면 아래 항목 유실. YAML 직접 수정 필요
+            폼으로 편집하면 아래 항목이 사라집니다. YAML 을 직접 수정하세요.
             <div class="mono" style="margin-top:6px;color:var(--text)">
               ${esc(detail.unsupported_fields.join(", "))}</div>
           </div>
@@ -509,7 +500,7 @@ async function openTemplate(templateId) {
                <button class="sm danger" data-tpl-delete="${esc(detail.template_id)}">삭제</button>`
             : `<button class="sm" data-tpl-fork="${esc(detail.template_id)}">사본 만들어 편집</button>
                <p style="color:var(--faint);font-size:12px;margin:8px 0 0">
-                 공식 템플릿은 수정·삭제 불가</p>`}
+                 공식 템플릿은 수정·삭제할 수 없습니다.</p>`}
         </div>
       </section>
     </div>`;
@@ -538,7 +529,7 @@ export async function handleTemplateClick(target) {
     const container = group.parentElement;
     // 최소 1개는 남김. 스키마의 min_items 를 화면에서도 지킴
     if (container.children.length > 1) group.remove();
-    else toast("최소 1개 필요", "err");
+    else toast("최소 1개가 필요합니다.", "err");
     return true;
   }
   if (open) { await openTemplate(open); return true; }
@@ -550,28 +541,28 @@ export async function handleTemplateClick(target) {
     await viewTemplates();
     if (detail.form) fillForm(detail.form);
     if (detail.unsupported_fields?.length) {
-      toast(`미지원 문법 ${detail.unsupported_fields.length}건은 폼에 미반영`, "err");
+      toast(`미지원 문법 ${detail.unsupported_fields.length}건은 폼에 반영되지 않았습니다.`, "err");
     }
     return true;
   }
   if (del) {
     const ok = await confirmDialog({
       title: "템플릿 삭제",
-      body: `<span class="mono">${esc(del)}</span> 삭제됨. 되돌릴 수 없음`,
+      body: `<span class="mono">${esc(del)}</span> 을 삭제합니다. 되돌릴 수 없습니다.`,
       confirmLabel: "삭제",
       danger: true,
     });
     if (!ok) return true;
     await api.deleteTemplate(del);
     document.querySelector(".drawer")?.remove();
-    toast("삭제됨");
+    toast("삭제했습니다.");
     await viewTemplates();
     return true;
   }
   if (forkId) {
     const newId = await promptDialog({
       title: "템플릿 사본 만들기",
-      body: "공식 템플릿은 수정할 수 없으므로 사본을 만들어 편집",
+      body: "공식 템플릿은 수정할 수 없습니다. 사본을 만들어 편집하세요.",
       label: "새 템플릿 ID · 소문자·숫자·하이픈",
       value: `${forkId}-copy`.toLowerCase(),
       confirmLabel: "사본 생성",
@@ -579,7 +570,7 @@ export async function handleTemplateClick(target) {
     if (!newId) return true;
     await api.forkTemplate(forkId, newId);
     document.querySelector(".drawer")?.remove();
-    toast("사본 생성됨");
+    toast("사본을 만들었습니다.");
     state.editing = newId;
     await viewTemplates();
     const detail = await api.getTemplate(newId);
@@ -597,7 +588,7 @@ export async function handleTemplateClick(target) {
             + (r.indexed.skipped ? ` · 건너뜀 ${r.indexed.skipped}` : "");
         },
       );
-      toast(`색인 완료 · ${result}`);
+      toast(`색인을 완료했습니다 · ${result}`);
       await viewTemplates();
       return true;
     }
@@ -608,8 +599,8 @@ export async function handleTemplateClick(target) {
       button.disabled = true;
       button.textContent = "갱신 중…";
       showSyncNotice(
-        "<strong>갱신 중</strong> nuclei 가 공식 템플릿 저장소를 내려받고 있음. "
-        + "수천 개라 수 분 소요. 완료되면 이 문구가 결과로 바뀜",
+        "<strong>갱신 중</strong> nuclei 가 공식 템플릿 저장소를 내려받고 있습니다. "
+        + "수천 개라 수 분 걸립니다.",
         "var(--warn)",
       );
       const dockId = tasks.begin("공식 템플릿 갱신", "내려받는 중 · 수 분 소요");
@@ -631,7 +622,7 @@ export async function handleTemplateClick(target) {
           `<strong>갱신 실패</strong> ${esc(error?.message || "알 수 없는 오류")}`
           + `<div style="margin-top:6px;color:var(--faint)">코드 `
           + `<span class="mono">${esc(error?.code || "-")}</span>`
-          + " · nuclei 미설치면 설정 → 의존성에서 먼저 준비 필요</div>",
+          + " · nuclei 가 없으면 설정 → 의존성에서 먼저 준비하세요.</div>",
         );
       } finally {
         button.disabled = false;

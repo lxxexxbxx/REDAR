@@ -90,7 +90,7 @@ def _resolve_target(raw: dict) -> Target:
             port=port,
             path=parts.path or None,
         )
-    raise ValueError("host 확보 불가")
+    raise ValueError("host 를 확보할 수 없습니다.")
 
 
 def _as_int(value: object) -> int | None:

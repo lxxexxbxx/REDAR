@@ -27,7 +27,7 @@ _SYNTAX_TIMEOUT_SEC = 60
 
 LOOSE_MATCHER = {
     "code": "LOOSE_MATCHER",
-    "message": "matcher 가 status 단독. 정상 페이지에도 매칭되어 오탐 가능",
+    "message": "matcher 가 status 하나뿐입니다. 정상 페이지에도 매칭되어 오탐이 날 수 있습니다.",
     "suggestion": "응답 본문의 고유 문자열을 word matcher 로 추가",
 }
 
@@ -103,11 +103,11 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
 
     template_id = str(document.get("id") or "").strip()
     if not template_id:
-        errors.append({"field": "id", "message": "템플릿 ID 없음"})
+        errors.append({"field": "id", "message": "템플릿 ID 를 입력하세요."})
     elif not builder.TEMPLATE_ID_RE.match(template_id):
         errors.append({
             "field": "id",
-            "message": "템플릿 ID 는 소문자·숫자·하이픈만 허용",
+            "message": "템플릿 ID 는 소문자·숫자·하이픈만 쓸 수 있습니다.",
         })
 
     info = document.get("info") or {}
@@ -115,15 +115,15 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
         info = {}
         errors.append({"field": "info", "message": "info 가 매핑이 아닙니다."})
     if not str(info.get("name") or "").strip():
-        errors.append({"field": "info.name", "message": "이름 없음"})
+        errors.append({"field": "info.name", "message": "이름을 입력하세요."})
 
     severity = str(info.get("severity") or "").strip()
     if not severity:
-        errors.append({"field": "info.severity", "message": "severity 값 없음"})
+        errors.append({"field": "info.severity", "message": "severity 값을 고르세요."})
     elif severity not in {s.value for s in Severity}:
         errors.append({
             "field": "info.severity",
-            "message": f"severity 값 오류: {severity}",
+            "message": f"severity 값이 올바르지 않습니다: {severity}",
         })
 
     classification = info.get("classification") or {}
@@ -145,7 +145,7 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
 
     requests = document.get("http") or document.get("requests") or []
     if not isinstance(requests, list) or not requests:
-        errors.append({"field": "http", "message": "요청 최소 1개 필요"})
+        errors.append({"field": "http", "message": "요청이 최소 1개 필요합니다."})
         requests = []
 
     matcher_total = 0
@@ -154,7 +154,7 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
             errors.append({"field": f"http[{index}]", "message": "매핑이 아닙니다."})
             continue
         if not entry.get("path"):
-            errors.append({"field": f"http[{index}].path", "message": "경로 없음"})
+            errors.append({"field": f"http[{index}].path", "message": "경로를 입력하세요."})
         matchers = entry.get("matchers") or []
         if not isinstance(matchers, list):
             matchers = []
@@ -163,7 +163,7 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
             warnings.append({**LOOSE_MATCHER, "field": f"http[{index}].matchers"})
 
     if matcher_total == 0:
-        errors.append({"field": "matchers", "message": "탐지 조건 최소 1개 필요"})
+        errors.append({"field": "matchers", "message": "탐지 조건이 최소 1개 필요합니다."})
 
     return {"valid": not errors, "errors": errors, "warnings": warnings}
 

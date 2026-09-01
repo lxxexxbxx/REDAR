@@ -64,7 +64,7 @@ def scan_guide(scan_id: str) -> dict[str, Any]:
         from app.repository import scans as scan_repo
 
         if scan_repo.get_scan(conn, scan_id) is None:
-            raise ScanError("NOT_FOUND", "스캔 없음", status_code=404)
+            raise ScanError("NOT_FOUND", "스캔을 찾을 수 없습니다.", status_code=404)
         verdicts = guide_service.verdicts(conn, scan_id)
         status = guide_repo.status(conn)
         detail = {

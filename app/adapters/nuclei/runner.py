@@ -38,9 +38,9 @@ def build_command(opts: RunOptions, exe: str | None = None) -> list[str]:
     """실행 인자 조립. nuclei 미설치 시 RuntimeError."""
     binary = exe or settings.nuclei_bin()
     if not binary:
-        raise RuntimeError("nuclei 실행 파일을 찾을 수 없음. PATH 또는 REDAR_NUCLEI 확인")
+        raise RuntimeError("nuclei 실행 파일을 찾을 수 없습니다. PATH 또는 REDAR_NUCLEI 를 확인하세요.")
     if not opts.targets:
-        raise ValueError("스캔 대상 없음")
+        raise ValueError("스캔 대상이 없습니다.")
 
     cmd = [
         binary,

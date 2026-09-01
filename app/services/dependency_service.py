@@ -78,7 +78,7 @@ REGISTRY: tuple[Dependency, ...] = (
         key="nuclei",
         label="nuclei",
         filename=f"nuclei{EXE}",
-        required_for="취약점 탐지. 없으면 스캔을 실행할 수 없다",
+        required_for="취약점 탐지에 씁니다. 없으면 스캔할 수 없습니다.",
         version_args=("-version",),
         installable=True,
         manual_url="https://github.com/projectdiscovery/nuclei/releases",
@@ -270,7 +270,7 @@ def install(conn: sqlite3.Connection, key: str, *, confirmed: bool) -> dict[str,
     """Go 툴체인 확보 후 go install. 외부 통신 지점 4번 (docs/01 §7.1)"""
     dependency = get(key)
     if not dependency.installable:
-        raise ScanError("INVALID_REQUEST", f"{dependency.label} 자동 설치 미지원")
+        raise ScanError("INVALID_REQUEST", f"{dependency.label} 은 자동 설치를 지원하지 않습니다.")
     if not confirmed:
         # 사용자가 매번 명시적으로 동의해야 한다. 설정만으로 자동 실행되지 않음
         raise ScanError(
@@ -323,7 +323,7 @@ def go_asset() -> tuple[str, str]:
         "arm64": "arm64", "aarch64": "arm64",
     }.get(machine)
     if arch is None:
-        raise ScanError("INTERNAL_ERROR", f"지원하지 않는 아키텍처: {machine}")
+        raise ScanError("INTERNAL_ERROR", f"지원하지 않는 아키텍처입니다: {machine}")
     goos = {"win32": "windows", "darwin": "darwin"}.get(sys.platform, "linux")
     kind = "zip" if goos == "windows" else "tar.gz"
 
@@ -337,7 +337,7 @@ def go_asset() -> tuple[str, str]:
                     and entry.get("kind") == "archive"
                     and entry.get("filename", "").endswith(kind)):
                 return entry["filename"], entry.get("sha256", "")
-    raise ScanError("INTERNAL_ERROR", f"Go 배포본 없음: {goos}/{arch}")
+    raise ScanError("INTERNAL_ERROR", f"Go 배포본이 없습니다: {goos}/{arch}")
 
 
 def _install_go() -> Path:
@@ -364,7 +364,7 @@ def _install_go() -> Path:
 
     binary = destination / "bin" / f"go{EXE}"
     if not binary.is_file():
-        raise ScanError("INTERNAL_ERROR", f"Go 설치 실패: {binary} 없음")
+        raise ScanError("INTERNAL_ERROR", f"Go 설치에 실패했습니다: {binary} 없음")
     if not WINDOWS:
         binary.chmod(0o755)
     return binary
@@ -408,5 +408,5 @@ def _go_install(go_binary: Path, dependency: Dependency) -> Path:
 
     binary = target_dir / dependency.filename
     if not binary.is_file():
-        raise ScanError("INTERNAL_ERROR", f"설치 산출물 없음: {binary}")
+        raise ScanError("INTERNAL_ERROR", f"설치 산출물이 없습니다: {binary}")
     return binary

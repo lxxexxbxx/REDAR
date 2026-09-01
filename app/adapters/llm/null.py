@@ -4,14 +4,14 @@
 """
 from __future__ import annotations
 
-from typing import Any
-
 
 class NullProvider:
     name = "null"
     model = None
 
-    def narrate(self, purpose: str, context: dict[str, Any]) -> str:
+    def complete(
+        self, messages: list[dict[str, str]], *, max_tokens: int = 4096
+    ) -> str:
         """빈 문자열 = '생성하지 않음'. 호출자가 템플릿 문장을 유지"""
-        del purpose, context
+        del messages, max_tokens
         return ""

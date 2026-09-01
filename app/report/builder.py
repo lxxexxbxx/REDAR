@@ -13,6 +13,7 @@ import sqlite3
 from typing import Any
 
 from app import __version__
+from app.domain import models
 from app.domain import severity as severity_mod
 from app.domain.enums import (
     SEVERITY_LABELS,
@@ -349,14 +350,17 @@ def _guide_mapping(
             "criteria_vuln": item.get("criteria_vuln"),
             "remediation": item.get("remediation"),
             "citation": _citation(item),
-            "review_required": bool(item.get("review_required")),
         })
+    # 취약 -> 해당 없음 -> 양호 순. 조치 대상이 목록 앞에 와야 읽힘
+    order = {"vulnerable": 0, "not_applicable": 1, "safe": 2}
+    items.sort(key=lambda i: (order.get(i["verdict"], 9), i["item_code"]))
     return {
         "available": guide_status["imported"],
         "items": items,
         "summary": guide_service.summary(verdicts),
         # 고지 문장은 서버가 만든 하나만 사용. 사본을 두면 화면과 보고서가 갈라짐
         "coverage_notice": guide_status["coverage_notice"],
+        "coverage_caution": models.COVERAGE_CAUTION,
         "unavailable_note": None if guide_status["imported"]
         else fallback.GUIDE_UNAVAILABLE,
     }
@@ -378,6 +382,14 @@ def _unmapped(
     ]
 
 
+# 강조 표시 대상. 보고서에서 이 구절만 굵게 렌더링 (renderer.emphasize)
+SCOPE_CAUTION = "계정 관리·파일 권한·서비스 데몬 설정 등 서버 내부 영역"
+SCOPE_NOTE = (
+    f"본 진단은 대상에 HTTP 요청을 보내 그 응답으로만 판단합니다. {SCOPE_CAUTION}은"
+    " 응답에 드러나지 않으므로 점검 범위에 포함되지 않습니다."
+)
+
+
 def _appendix(conn: sqlite3.Connection, scan_id: str) -> dict[str, Any]:
     return {
         "severity_conversion_table": [
@@ -391,10 +403,8 @@ def _appendix(conn: sqlite3.Connection, scan_id: str) -> dict[str, Any]:
         ],
         "templates_used": report_repo.templates_used(conn, scan_id),
         "llm_generated_sections": [],
-        "scope_note": (
-            "본 진단은 원격 HTTP 스캔 기반이다. 계정 관리·파일 권한·서비스 데몬 설정 등"
-            " 원격에서 접근할 수 없는 영역은 점검 범위에 포함되지 않는다."
-        ),
+        "scope_note": SCOPE_NOTE,
+        "scope_note_caution": SCOPE_CAUTION,
     }
 
 

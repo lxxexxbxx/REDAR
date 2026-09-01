@@ -1,8 +1,8 @@
 """LLM Provider. 기본값은 NullProvider(템플릿 문장)다 (절대규칙 2)."""
-from app.adapters.llm.base import LLMProvider, LlmError, PURPOSES
+from app.adapters.llm.base import LLMProvider, LlmError
 from app.adapters.llm.null import NullProvider
 
-__all__ = ["LLMProvider", "LlmError", "NullProvider", "PURPOSES", "get_provider"]
+__all__ = ["LLMProvider", "LlmError", "NullProvider", "get_provider"]
 
 
 def get_provider(name: str | None, config: dict | None = None):

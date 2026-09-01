@@ -205,7 +205,7 @@ def scan_environment(scan_id: str) -> dict[str, Any]:
     """환경 조사 결과 (docs/00 §4). 미수집이면 빈 목록. 조건부 생략하지 않음"""
     with session() as conn:
         if scan_repo.get_scan(conn, scan_id) is None:
-            raise ScanError("NOT_FOUND", "스캔 없음", status_code=404)
+            raise ScanError("NOT_FOUND", "스캔을 찾을 수 없습니다.", status_code=404)
         return {"items": env_repo.profiles(conn, scan_id)}
 
 

@@ -112,24 +112,12 @@ def patch_plan(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:
 def guide_items_for_scan(
     conn: sqlite3.Connection, scan_id: str
 ) -> dict[str, dict[str, Any]]:
-    """매핑 대상 점검항목 본문. 미탑재면 빈 dict (절대규칙 3).
-
-    review_required: confidence=low 이고 미검수인 매핑 (docs/04 B-2)
-    """
-    review = {
-        row["item_code"]
-        for row in conn.execute(
-            "SELECT DISTINCT item_code FROM guide_mappings"
-            " WHERE confidence = 'low' AND reviewed = 0"
-        )
-    }
+    """매핑 대상 점검항목 본문. 미탑재면 빈 dict (절대규칙 3)."""
     del scan_id                       # 본문은 스캔과 무관. 시그니처 일관성 유지용
-    out: dict[str, dict[str, Any]] = {}
-    for row in conn.execute("SELECT * FROM guide_items ORDER BY item_code"):
-        item = dict(row)
-        item["review_required"] = row["item_code"] in review
-        out[row["item_code"]] = item
-    return out
+    return {
+        row["item_code"]: dict(row)
+        for row in conn.execute("SELECT * FROM guide_items ORDER BY item_code")
+    }
 
 
 def templates_used(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:

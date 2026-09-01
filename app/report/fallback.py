@@ -7,15 +7,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domain.enums import SEVERITY_LABELS, Severity
+from app.domain.enums import Severity
 
 GENERATED_BY_TEMPLATE = "template"
 
 # 판정·구조·조치방법 생성에 개입하지 않음. 산문 필드만 채움 (절대규칙 2)
 _NO_FINDING = (
     "본 진단에서 탐지된 취약점이 없습니다. "
-    "다만 원격 스캔의 점검 범위 밖 항목이 있으므로 탐지되지 않음이 "
-    "양호를 의미하지는 않습니다."
+    "다만 웹 요청으로 확인할 수 없는 항목이 있습니다."
 )
 
 
@@ -23,20 +22,18 @@ def executive_summary(total: int, by_severity: dict[str, int]) -> str:
     if total == 0:
         return _NO_FINDING
     parts = ", ".join(
-        f"{SEVERITY_LABELS[severity]} {by_severity.get(severity.value, 0)}건"
+        f"{severity.value} {by_severity.get(severity.value, 0)}건"
         for severity in Severity
     )
     return (
         f"본 진단에서 총 {total}건의 취약점이 탐지되었습니다. "
         f"심각도별로는 {parts}입니다. "
-        "조치 우선순위는 치명적·높음 등급 항목부터 적용할 것을 권고합니다."
+        "조치 우선순위는 critical·high 등급 항목부터 적용할 것을 권고합니다."
     )
 
 
 def top_risk_reason(finding: dict[str, Any]) -> str:
-    severity = SEVERITY_LABELS.get(
-        Severity(finding["severity"]), finding["severity"]
-    )
+    severity = finding["severity"]
     cves = finding.get("cve_ids") or []
     suffix = f" · {', '.join(cves[:2])}" if cves else ""
     return f"{severity} 등급{suffix}"
@@ -63,4 +60,4 @@ GUIDE_UNAVAILABLE = (
     "매핑 결과는 보존되어 있으며 본문을 임포트하면 이 파트가 채워집니다."
 )
 # 패치 목표 버전이 없는 항목. 빈칸은 검토자에게 데이터 누락으로 읽힘 (docs/04 A-6)
-NO_UPGRADE_TARGET = "(버전 업그레이드 대상 아님 — 설정 조치 필요)"
+NO_UPGRADE_TARGET = "(버전 업그레이드 대상 아님 - 설정 조치 필요)"

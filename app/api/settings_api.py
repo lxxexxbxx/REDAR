@@ -130,10 +130,10 @@ def llm_preview(body: LlmPreviewRequest) -> dict[str, Any]:
 
     with session() as conn:
         if not body.report_id:
-            raise ScanError("INVALID_REQUEST", "report_id 필요")
+            raise ScanError("INVALID_REQUEST", "report_id 가 필요합니다.")
         view = report_repo.get(conn, body.report_id)
         if view is None or view["report"] is None:
-            raise ScanError("NOT_FOUND", "보고서 없음", status_code=404)
+            raise ScanError("NOT_FOUND", "보고서를 찾을 수 없습니다.", status_code=404)
 
         raw = settings_repo.get_all(conn)
         masker = (
@@ -181,7 +181,10 @@ def llm_test() -> dict[str, Any]:
     if provider.name == "null":
         return {"ok": False, "reason": "알 수 없는 Provider"}
     try:
-        text = provider.narrate("executive_summary", {"total_findings": 0})
+        text = provider.complete(
+            [{"role": "user", "content": "연결 확인. 'ok' 한 단어만 답하라."}],
+            max_tokens=2048,   # 추론 모델이 예산을 다 쓰지 않을 만큼
+        )
     except LlmError as exc:
         return {"ok": False, "reason": str(exc), "provider": provider.name}
     return {

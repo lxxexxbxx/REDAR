@@ -176,7 +176,7 @@ def _listify(value: Any) -> list[str]:
 def detail(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
     row = template_repo.get(conn, template_id)
     if row is None:
-        raise ScanError("NOT_FOUND", "템플릿 없음", status_code=404)
+        raise ScanError("NOT_FOUND", "템플릿을 찾을 수 없습니다.", status_code=404)
     path = Path(row["file_path"])
     text = path.read_text(encoding="utf-8") if path.is_file() else ""
     parsed = builder.parse(text) if text else {"form": None, "unsupported_fields": []}
@@ -220,11 +220,11 @@ def fork(conn: sqlite3.Connection, template_id: str, new_id: str) -> dict[str, A
     """official 사본을 custom 으로. 수정 불가 템플릿을 편집하는 유일한 경로"""
     source = detail(conn, template_id)
     if template_repo.get(conn, new_id) is not None:
-        raise ScanError("CONFLICT", "같은 ID 의 템플릿 존재", status_code=409)
+        raise ScanError("CONFLICT", "같은 ID 의 템플릿이 이미 있습니다.", status_code=409)
 
     document = yaml.safe_load(source["yaml"]) or {}
     if not builder.TEMPLATE_ID_RE.match(new_id):
-        raise ScanError("INVALID_REQUEST", "템플릿 ID 는 소문자·숫자·하이픈만 허용")
+        raise ScanError("INVALID_REQUEST", "템플릿 ID 는 소문자·숫자·하이픈만 쓸 수 있습니다.")
     document["id"] = new_id
     yaml_text = yaml.safe_dump(
         document, sort_keys=False, allow_unicode=True, default_flow_style=False
@@ -281,7 +281,7 @@ def _write(
 def _require_editable(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
     row = template_repo.get(conn, template_id)
     if row is None:
-        raise ScanError("NOT_FOUND", "템플릿 없음", status_code=404)
+        raise ScanError("NOT_FOUND", "템플릿을 찾을 수 없습니다.", status_code=404)
     if row["source"] == _SOURCE_OFFICIAL:
         raise ScanError(
             "FORBIDDEN",
@@ -390,7 +390,7 @@ def dryrun(
     base_id = str(document.get("id") or "dryrun")
     matchers = _first_matchers(document)
     if not matchers:
-        raise ScanError("INVALID_REQUEST", "탐지 조건 없음")
+        raise ScanError("INVALID_REQUEST", "탐지 조건이 없습니다.")
 
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="redar-dryrun-") as tmp:

@@ -13,7 +13,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from markupsafe import Markup, escape
 
 from app.config import settings
 
@@ -78,7 +79,20 @@ def _env() -> Environment:
     env.filters["nz"] = lambda value, default="해당 없음": (
         default if value in (None, "", [], {}) else value
     )
+    env.filters["emphasize"] = _emphasize
     return env
+
+
+def _emphasize(text: str, phrase: str) -> Markup:
+    """문장 안의 특정 구절만 굵게. 양쪽 다 이스케이프한 뒤 태그를 붙임.
+
+    autoescape 가 켜져 있어 상수에 <strong> 을 박아 두면 그대로 출력된다.
+    본문은 사용자 입력이 섞일 수 있으므로 이스케이프를 먼저 한다
+    """
+    escaped, target = str(escape(text or "")), str(escape(phrase or ""))
+    if not target or target not in escaped:
+        return Markup(escaped)
+    return Markup(escaped.replace(target, f"<strong>{target}</strong>", 1))
 
 
 def render_html(report: dict[str, Any]) -> str:

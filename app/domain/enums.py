@@ -99,11 +99,13 @@ class Confidence(StrEnum):
 # GUI 표시 문자열. docs/00 §0.4 표기 그대로.
 # GUI 측 중복 정의 방지용. API 로 전달
 SEVERITY_LABELS: dict[Severity, str] = {
-    Severity.CRITICAL: "치명적",
-    Severity.HIGH: "높음",
-    Severity.MEDIUM: "중간",
-    Severity.LOW: "낮음",
-    Severity.INFO: "정보",
+    # 표시값은 영문 원값으로 고정. 같은 심각도가 화면·보고서마다 '높음'/'high' 로
+    # 갈리면 대조가 안 된다 (docs/04 §2 표기 규칙). 가이드 등급(상/중/하)은 별도 축
+    Severity.CRITICAL: "critical",
+    Severity.HIGH: "high",
+    Severity.MEDIUM: "medium",
+    Severity.LOW: "low",
+    Severity.INFO: "info",
 }
 
 VULN_TYPE_LABELS: dict[VulnType, str] = {
