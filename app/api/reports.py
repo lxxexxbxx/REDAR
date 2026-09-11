@@ -31,6 +31,37 @@ class CreateReportRequest(BaseModel):
     options: ReportOptions = Field(default_factory=ReportOptions)
 
 
+class AttachGuideRequest(BaseModel):
+    """LLM 이 만든 조치 가이드를 보고서에 첨부.
+
+    본문은 클라이언트가 보낸다. 서버가 다시 LLM 을 호출하지 않는 이유는
+    사용자가 화면에서 확인한 바로 그 내용이 실려야 하기 때문
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    content: str = Field(min_length=1, max_length=200_000)
+    model: str | None = None
+    provider: str | None = None
+
+
+@router.post("/reports/{report_id}/remediation-guide")
+def attach_remediation_guide(
+    report_id: str, body: AttachGuideRequest
+) -> dict[str, Any]:
+    with session() as conn:
+        view = report_service.attach_guide(
+            conn, report_id, body.content,
+            model=body.model, provider=body.provider,
+        )
+    return {
+        "report_id": view["report_id"],
+        "status": view["status"],
+        "llm_used": bool(view["llm_used"]),
+        "files": [f["format"] for f in view["files"]],
+    }
+
+
 @router.post("/reports", status_code=201)
 def create_report(body: CreateReportRequest) -> dict[str, Any]:
     with session() as conn:

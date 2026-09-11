@@ -121,7 +121,7 @@ VULN_TYPE_LABELS: dict[VulnType, str] = {
     VulnType.OPEN_REDIRECT: "오픈 리다이렉트",
     VulnType.INFO_DISCLOSURE: "정보 노출",
     VulnType.ACCESS_CONTROL: "접근 통제",
-    VulnType.MISCONFIG: "설정 오류",
+    VulnType.MISCONFIG: "설정 미흡",
     VulnType.OTHER: "기타",
 }
 

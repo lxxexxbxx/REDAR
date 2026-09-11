@@ -115,6 +115,10 @@ def build(
             for f in false_positives
         ],
         "appendix": _appendix(conn, scan_id),
+        # 생성 시점에는 항상 None. 사용자가 조치 가이드 화면에서 첨부하면
+        # report_service.attach_guide 가 채운다. 키를 미리 두는 이유는 JSON
+        # 구조가 첨부 여부에 따라 달라지면 과거 보고서와 비교가 깨지기 때문
+        "llm_remediation_guide": None,
     }
 
 

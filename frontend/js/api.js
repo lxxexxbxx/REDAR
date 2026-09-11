@@ -113,6 +113,10 @@ export const api = {
     }),
   deleteReport: (id) =>
     request(`/reports/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  attachRemediationGuide: (id, payload) =>
+    request(`/reports/${encodeURIComponent(id)}/remediation-guide`, {
+      method: "POST", body: JSON.stringify(payload),
+    }),
   downloadReport: async (id, format) => {
     // 파일 본문은 JSON 이 아니라 원문. request() 를 쓰지 않고 직접 읽음
     const response = await fetch(

@@ -221,6 +221,21 @@ function previewDrawer(report) {
         </dl>
       </section>
       <section>
+        <h3>조치 상세 가이드 (4절)</h3>
+        ${report.llm_remediation_guide ? `
+          <p style="margin:0">LLM 생성 가이드가 첨부되어 있습니다 ·
+            <span class="mono">${esc(dash(report.llm_remediation_guide.model))}</span></p>
+          <p style="color:var(--faint);font-size:12px;margin:6px 0 0">
+            해당 절에는 LLM 이 작성한 내용이라는 사실과, 조치 수행과 그 결과의 책임이
+            사용자에게 있다는 고지가 함께 실립니다. 본문 1~3절은 영향받지 않습니다.
+          </p>` : `
+          <p style="margin:0;color:var(--muted)">첨부되지 않았습니다.
+            절은 안내 문구로 남습니다.</p>
+          <div class="actions">
+            <button class="sm" data-go="remediation">조치 가이드로 이동</button>
+          </div>`}
+      </section>
+      <section>
         <h3>PDF 로 저장</h3>
         <p style="margin:0;color:var(--muted)">HTML 을 열고 인쇄(Cmd/Ctrl+P) 에서
            <strong>PDF 로 저장</strong> 을 고르세요. 보고서 HTML 은 폰트까지 담고 있어

@@ -138,12 +138,22 @@ def replace_refs(
 
 
 def ref_counts(conn: sqlite3.Connection, scan_id: str) -> dict[str, int]:
+    """점검항목별 탐지 건수. 오탐은 제외
+
+    매핑(replace_refs)은 스캔이 끝날 때 한 번만 돌고, 사용자가 나중에 오탐으로
+    표시해도 finding_guide_refs 행은 남는다. 여기서 걸러내지 않으면 Part B 는
+    그 항목을 계속 '취약' 으로 판정하는데 Part A(v_report_sections)는 오탐을
+    제외하므로, 같은 보고서 안에서 판정과 조치 목록이 어긋난다.
+    행을 지우지 않고 집계에서만 빼는 이유: 오탐 표시를 되돌리면 판정도 함께
+    복원되어야 함
+    """
     return {
         r["item_code"]: r["n"]
         for r in conn.execute(
             "SELECT r.item_code, COUNT(*) AS n FROM finding_guide_refs r"
             " JOIN findings f ON f.finding_id = r.finding_id"
-            " WHERE f.scan_id = ? GROUP BY r.item_code",
+            " WHERE f.scan_id = ? AND f.status <> 'false_positive'"
+            " GROUP BY r.item_code",
             (scan_id,),
         )
     }

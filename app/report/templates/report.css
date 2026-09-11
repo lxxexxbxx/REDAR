@@ -80,6 +80,30 @@ pre.evidence {
 }
 .trunc { color: #8a6100; }
 
+/* LLM 조치 가이드 (Part D). 본문과 확실히 구분되어야 한다 - 여기만 생성 문장이다 */
+.llm-guide {
+  border: 0.75pt solid #888; border-left: 3pt dashed #8a6100;
+  padding: 4mm 5mm; margin: 3mm 0; background: #fcfbf8;
+}
+.llm-guide h3 { font-size: 11pt; margin: 5mm 0 2mm; }
+.llm-guide h3:first-child { margin-top: 0; }
+.llm-guide h4, .llm-guide h5, .llm-guide h6 {
+  font-size: 10pt; margin: 3.5mm 0 1.5mm; color: #333;
+}
+.llm-guide ul { margin: 1.5mm 0; padding-left: 6mm; }
+.llm-guide p { margin: 1.5mm 0; }
+.llm-guide code {
+  font-family: "D2Coding", monospace; font-size: 9pt;
+  background: #f0efec; padding: 0 0.8mm;
+}
+.llm-guide pre.codeblock {
+  font-family: "D2Coding", monospace; font-size: 8.5pt; line-height: 1.45;
+  border: 0.5pt solid #ccc; background: #fbfbfb; padding: 2.5mm;
+  white-space: pre-wrap; word-break: break-all; margin: 2mm 0;
+}
+.llm-guide pre.codeblock code { background: none; padding: 0; }
+.llm-guide table.guide-table { font-size: 9pt; }
+
 .finding {
   border: 0.5pt solid #bbb; padding: 4mm; margin: 3mm 0;
   page-break-inside: avoid;

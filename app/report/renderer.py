@@ -17,6 +17,8 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from markupsafe import Markup, escape
 
 from app.config import settings
+from app.domain import models
+from app.report import markdown
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -80,6 +82,8 @@ def _env() -> Environment:
         default if value in (None, "", [], {}) else value
     )
     env.filters["emphasize"] = _emphasize
+    # LLM 조치 가이드 본문 전용. 입력을 먼저 전부 이스케이프한 뒤 서식만 되살림
+    env.filters["guide_markdown"] = markdown.to_html
     return env
 
 
@@ -102,6 +106,8 @@ def render_html(report: dict[str, Any]) -> str:
         r=report,
         font_faces=font_faces(),
         base_css=base_css(),
+        # 강조할 구절. 고지 문장과 함께 한 곳에서 정의됨 (domain/models.py)
+        llm_guide_caution=models.LLM_GUIDE_CAUTION,
     )
 
 

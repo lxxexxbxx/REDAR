@@ -98,6 +98,7 @@ function renderChat() {
         <div><h2>조치 가이드</h2></div>
         <div class="row">
           <span class="chip">${esc(state.status?.model || "-")}</span>
+          <button class="sm" data-rem="attach">보고서에 첨부</button>
           <button class="sm ghost" data-rem="copy-guide">가이드 복사</button>
           <button class="sm ghost" data-rem="reset">대화 지우기</button>
         </div>
@@ -249,6 +250,38 @@ async function send(content) {
   renderChat();
 }
 
+/* 받은 가이드를 보고서 최하단(4절)에 첨부.
+ *
+ * 보고서 본문(1~3절)은 바뀌지 않는다. 첨부하면 HTML·JSON 파일이 다시 만들어지고,
+ * 그 절에는 LLM 생성물이라는 사실과 조치 책임이 사용자에게 있다는 고지가 함께 실림
+ * 마지막 답변 하나만 싣는다 - 대화 전체를 넣으면 중간 시행착오까지 문서에 남음
+ */
+async function attach() {
+  const last = [...state.chat].reverse().find((m) => m.role === "assistant");
+  if (!last) { toast("첨부할 가이드가 없습니다.", "err"); return; }
+  if (!state.reportId) { toast("대상 보고서를 먼저 고르세요.", "err"); return; }
+
+  const ok = await confirmDialog({
+    title: "보고서에 첨부",
+    body: "가장 최근 답변을 보고서 <b>4. 조치 상세 가이드</b> 절에 넣습니다.<br><br>"
+        + "해당 절에는 <b>LLM 이 작성한 내용</b>이라는 사실과, REDAR 는 방안을 제시할 뿐 "
+        + "<b>조치 수행과 그 결과의 책임은 사용자에게 있다</b>는 고지가 함께 실립니다.<br><br>"
+        + "보고서 본문(1~3절)은 바뀌지 않으며, 다시 첨부하면 내용이 교체됩니다.",
+    confirmLabel: "첨부",
+  });
+  if (!ok) return;
+
+  await tasks.track(
+    "보고서에 가이드 첨부", state.reportId,
+    () => api.attachRemediationGuide(state.reportId, {
+      content: last.content,
+      model: state.status?.model || null,
+      provider: "monogpt",
+    }),
+  );
+  toast("보고서에 첨부했습니다. 보고서 화면에서 내려받으세요.");
+}
+
 export async function handleRemediationClick(target, rerender) {
   const action = target.closest("[data-rem]")?.dataset.rem;
   if (!action) return false;
@@ -279,6 +312,7 @@ export async function handleRemediationClick(target, rerender) {
     if (last) await copy(last.content, "가이드");
     return true;
   }
+  if (action === "attach") { await attach(); return true; }
   if (action === "reset") {
     state.chat = [];
     document.getElementById("rem-chat").innerHTML = "";

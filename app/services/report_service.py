@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings
+from app.domain import models
 from app.domain.ids import new_id
 from app.report import builder, renderer
 from app.repository import guide as guide_repo
@@ -95,6 +96,57 @@ def _write_files(conn: sqlite3.Connection, report: dict[str, Any]) -> None:
             conn, report["report_id"], fmt=fmt, file_path=str(path),
             size_bytes=len(data), sha256=hashlib.sha256(data).hexdigest(),
         )
+
+
+def attach_guide(
+    conn: sqlite3.Connection,
+    report_id: str,
+    content: str,
+    *,
+    model: str | None = None,
+    provider: str | None = None,
+) -> dict[str, Any]:
+    """LLM 조치 가이드를 보고서 최하단에 첨부. 파일도 다시 만든다
+
+    보고서 본문(Part A~C)은 손대지 않는다. 생성 문장은 이 절에만 들어가며
+    출처·책임 고지가 절 안에 함께 실린다 (models.LLM_GUIDE_* )
+
+    보고서 생성 시점에 LLM 을 호출하지 않는 이유는 그대로다. 사용자가 화면에서
+    내용을 확인한 뒤 명시적으로 첨부하는 것이라, 보고서 생성 자체는 여전히
+    결정론적이고 통신도 없다
+    """
+    view = get(conn, report_id)
+    report = view["report"]
+    if report is None:
+        raise ScanError("INVALID_REQUEST", "아직 완성되지 않은 보고서입니다.")
+
+    text = (content or "").strip()
+    if not text:
+        raise ScanError("INVALID_REQUEST", "첨부할 가이드 본문이 비어 있습니다.")
+
+    report["llm_remediation_guide"] = {
+        "content": text,
+        "model": model,
+        "provider": provider,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "origin_notice": models.LLM_GUIDE_ORIGIN_NOTICE,
+        "responsibility_notice": models.LLM_GUIDE_RESPONSIBILITY_NOTICE,
+    }
+    # meta.llm 도 함께 갱신. 부록의 'LLM 사용' 칸이 이 값을 읽는다
+    report["meta"]["llm"] = {
+        **report["meta"].get("llm", {}),
+        "used": True,
+        "provider": provider,
+        "model": model,
+        "requested": True,
+    }
+
+    report_repo.set_llm_guide(
+        conn, report_id, report_json=builder.dumps(report),
+        llm_provider=provider, llm_model=model,
+    )
+    _write_files(conn, report)
+    return report_repo.get(conn, report_id) or {}
 
 
 def get(conn: sqlite3.Connection, report_id: str) -> dict[str, Any]:

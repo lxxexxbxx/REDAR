@@ -337,6 +337,40 @@ class FalsePositive(Strict):
     note: str | None = None
 
 
+# ─────────────────────────────────── LLM 조치 가이드 (Part D)
+#
+# Part A~C 는 진단 근거에서 결정론적으로 도출된다. 이 절만 생성 문장이므로
+# 출처와 책임을 절 안에서 못 박지 않으면, 같은 문서 안에서 근거와 추정이
+# 구분되지 않는다. 두 문장 모두 렌더러가 조건 없이 출력한다
+LLM_GUIDE_ORIGIN_NOTICE = (
+    "이 절의 내용은 LLM(생성형 AI)이 작성한 것입니다. 본 보고서의 다른 절과 달리"
+    " 진단 근거에서 도출된 값이 아니며, 사실과 다른 내용이 포함될 수 있습니다."
+    " 적용 전에 담당자가 내용을 확인해야 합니다."
+)
+LLM_GUIDE_RESPONSIBILITY_NOTICE = (
+    "REDAR 는 조치 상세 방안을 제시할 뿐 실제 조치를 수행하지 않습니다."
+    " 조치의 적용 여부와 방법은 사용자가 직접 판단해야 하며,"
+    " 조치 수행과 그 결과에 대한 책임은 전적으로 사용자에게 있습니다."
+)
+# 강조 표시 대상. 보고서에서 이 구절만 굵게 렌더링 (renderer.emphasize)
+LLM_GUIDE_CAUTION = "책임은 전적으로 사용자에게 있습니다."
+
+
+class LlmRemediationGuide(Strict):
+    """생성형 AI 가 작성한 조치 절차.
+
+    보고서 생성 이후에 첨부된다. Part A~C 를 바꾸지 않으며, 첨부하지 않은
+    보고서도 완성품이다 (절대규칙 2)
+    """
+
+    content: str
+    model: str | None = None
+    provider: str | None = None
+    generated_at: datetime | None = None
+    origin_notice: str = LLM_GUIDE_ORIGIN_NOTICE
+    responsibility_notice: str = LLM_GUIDE_RESPONSIBILITY_NOTICE
+
+
 class TemplateRef(Strict):
     template_id: str
     source: TemplateSource
@@ -385,3 +419,6 @@ class Report(Strict):
     unmapped_findings: list[UnmappedFinding] = Field(default_factory=list)
     false_positives: list[FalsePositive] = Field(default_factory=list)
     appendix: Appendix = Field(default_factory=Appendix)
+    # 보고서 생성 후 사용자가 첨부. None = 미첨부이며 정상 상태.
+    # 절은 항상 렌더링되고 미첨부면 안내 문구가 들어감 (절대규칙 4)
+    llm_remediation_guide: LlmRemediationGuide | None = None

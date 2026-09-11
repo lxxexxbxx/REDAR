@@ -805,3 +805,51 @@ def test_preflight_route_not_shadowed(client):
     response = client.get(f"{API}/scans/preflight")
     assert response.status_code == 200
     assert "blockers" in response.json()
+
+
+# ─────────────────────────── 보고서 조치 가이드 첨부 (Part D)
+
+def _report_id(client: TestClient, conn) -> str:
+    conn.execute(
+        "INSERT OR REPLACE INTO scans (scan_id, status, selection_mode,"
+        " collect_environment, tool_version) VALUES"
+        " ('scn_attach', 'completed', 'filter', 0, '0.3.0')"
+    )
+    conn.commit()
+    created = client.post(
+        f"{API}/reports", json={"scan_id": "scn_attach"}
+    )
+    assert created.status_code == 201
+    return created.json()["report_id"]
+
+
+def test_attach_remediation_guide_endpoint(client, conn):
+    report_id = _report_id(client, conn)
+    response = client.post(
+        f"{API}/reports/{report_id}/remediation-guide",
+        json={"content": "## 조치\n\n- 백업 후 진행", "model": "gpt-5.5",
+              "provider": "monogpt"},
+    )
+    assert response.status_code == 200
+    assert response.json()["llm_used"] is True
+
+    html = client.get(f"{API}/reports/{report_id}/download?format=html").text
+    assert "4. 조치 상세 가이드 (참고)" in html
+    assert "책임은 전적으로 사용자에게 있습니다" in html
+
+
+def test_attach_remediation_guide_rejects_empty(client, conn):
+    report_id = _report_id(client, conn)
+    response = client.post(
+        f"{API}/reports/{report_id}/remediation-guide", json={"content": ""}
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_attach_remediation_guide_unknown_report(client):
+    response = client.post(
+        f"{API}/reports/rpt_nope/remediation-guide", json={"content": "x"}
+    )
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"

@@ -274,6 +274,8 @@ TOP_LEVEL_KEYS = {
     "environment_profile", "findings_by_severity", "findings_by_vuln_type",
     "findings_detail", "remediation", "patch_plan", "guide_mapping",
     "unmapped_findings", "false_positives", "appendix",
+    # 미첨부여도 키는 존재. 첨부 여부로 JSON 구조가 달라지면 비교가 깨짐
+    "llm_remediation_guide",
 }
 
 

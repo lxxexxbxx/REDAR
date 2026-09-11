@@ -34,7 +34,7 @@ export const VULN_TYPE_LABEL = {
   open_redirect: "오픈 리다이렉트",
   info_disclosure: "정보 노출",
   access_control: "접근 통제",
-  misconfig: "설정 오류",
+  misconfig: "설정 미흡",
   other: "기타",
 };
 

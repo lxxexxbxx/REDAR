@@ -189,6 +189,27 @@ def finish(
     conn.commit()
 
 
+def set_llm_guide(
+    conn: sqlite3.Connection,
+    report_id: str,
+    *,
+    report_json: str,
+    llm_provider: str | None,
+    llm_model: str | None,
+) -> None:
+    """LLM 조치 가이드를 첨부한 report_json 으로 교체.
+
+    llm_used 를 함께 켠다. 목록 화면의 'LLM' 칸이 이 컬럼을 읽는데, 생성 문장이
+    실린 보고서를 '미사용' 으로 표기하면 어느 문서에 추정이 섞였는지 알 수 없음
+    """
+    conn.execute(
+        "UPDATE reports SET report_json = ?, llm_used = 1, llm_provider = ?,"
+        " llm_model = ? WHERE report_id = ?",
+        (report_json, llm_provider, llm_model, report_id),
+    )
+    conn.commit()
+
+
 def fail(conn: sqlite3.Connection, report_id: str, message: str) -> None:
     conn.execute(
         "UPDATE reports SET status = 'failed', error_message = ?"

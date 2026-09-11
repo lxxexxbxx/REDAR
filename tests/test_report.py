@@ -38,6 +38,8 @@ EXPECTED_SECTIONS = [
     "가. 심각도 환산표",
     "나. 사용 템플릿 목록",
     "다. 진단 범위 및 한계",
+    # 조치 가이드 미첨부 상태에서도 절은 남는다 (절대규칙 4)
+    "4. 조치 상세 가이드 (참고)",
 ]
 
 _HEADINGS = re.compile(r"<h[12][^>]*>(.*?)</h[12]>", re.S)
@@ -652,3 +654,117 @@ def test_priority_score_comes_from_sql(conn, guide_loaded, scan_with_findings):
     report = _report(conn, scan_with_findings)
     scores = [item["priority_score"] for item in report["remediation"]]
     assert scores == sorted(scores, reverse=True)
+
+
+# ─────────────────────────────── LLM 조치 가이드 첨부 (Part D)
+
+_GUIDE_MD = """## 1. xmlrpc 차단
+
+**즉시 조치**가 필요하다.
+
+```bash
+a2disconf xmlrpc && systemctl reload apache2
+```
+
+- 확인: `curl -I http://host/xmlrpc.php`
+- 되돌리기: `a2enconf xmlrpc`
+
+| 항목 | 값 |
+|---|---|
+| 대상 | wp.local |
+"""
+
+
+def _attached(conn, scan_id, content=_GUIDE_MD):
+    view = report_service.create(conn, scan_id, {})
+    report_service.attach_guide(
+        conn, view["report_id"], content, model="gpt-5.5", provider="monogpt"
+    )
+    return report_service.get(conn, view["report_id"])
+
+
+def test_guide_section_exists_without_attachment(conn, scan_with_findings):
+    """미첨부 상태도 완성품. 절은 남고 안내 문구가 들어감 (절대규칙 4)"""
+    report = _report(conn, scan_with_findings)
+    assert report["llm_remediation_guide"] is None
+    html = renderer.render_html(report)
+    assert "4. 조치 상세 가이드 (참고)" in html
+    assert "첨부되지 않았습니다" in html
+
+
+def test_attach_guide_renders_with_both_notices(conn, scan_with_findings):
+    """LLM 생성물이라는 사실과 책임 소재가 반드시 함께 실려야 함"""
+    view = _attached(conn, scan_with_findings)
+    report = view["report"]
+    assert report["llm_remediation_guide"]["content"].startswith("## 1. xmlrpc")
+    assert report["llm_remediation_guide"]["model"] == "gpt-5.5"
+
+    html = renderer.render_html(report)
+    assert models.LLM_GUIDE_ORIGIN_NOTICE in html
+    # 책임 고지는 강조 구절만 <strong> 으로 감싸이므로 앞부분으로 확인
+    assert "조치의 적용 여부와 방법은 사용자가 직접 판단해야" in html
+    assert f"<strong>{models.LLM_GUIDE_CAUTION}</strong>" in html
+    assert "LLM(생성형 AI)이 작성" in html
+
+
+def test_attach_guide_does_not_touch_report_body(conn, guide_loaded, scan_with_findings):
+    """본문(1~3)은 첨부 전후가 같아야 함. 첨부가 근거를 바꾸면 안 됨"""
+    view = report_service.create(conn, scan_with_findings, {})
+    before = report_service.get(conn, view["report_id"])["report"]
+    body_keys = [k for k in before if k not in ("llm_remediation_guide", "meta")]
+    snapshot = {k: json.dumps(before[k], ensure_ascii=False) for k in body_keys}
+
+    report_service.attach_guide(conn, view["report_id"], _GUIDE_MD, model="m")
+    after = report_service.get(conn, view["report_id"])["report"]
+    for key, value in snapshot.items():
+        assert json.dumps(after[key], ensure_ascii=False) == value
+
+
+def test_attach_guide_marks_llm_used(conn, scan_with_findings):
+    view = _attached(conn, scan_with_findings)
+    assert view["llm_used"] == 1
+    assert view["llm_model"] == "gpt-5.5"
+    assert view["report"]["meta"]["llm"]["used"] is True
+
+
+def test_attach_guide_rewrites_files(conn, scan_with_findings):
+    view = _attached(conn, scan_with_findings)
+    html_file = next(f for f in view["files"] if f["format"] == "html")
+    saved = Path(html_file["file_path"]).read_text(encoding="utf-8")
+    assert models.LLM_GUIDE_RESPONSIBILITY_NOTICE.split(".")[0] in saved
+    assert "a2disconf xmlrpc" in saved
+
+
+def test_attach_guide_rejects_empty_content(conn, scan_with_findings):
+    view = report_service.create(conn, scan_with_findings, {})
+    with pytest.raises(ScanError):
+        report_service.attach_guide(conn, view["report_id"], "   ")
+
+
+def test_guide_markdown_is_escaped_before_formatting(conn, scan_with_findings):
+    """본문은 LLM 응답이다. 태그가 살아 있는 HTML 로 들어가면 안 됨"""
+    hostile = "## 제목\n\n<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>"
+    view = _attached(conn, scan_with_findings, hostile)
+    html = renderer.render_html(view["report"])
+    assert renderer.active_content(html) == []
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+def test_guide_markdown_keeps_report_self_contained(conn, scan_with_findings):
+    view = _attached(conn, scan_with_findings)
+    html = renderer.render_html(view["report"])
+    assert renderer.external_references(html) == []
+
+
+def test_guide_markdown_formatting(conn, scan_with_findings):
+    view = _attached(conn, scan_with_findings)
+    html = renderer.render_html(view["report"])
+    # 제목은 h3 부터. h1/h2 를 쓰면 파트·절로 보여 목차 계층이 깨짐
+    assert "<h4>1. xmlrpc 차단</h4>" in html
+    assert '<pre class="codeblock"><code>' in html
+    assert "<li>확인: <code>curl -I http://host/xmlrpc.php</code></li>" in html
+    assert "<strong>즉시 조치</strong>" in html
+    assert '<table class="guide-table">' in html
+    # 절 제목은 h1 하나만 늘어난다. 가이드 본문이 목차를 오염시키면 안 됨
+    assert _sections(html) == EXPECTED_SECTIONS

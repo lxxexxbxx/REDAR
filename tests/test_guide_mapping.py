@@ -223,6 +223,60 @@ def test_finding_makes_item_vulnerable(conn, scan):
     assert results["WA-06"].finding_count >= 1
 
 
+def test_false_positive_after_mapping_clears_verdict(conn, scan):
+    """매핑 뒤에 오탐으로 표시해도 판정이 따라와야 함
+
+    매핑은 스캔 종료 시 한 번만 돌고 refs 행은 남는다. 집계에서 걸러내지 않으면
+    Part B 는 '취약' 인데 Part A 는 오탐을 빼서 조치 목록이 비는 상태가 된다
+    """
+    guide_service.map_scan(conn, scan)
+    before = {v.item_code: v for v in guide_service.verdicts(conn, scan)}
+    assert before["WA-06"].verdict is GuideVerdict.VULNERABLE
+
+    conn.execute(
+        "UPDATE findings SET status = 'false_positive' WHERE finding_id = 'fnd_xss'"
+    )
+    conn.commit()
+
+    after = {v.item_code: v for v in guide_service.verdicts(conn, scan)}
+    assert after["WA-06"].verdict is not GuideVerdict.VULNERABLE
+    assert after["WA-06"].finding_count == 0
+
+
+def test_verdict_matches_report_sections(conn, scan):
+    """Part B 판정과 Part A 조치 목록이 같은 탐지 집합을 봐야 함"""
+    guide_service.map_scan(conn, scan)
+    conn.execute(
+        "UPDATE findings SET status = 'false_positive' WHERE finding_id = 'fnd_xss'"
+    )
+    conn.commit()
+
+    vulnerable = {
+        v.item_code for v in guide_service.verdicts(conn, scan)
+        if v.verdict is GuideVerdict.VULNERABLE
+    }
+    sections = {
+        r["item_code"]
+        for r in conn.execute(
+            "SELECT item_code FROM v_report_sections WHERE scan_id = ?", (scan,)
+        )
+    }
+    # 대표 항목(is_primary=1)만 Part A 절이 된다. 패치 트랙(WEB-25)은 is_primary=0
+    # 이라 Part B 에만 남는 것이 정상이므로 비교 대상에서 뺀다
+    primary = {
+        r["item_code"]
+        for r in conn.execute(
+            "SELECT DISTINCT r.item_code FROM finding_guide_refs r"
+            " JOIN findings f ON f.finding_id = r.finding_id"
+            " WHERE f.scan_id = ? AND r.is_primary = 1",
+            (scan,),
+        )
+    }
+    # 오탐만 근거였던 항목이 Part B 에서 취약으로 남아 있으면 안 됨
+    assert vulnerable & primary == sections
+    assert "WA-06" not in vulnerable and "WA-06" not in sections
+
+
 def test_verdict_summary_keeps_all_keys(conn, scan):
     guide_service.map_scan(conn, scan)
     summary = guide_service.summary(guide_service.verdicts(conn, scan))

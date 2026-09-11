@@ -83,6 +83,8 @@
         <li><a href="#sec-c3">다. 진단 범위 및 한계</a></li>
       </ul>
     </li>
+    {# 미첨부여도 절은 남는다. 목차가 보고서마다 달라지면 안 됨 (절대규칙 4) #}
+    <li><a href="#part-d">4. 조치 상세 가이드 (참고)</a></li>
   </ul>
 </div>
 
@@ -105,6 +107,7 @@
   <a href="#sec-c1">가. 심각도 환산표</a>
   <a href="#sec-c2">나. 사용 템플릿 목록</a>
   <a href="#sec-c3">다. 진단 범위 및 한계</a>
+  <a href="#part-d">4. 조치 상세 가이드</a>
 </nav>
 
 <h1 id="part-a">1. 진단 결과</h1>
@@ -502,11 +505,61 @@
     <tr><td>자동 점검 항목</td>
         <td>{{ r.meta.guide_coverage.items_covered }}개
             / 전체 {{ r.meta.guide_coverage.items_total }}개</td></tr>
-    {# 보고서는 LLM 을 쓰지 않는다. 같은 스캔에 같은 보고서가 나와야 근거 대조가 성립 #}
+    {# 1~3 은 LLM 을 쓰지 않는다. 같은 스캔에 같은 보고서가 나와야 근거 대조가 성립.
+       4. 조치 상세 가이드만 생성 문장이며 그 사실을 여기에도 남긴다 #}
     <tr><td>LLM 사용</td>
-        <td>없음. 모든 문장이 사전 정의값입니다.</td></tr>
+        <td>1. 진단 결과 · 2. 가이드 매핑 · 3. 부록: 없음. 모든 문장이 사전 정의값입니다.
+          {% if r.llm_remediation_guide %}<br>
+          4. 조치 상세 가이드: 사용
+          ({{ r.llm_remediation_guide.model | nz('모델 미기록') }}).
+          해당 절에 한함
+          {% else %}<br>
+          4. 조치 상세 가이드: 미첨부
+          {% endif %}</td></tr>
   </tbody>
 </table>
+
+{# ─────────────────────────────────────────── Part D. LLM 조치 가이드
+   보고서 생성 이후에 사용자가 첨부한다. 본문(1~3)은 이 절의 영향을 받지 않으며,
+   미첨부 상태도 완성품이다. 절 자체는 조건 없이 렌더링됨 (절대규칙 4) #}
+<h1 id="part-d">4. 조치 상세 가이드 (참고)</h1>
+
+{% if r.llm_remediation_guide %}
+<div class="notice">
+  <strong>생성형 AI 가 작성한 참고 자료입니다.</strong>
+  <div style="margin-top:1.5mm">{{ r.llm_remediation_guide.origin_notice }}</div>
+  <div style="margin-top:1.5mm">
+    {{ r.llm_remediation_guide.responsibility_notice
+       | emphasize(llm_guide_caution) }}
+  </div>
+</div>
+<table>
+  <tbody>
+    <tr><th style="width:34mm">작성</th>
+        <td>LLM 생성 ·
+          {{ r.llm_remediation_guide.provider | nz('제공자 미기록') }}
+          / {{ r.llm_remediation_guide.model | nz('모델 미기록') }}</td></tr>
+    <tr><th>첨부 시각</th>
+        <td class="mono">{{ r.llm_remediation_guide.generated_at | nz }}</td></tr>
+    <tr><th>근거</th>
+        <td>본 보고서 1~3 절의 내용. 요청·응답 원문과 추출값은 전달하지 않았습니다.</td></tr>
+  </tbody>
+</table>
+{# 본문은 LLM 응답이다. markdown.to_html 이 먼저 전부 이스케이프한 뒤 서식만
+   되살리므로 원문에 태그가 있어도 글자로만 남는다 #}
+<div class="llm-guide">{{ r.llm_remediation_guide.content | guide_markdown }}</div>
+<p style="font-size:9pt;color:#555">
+  위 절차는 제안이며 검증된 조치가 아닙니다. 실행 전 대상 백업과 영향도 확인이
+  필요하며, 조치 수행과 그 결과에 대한 책임은 전적으로 사용자에게 있습니다.
+</p>
+{% else %}
+<p class="empty">조치 상세 가이드가 첨부되지 않았습니다.
+  앱의 <strong>조치 가이드</strong> 화면에서 가이드를 받은 뒤 보고서에 첨부할 수 있습니다.</p>
+<p style="font-size:9pt;color:#555">
+  이 절은 생성형 AI 가 작성하는 참고 자료이며 1~3 절과 성격이 다릅니다.
+  첨부하지 않아도 보고서는 완성된 문서입니다.
+</p>
+{% endif %}
 
 <footer>
   REDAR {{ r.meta.tool_version }} · 보고서 {{ r.report_id }} ·
