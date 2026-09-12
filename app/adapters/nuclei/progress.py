@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 
@@ -31,8 +32,36 @@ def _int(text: str) -> int | None:
         return None
 
 
+def _parse_json(text: str) -> Progress | None:
+    """nuclei 3.x 는 -jsonl 과 함께 stats 를 JSON 한 줄로 냄 (v3.11.1 실측).
+
+    값이 전부 문자열. requests = 완료 요청 수, total = 전체 요청 수
+    """
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    # 탐지 결과 등 다른 JSON 과 구분. stats 줄은 requests·total 을 함께 가짐
+    if not isinstance(data, dict) or "requests" not in data or "total" not in data:
+        return None
+    done = _int(str(data.get("requests", "")))
+    total = _int(str(data.get("total", "")))
+    return Progress(
+        percent=round(done / total * 100, 1) if done is not None and total else None,
+        requests_done=done,
+        requests_total=total,
+        templates=_int(str(data.get("templates", ""))),
+        hosts=_int(str(data.get("hosts", ""))),
+        matched=_int(str(data.get("matched", ""))),
+        errors=_int(str(data.get("errors", ""))),
+    )
+
+
 def parse_stats_line(line: str) -> Progress | None:
     """stats 한 줄 해석. stats 줄이 아니면 None."""
+    text = line.strip()
+    if text.startswith("{"):
+        return _parse_json(text)
     if "|" not in line:
         return None
     pairs = {k.strip().lower(): v.strip() for k, v in _PAIR_RE.findall(line)}

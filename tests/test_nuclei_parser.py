@@ -210,8 +210,24 @@ def test_stats_line_parsed():
     assert (p.templates, p.hosts, p.matched, p.errors) == (1234, 1, 5, 2)
 
 
+def test_json_stats_line_parsed():
+    """nuclei 3.x 는 -jsonl 과 함께 stats 를 JSON 한 줄로 냄 (v3.11.1 실측).
+
+    파이프 형식만 읽으면 실제 스캔에서 진행률이 한 번도 갱신되지 않음
+    """
+    line = ('{"duration":"0:00:05","errors":"2","hosts":"1","matched":"5",'
+            '"percent":"49","requests":"615","rps":"123",'
+            '"startedAt":"2026-09-12T17:01:34.0612078+09:00",'
+            '"templates":"1234","total":"1234"}')
+    p = progress.parse_stats_line(line)
+    assert (p.requests_done, p.requests_total) == (615, 1234)
+    assert p.percent == pytest.approx(49.8, abs=0.1)
+    assert (p.templates, p.hosts, p.matched, p.errors) == (1234, 1, 5, 2)
+
+
 @pytest.mark.parametrize(
-    "line", ["", "[INF] Templates loaded for current scan: 123", "a | b | c"]
+    "line", ["", "[INF] Templates loaded for current scan: 123", "a | b | c",
+             '{"template-id":"x","matched-at":"http://a"}', "{not json"]
 )
 def test_non_stats_lines_return_none(line):
     assert progress.parse_stats_line(line) is None
