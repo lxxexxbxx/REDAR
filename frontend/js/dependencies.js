@@ -122,14 +122,15 @@ export async function handleDependencyClick(target, refresh) {
     // 설정만으로 자동 실행되지 않음. 사용자가 매번 동의함
     const agreed = await confirmDialog({
       title: `${install} 자동 설치`,
-      body: "Go 툴체인을 내려받아 직접 빌드합니다. <b>외부 통신이 발생</b>하고 수 분 걸립니다.<br><br>"
+      body: "Go 툴체인을 내려받아 직접 빌드합니다. <b>외부 통신이 발생</b>합니다.<br><br>"
           + "인터넷이 없는 환경이면 대신 <b>파일 반입</b> 을 쓰세요.",
       confirmLabel: "설치",
     });
     if (!agreed) return true;
-    toast("설치를 시작했습니다. 수 분 걸립니다.");
+    toast("설치를 시작했습니다.");
     await tasks.track(
-      `${install} 자동 설치`, "Go 툴체인 확보 후 빌드 · 수 분 소요",
+      // 설치 진행률을 알 수 없어 남은 시간 대신 상태만 표기
+      `${install} 자동 설치`, "실행 중",
       () => api.installDependency(install, true),
     );
     toast(`${install} 설치를 완료했습니다.`);

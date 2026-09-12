@@ -435,7 +435,7 @@ def ensure_nuclei(auto: bool) -> None:
     if not auto:
         print("  [건너뜀] nuclei 없음. python3 tools/install_nuclei.py 로 설치")
         return
-    print("  nuclei 없음. Go 툴체인 확인 후 설치 (수 분 소요)")
+    print("  nuclei 없음. Go 툴체인 확인 후 설치")
     subprocess.run([sys.executable, str(installer)], cwd=ROOT, check=False)
 
 

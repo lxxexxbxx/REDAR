@@ -147,7 +147,7 @@ function emptyInventory() {
       <small>${blocked
         ? "설정에서 오프라인 모드를 끄고 <b>nuclei 템플릿 갱신</b> 을 켜야 씁니다. "
           + "지금은 버튼이 잠겨 있습니다."
-        : "위 <b>공식 템플릿 갱신</b> 버튼을 누르세요. 수천 개를 내려받아 수 분 걸립니다."}</small>
+        : "위 <b>공식 템플릿 갱신</b> 버튼을 누르세요. 공식 저장소의 템플릿 수천 개를 내려받습니다."}</small>
       <b style="margin-top:10px">2 · 파일 직접 넣기</b>
       <small>인터넷이 없는 환경용입니다. 아래 경로에 <span class="mono">.yaml</span> 을 넣고
         <b>폴더 재색인</b> 을 실행하세요.<br><span class="mono">${esc(dir)}</span></small>
@@ -541,17 +541,18 @@ export async function handleTemplateClick(target) {
       return true;
     }
     case "sync": {
-      // 수천 개를 내려받아 수 분 걸림. 표시가 없으면 멈춘 것으로 읽힘
+      // 수천 개를 내려받음. 진행 정보가 없어 표시를 남기지 않으면 멈춘 것으로 읽힘
       const button = target.closest("[data-tpl]");
       const label = button.textContent;
       button.disabled = true;
       button.textContent = "갱신 중…";
       showSyncNotice(
-        "<strong>갱신 중</strong> nuclei 가 공식 템플릿 저장소를 내려받고 있습니다. "
-        + "수천 개라 수 분 걸립니다.",
+        "<strong>갱신 중</strong> nuclei 가 공식 템플릿 저장소의 템플릿 수천 개를 "
+        + "내려받고 있습니다.",
         "var(--warn)",
       );
-      const dockId = tasks.begin("공식 템플릿 갱신", "내려받는 중 · 수 분 소요");
+      // nuclei 가 진행률을 주지 않아 남은 시간을 계산할 수 없음. 근거 없는 시간은 표기하지 않음
+      const dockId = tasks.begin("공식 템플릿 갱신", "실행 중");
       try {
         const result = await api.syncTemplates();
         tasks.done(dockId, `${result.added}개 추가 · ${result.updated}개 유지`);
