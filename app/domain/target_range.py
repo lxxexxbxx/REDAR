@@ -48,10 +48,6 @@ class Expansion:
         return len(self.targets) > len(self.raw)
 
 
-def is_range(text: str) -> bool:
-    return _RANGE_RE.match((text or "").strip()) is not None
-
-
 def describe(text: str) -> str | None:
     """범위 입력의 사람이 읽는 표기. 범위가 아니면 None"""
     match = _RANGE_RE.match((text or "").strip())

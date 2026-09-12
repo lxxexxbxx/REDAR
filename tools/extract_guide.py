@@ -24,7 +24,7 @@ docs/03_GUIDE_DATA.md §1.2 B안 구현.
   - 원문 오타 (히)->하, (증)->중 정규화.
   - M-01~M-04(이동통신)는 대상/판단기준/조치방법이 없고 상세 설명만 있다. 원문 구조
 """
-import os, re, io, json, sqlite3, argparse, hashlib
+import os, re, io, json, sqlite3, argparse
 from collections import defaultdict
 
 import pymupdf

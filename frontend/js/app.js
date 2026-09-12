@@ -195,7 +195,7 @@ async function viewDashboard() {
               ? ` · 실패 ${esc(environment.collectors_failed.join(", "))}` : ""}
           </p>` : `
           <p style="color:var(--faint);font-size:12px;margin:12px 0 0">
-            환경 조사를 수행한 스캔이 없습니다. 스캔할 때 <b>대상 환경 먼저 조사</b> 를 켜세요.
+            환경 조사를 수행한 스캔이 없습니다. 스캔을 실행하면 대상 환경도 함께 조사됩니다.
           </p>`}
       </div>
     </div>
@@ -1314,14 +1314,11 @@ async function saveSettings(kind) {
     renderStateStrip();
     toast("저장했습니다.");
     // llm 저장은 메뉴 구성을 바꿈 (조치 가이드 노출). 레일까지 다시 그림
-    // llm 저장은 메뉴 구성을 바꿈 (조치 가이드 노출). 레일까지 다시 그림
     if (kind === "network" || kind === "llm") render();
   } catch (error) {
     showApiError(error);
   }
 }
-
-/* -------------------------------------------------------- 미구현 화면 */
 
 /* ------------------------------------------------------------ 부트 */
 

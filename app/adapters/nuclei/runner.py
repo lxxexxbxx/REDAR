@@ -159,7 +159,7 @@ def _watch_cancel(proc: subprocess.Popen, cancel: threading.Event) -> None:
     """취소 감시.
 
     stdout 읽기가 블로킹이라 메인 루프에서 이벤트를 볼 수 없어 별도 스레드로 폴링.
-    ponytail: 0.2초 폴링. 즉시성이 필요해지면 프로세스 그룹 시그널로 교체
+    0.2초 주기. 즉시성이 필요해지면 프로세스 그룹 시그널로 교체
     """
     while proc.poll() is None:
         if cancel.wait(_CANCEL_POLL_SEC):

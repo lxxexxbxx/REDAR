@@ -287,13 +287,6 @@ def delete_scan(conn: sqlite3.Connection, scan_id: str) -> bool:
     return bool(deleted)
 
 
-def running_scan_id(conn: sqlite3.Connection) -> str | None:
-    row = conn.execute(
-        "SELECT scan_id FROM scans WHERE status IN ('queued','running') LIMIT 1"
-    ).fetchone()
-    return row["scan_id"] if row else None
-
-
 # ---------------------------------------------------------------- findings
 
 

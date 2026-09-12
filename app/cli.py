@@ -16,7 +16,6 @@ from app import __version__
 from app.config import settings
 from app.domain.enums import ScanStatus
 from app.domain.ids import new_id
-from app.repository import settings_repo
 from app.repository.db import session
 
 

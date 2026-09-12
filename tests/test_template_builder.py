@@ -124,8 +124,8 @@ def test_round_trip_is_lossless():
     assert builder.build(parsed["form"]) == text
 
 
-def test_matchers_get_names_for_dryrun_attribution():
-    """드라이런이 matcher 별 결과를 특정하려면 이름이 필요"""
+def test_matchers_get_names_for_finding_attribution():
+    """matcher 이름이 있어야 fingerprint·환경 프로필이 어느 matcher 인지 특정 가능"""
     document = yaml.safe_load(builder.build(VALID_FORM))
     names = [m["name"] for m in document["http"][0]["matchers"]]
     assert names == ["m0", "m1"]

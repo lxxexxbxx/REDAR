@@ -11,7 +11,6 @@ import ssl
 from app.collectors.base import (
     ORDER_GENERIC,
     CollectResult,
-    ComponentFinding,
     ExposureFinding,
     StackFinding,
     TargetContext,
