@@ -565,6 +565,8 @@ class ScanService:
                 "phase": phase,
                 "templates_done": stats.requests_done,
                 "templates_total": stats.requests_total,
+                # 현재 패스 기준 남은 초. 속도·총량을 모르면 None
+                "eta_sec": progress.eta_seconds(stats),
                 "findings_so_far": run.findings_so_far,
             })
 

@@ -244,6 +244,22 @@ def test_json_stats_line_parsed():
     assert (p.templates, p.hosts, p.matched, p.errors) == (1234, 1, 5, 2)
 
 
+def test_rps_parsed_both_formats():
+    """남은 시간 계산의 입력. 두 stats 형식 모두에서 읽혀야 함"""
+    assert progress.parse_stats_line('{"requests":"10","total":"100","rps":"25"}').rps == 25.0
+    assert progress.parse_stats_line("| RPS: 12 | Requests: 1/2 (50%)").rps == 12.0
+
+
+@pytest.mark.parametrize("line, expected", [
+    ('{"requests":"100","total":"1000","rps":"150"}', 6),      # 900 / 150
+    ('{"requests":"100","total":"1000","rps":"0"}', None),     # 속도 미확인 = 계산 불가
+    ('{"requests":"1000","total":"1000","rps":"150"}', 0),     # 완료
+    ('{"requests":"10","total":"0","rps":"5"}', None),         # 총량 미확인
+])
+def test_eta_seconds(line, expected):
+    assert progress.eta_seconds(progress.parse_stats_line(line)) == expected
+
+
 def test_percent_capped_when_done_exceeds_total():
     """nuclei 가 리다이렉트까지 세면 완료 수가 총량을 넘음 (v3.11.1 실측 4/3)"""
     p = progress.parse_stats_line('{"requests":"4","total":"3"}')

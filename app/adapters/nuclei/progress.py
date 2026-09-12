@@ -23,6 +23,8 @@ class Progress:
     hosts: int | None = None
     matched: int | None = None
     errors: int | None = None
+    # 초당 요청 수. 남은 시간 계산의 입력
+    rps: float | None = None
 
 
 def _int(text: str) -> int | None:
@@ -30,6 +32,28 @@ def _int(text: str) -> int | None:
         return int(text.strip())
     except ValueError:
         return None
+
+
+def _float(text: str) -> float | None:
+    try:
+        return float(text.strip())
+    except ValueError:
+        return None
+
+
+def eta_seconds(p: Progress) -> int | None:
+    """남은 시간(초) = 남은 요청 ÷ 초당 요청. 총량·속도를 모르면 None
+
+    None 이면 화면이 '계산 중' 으로 표시. 추정할 근거 없이 숫자를 내면 거짓 표시
+    """
+    if p.requests_total is None or p.requests_done is None or not p.requests_total:
+        return None
+    remaining = p.requests_total - p.requests_done
+    if remaining <= 0:
+        return 0
+    if not p.rps or p.rps <= 0:
+        return None
+    return round(remaining / p.rps)
 
 
 def _percent(done: int | None, total: int | None) -> float | None:
@@ -61,6 +85,7 @@ def _parse_json(text: str) -> Progress | None:
         hosts=_int(str(data.get("hosts", ""))),
         matched=_int(str(data.get("matched", ""))),
         errors=_int(str(data.get("errors", ""))),
+        rps=_float(str(data.get("rps", ""))),
     )
 
 
@@ -92,6 +117,7 @@ def parse_stats_line(line: str) -> Progress | None:
         hosts=_int(pairs.get("hosts", "")),
         matched=_int(pairs.get("matched", "")),
         errors=_int(pairs.get("errors", "")),
+        rps=_float(pairs.get("rps", "")),
     )
     # 아무 값도 못 뽑으면 stats 줄이 아님
     if all(getattr(progress, f) is None for f in Progress.__slots__):

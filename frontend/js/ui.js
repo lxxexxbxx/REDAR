@@ -348,6 +348,15 @@ export function optionSummary(defaults) {
   ].map(esc).join(" · ");
 }
 
+/* 남은 시간 표기. null 은 속도·총량 미확인 - 추정 숫자를 내지 않음 */
+export function fmtEta(seconds) {
+  if (seconds === null || seconds === undefined) return "계산 중";
+  const s = Math.max(0, Math.round(Number(seconds)));
+  if (s < 60) return `약 ${s}초`;
+  if (s < 3600) return `약 ${Math.floor(s / 60)}분 ${s % 60}초`;
+  return `약 ${Math.floor(s / 3600)}시간 ${Math.floor((s % 3600) / 60)}분`;
+}
+
 const FALLBACK_LABEL = {
   no_application: "애플리케이션 미확인 → 전체 실행",
   no_index: "템플릿 색인 없음 → 전체 실행",

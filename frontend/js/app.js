@@ -16,7 +16,7 @@ import {
   VULN_TYPE_LABEL, VULN_TYPE_ORDER,
   confirmDialog, coverageNotice, dash, emptyState, esc, fmtDuration, fmtTime,
   scanTargets,
-  optionSummary, runEnvironment, selectionBasis, severityAxis, severityTag, target,
+  fmtEta, optionSummary, runEnvironment, selectionBasis, severityAxis, severityTag, target,
   targetEnvironment, targetProbe,
   toast, vulnTypeAxis,
 } from "./ui.js";
@@ -366,6 +366,7 @@ function viewScan() {
       <div class="progress sweeping" id="progress"><div class="bar"></div></div>
       <div class="row mono" style="margin-top:var(--gap);font-size:12px;color:var(--muted)">
         <span id="live-count">탐지 0건</span>
+        <span id="live-eta" style="margin-left:14px"></span>
       </div>
       <div class="livefeed" style="margin-top:var(--gap)">
         <table>
@@ -687,6 +688,8 @@ function attachLiveFeed(scanId) {
   const progress = document.getElementById("progress");
   const countLabel = document.getElementById("live-count");
   let found = 0;
+  // 환경 기반 선별은 사전·본 패스로 나뉘어 퍼센트·남은 시간이 단계마다 다시 시작
+  let sawPrescan = false;
 
   const PHASE_LABEL = {
     probing_targets: "대상 응답 확인",
@@ -706,24 +709,31 @@ function attachLiveFeed(scanId) {
   state.unsubscribe?.();
   state.unsubscribe = subscribeScan(scanId, {
     progress(event) {
-      // 퍼센트를 모르는 구간(대상 확인·템플릿 로딩)은 계속 왕복시킴.
-      // 0% 로 멈춰 있는 바는 '멈췄다' 로 읽힘.
-      // scanning 이전 단계는 총량을 모르므로 0 도 '모름' 으로 취급
-      const known = Number(event.percent) > 0 || event.phase === "scanning";
+      if (event.phase === "prescanning") sawPrescan = true;
+      // 퍼센트는 nuclei 가 실제 요청을 보내는 단계에서만 의미가 있음. 나머지 구간
+      // (대상 확인·템플릿 선별·환경 프로필)은 총량을 모르므로 왕복 막대
+      const scanning = event.phase === "scanning" || event.phase === "prescanning";
+      const known = scanning && event.percent !== null && event.percent !== undefined;
+      const stage = sawPrescan ? " (현재 단계)" : "";
       let label = PHASE_LABEL[event.phase] || event.phase || "진행";
-      if (event.templates_total) {
-        label += ` · ${event.templates_done ?? 0} / ${event.templates_total}`;
+      if (known) {
+        label += ` · ${Math.floor(Number(event.percent))}%`
+          + ` · 남은 시간 ${fmtEta(event.eta_sec)}${stage}`;
       }
       // 도크가 먼저. 화면을 떠나 아래 요소가 없어도 상태는 갱신되어야 함
       tasks.update(dockId, {
         detail: label,
-        // 도크도 같은 기준. 모르면 null 을 넣어 왕복 막대로 표시됨
+        // 실제 진행률로 막대를 채움. 모르면 null 을 넣어 왕복 막대
         percent: known ? Number(event.percent) : null,
       });
       lastPhase = label;
 
       progress?.classList.toggle("sweeping", !known);
       if (bar) bar.style.width = known ? `${event.percent}%` : "";
+      const etaLabel = document.getElementById("live-eta");
+      if (etaLabel) {
+        etaLabel.textContent = known ? `남은 시간 ${fmtEta(event.eta_sec)}${stage}` : "";
+      }
     },
     finding(event) {
       found += 1;
