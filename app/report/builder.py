@@ -173,8 +173,10 @@ def _meta(
             "items_total": guide_status["item_count"],
             "items_covered": guide_status["items_covered"],
         },
-        # environment_driven 이 아니면 None. 값이 없어도 A-2 절은 렌더링됨
+        # 템플릿 실행 범위 근거. explicit 이면 None. 값이 없어도 A-2 절은 렌더링됨
         "selection_basis": scan.get("selection_basis"),
+        # 제외가 양호로 읽히지 않도록 A-2 에 항상 싣는 고지 (절대규칙 10)
+        "exclusion_notice": models.EXCLUSION_CAUTION,
         "collectors": {
             "run": sorted({c for p in profiles for c in p["collectors_run"]}),
             "failed": sorted({c for p in profiles for c in p["collectors_failed"]}),

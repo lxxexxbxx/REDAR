@@ -33,6 +33,8 @@ EVIDENCE_TRUNCATED_MARKER = "\n...[REDAR] 응답 본문 32KB 초과로 절단됨
 # (절대규칙 10, docs/04 B-1). 숫자는 실제 guide_coverage 값 사용
 # 강조 표시 대상. 보고서에서 이 문장만 굵게 렌더링 (renderer.emphasize)
 COVERAGE_CAUTION = "탐지되지 않음이 전체 시스템의 양호를 뜻하지는 않습니다."
+# 환경 기반 제외 고지. 제외 = 미탐지 제품 추정이며 점검 결과가 아님 (절대규칙 10)
+EXCLUSION_CAUTION = "제외는 해당 제품이 탐지되지 않았다는 뜻이며 양호를 의미하지 않습니다."
 COVERAGE_NOTICE_TEMPLATE = (
     "본 점검은 웹 요청 기반입니다. {scope}만 자동 점검 대상입니다. "
     + COVERAGE_CAUTION

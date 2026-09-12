@@ -768,3 +768,36 @@ def test_guide_markdown_formatting(conn, scan_with_findings):
     assert '<table class="guide-table">' in html
     # 절 제목은 h1 하나만 늘어난다. 가이드 본문이 목차를 오염시키면 안 됨
     assert _sections(html) == EXPECTED_SECTIONS
+
+
+# ─────────────────────────────── A-2 템플릿 실행 범위
+
+def _with_basis(conn, scan_id, basis):
+    conn.execute(
+        "UPDATE scans SET selection_basis = ?, selection_mode = ? WHERE scan_id = ?",
+        (json.dumps(basis), basis.get("mode", "filter"), scan_id),
+    )
+    conn.commit()
+
+
+def test_a2_shows_exclusions_and_caution(conn, empty_scan):
+    _with_basis(conn, empty_scan, {
+        "mode": "environment_driven", "universe": "environment_filtered",
+        "total_available": 11727, "total_run": 9800,
+        "excluded_enumerators": ["wordpress-plugins-detect"],
+        "excluded": [{"platform": "joomla", "templates": 12}],
+        "fallback_reason": None, "detected": ["wordpress"], "prepass_templates": 2486,
+    })
+    html = renderer.render_html(_report(conn, empty_scan))
+    assert "joomla" in html and "9800" in html
+    assert "wordpress-plugins-detect" in html
+    assert models.EXCLUSION_CAUTION in html
+    assert _sections(html) == EXPECTED_SECTIONS
+
+
+def test_a2_tolerates_legacy_basis(conn, empty_scan):
+    """이전 버전 스캔의 옛 근거 형태도 오류 없이 렌더링"""
+    _with_basis(conn, empty_scan, {"universe": "templates", "total_available": 5})
+    html = renderer.render_html(_report(conn, empty_scan))
+    assert models.EXCLUSION_CAUTION in html
+    assert _sections(html) == EXPECTED_SECTIONS

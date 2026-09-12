@@ -445,11 +445,17 @@ function renderTargetCount() {
 /* 선별 방식. 화면 문구와 API mode 값의 단일 출처 (docs/00 §TemplateSelection) */
 const SCAN_MODES = [
   {
-    value: "environment_driven",
+    value: "full_scan",
     title: "전체 검사",
     badge: "권장",
-    body: "대상 환경을 먼저 조사해 보고서에 기록한 뒤, 보유한 템플릿을 전부 "
-        + "실행합니다. 시간은 더 걸리지만 놓치는 항목이 없습니다.",
+    body: "보유한 템플릿을 전부 실행합니다. 취약점 판정이 없는 WordPress 전수 열거 "
+        + "2개만 빼서 같은 결과를 훨씬 빨리 얻습니다.",
+  },
+  {
+    value: "environment_driven",
+    title: "환경 기반 선별",
+    body: "먼저 제품을 식별한 뒤, 대상에 없는 제품 전용 템플릿을 뺍니다. "
+        + "정체가 분명하지 않으면 자동으로 전체 검사로 돌아갑니다.",
   },
   {
     value: "filter",
@@ -475,7 +481,7 @@ const TAG_PRESETS = [
 ];
 
 function scanMode() {
-  return document.querySelector('input[name="mode"]:checked')?.value || "environment_driven";
+  return document.querySelector('input[name="mode"]:checked')?.value || "full_scan";
 }
 
 function renderModeFields() {
@@ -493,13 +499,23 @@ function renderModeFields() {
       : "어떤 웹서버·CMS·플러그인을 쓰는지 확인. 보고서에 대상 정보가 함께 실림";
   }
 
+  if (mode === "full_scan") {
+    host.innerHTML = `
+      <div class="hintbox">
+        <b>추가 입력이 없습니다</b>
+        <small>보유한 템플릿을 전부 실행합니다. 설치 목록을 12만여 번 두드리는 WordPress
+          전수 열거만 기본으로 빠지며, 설정에서 다시 켤 수 있습니다.</small>
+      </div>`;
+    return;
+  }
+
   if (mode === "environment_driven") {
     host.innerHTML = `
       <div class="hintbox">
         <b>추가 입력이 없습니다</b>
-        <small>보유한 템플릿을 전부 실행합니다. 환경 조사 결과는 보고서에 기록되지만
-          검사 범위를 줄이는 데는 쓰지 않습니다. 범위를 좁히려면
-          <b>조건 필터 선별</b>을 고르세요.</small>
+        <small>제품 식별 후 대상에서 탐지되지 않은 제품 전용 템플릿을 뺍니다. 식별 수단이 없는
+          제품·웹서버 계층은 빼지 않으며, 애플리케이션을 확인하지 못하면 전체를 실행합니다.
+          무엇을 뺐는지는 결과와 보고서에 남습니다.</small>
       </div>`;
     return;
   }
@@ -722,8 +738,9 @@ function attachLiveFeed(scanId) {
 
   const PHASE_LABEL = {
     probing_targets: "대상 응답 확인",
-    collecting_environment: "환경 조사",
+    prescanning: "사전 환경 조사",
     selecting_templates: "템플릿 선별",
+    collecting_environment: "환경 프로필 구성 · 노출 점검",
     scanning: "스캔 진행",
     finalizing: "마무리",
   };
@@ -1142,6 +1159,14 @@ function viewSettings() {
         <label class="field" style="flex:1"><span>재시도</span>
           <input type="number" id="d-retries" value="${s.scan_defaults?.retries ?? 1}" min="0" max="10"></label>
       </div>
+      <div class="toggle">
+        <input type="checkbox" id="d-wp-enum" ${s.scan_defaults?.wp_full_enumeration ? "checked" : ""}>
+        <span class="t-body">
+          <b>WordPress 플러그인·테마 전수 열거</b>
+          <small>슬러그 12만여 개를 하나씩 조회합니다. 취약점 판정은 없고 요청이 약 12.5만 건
+            늘어 스캔이 수배 느려집니다. 설치 목록 전수가 꼭 필요할 때만 켜세요.</small>
+        </span>
+      </div>
       <div class="actions">
         <button class="primary" data-save="defaults">기본값 저장</button>
       </div>
@@ -1240,6 +1265,7 @@ async function saveSettings(kind) {
       threads: Number(document.getElementById("d-threads").value),
       timeout_sec: Number(document.getElementById("d-timeout").value),
       retries: Number(document.getElementById("d-retries").value),
+      wp_full_enumeration: document.getElementById("d-wp-enum").checked,
     };
   } else if (kind === "llm") {
     const key = document.getElementById("llm-key").value.trim();

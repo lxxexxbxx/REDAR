@@ -213,30 +213,34 @@
 <p>실행: <span class="mono">{{ r.meta.collectors.run | join(', ') | nz('없음') }}</span>
    · 실패: <span class="mono">{{ r.meta.collectors.failed | join(', ') | nz('없음') }}</span></p>
 
-<h4>환경 조사와 연결된 템플릿</h4>
-{% if r.meta.selection_basis %}
-{% set b = r.meta.selection_basis %}
-{# 환경 조사 결과로 템플릿을 걸러내지 않는다. 아래 표는 근거일 뿐 실행 범위가 아님 #}
-<p>보유 템플릿 <strong>{{ b.total_available }}</strong>개를 전부 실행했습니다.
-   아래는 환경 조사에서 확인된 구성요소와 그에 대응하는 템플릿이며,
-   <strong>실행 범위를 좁히는 데 쓰이지 않았습니다.</strong></p>
+<h4>템플릿 실행 범위</h4>
+{# 실제로 무엇을 돌렸는지만 적는다. 모드와 무관하게 골격 고정 (절대규칙 4) #}
+{% set b = r.meta.selection_basis or {} %}
+{% set FALLBACK = {'no_application': '애플리케이션 미확인 - 전체 실행',
+                   'no_index': '템플릿 색인 없음 - 전체 실행'} %}
 <table>
-  <thead><tr><th style="width:44mm">구성요소</th><th style="width:26mm">버전</th><th>대응 템플릿</th></tr></thead>
   <tbody>
-  {% if b.matched_components %}
-    {% for m in b.matched_components %}
-    <tr><td class="mono">{{ m.slug }}</td><td class="mono">{{ m.version | nz('미확인') }}</td>
-        <td class="mono">{{ m.templates | join(', ') }}</td></tr>
+    <tr><th style="width:52mm">선별 방식</th><td class="mono">{{ r.meta.selection_mode | nz('미기록') }}</td></tr>
+    {# .get 사용 - 과거 스캔의 옛 근거에는 키가 없고 렌더러는 미정의 값을 오류로 처리 #}
+    <tr><th>보유 템플릿</th><td>{{ b.get('total_available') if b.get('total_available') is not none else '기록 없음' }}</td></tr>
+    <tr><th>실행 템플릿</th><td>{{ b.get('total_run') if b.get('total_run') is not none else '기록 없음' }}</td></tr>
+    <tr><th>제외 · 전수 열거</th><td class="mono">{{ (b.get('excluded_enumerators') or []) | join(', ') | nz('없음') }}</td></tr>
+    <tr><th>전체 실행 사유</th><td>{{ FALLBACK.get(b.get('fallback_reason'), b.get('fallback_reason')) if b.get('fallback_reason') else '해당 없음' }}</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th style="width:60mm">환경 미탐지로 제외한 제품</th><th>템플릿 수</th></tr></thead>
+  <tbody>
+  {% if b.get('excluded') %}
+    {% for e in b.get('excluded') %}
+    <tr><td class="mono">{{ e.platform }}</td><td>{{ e.templates }}</td></tr>
     {% endfor %}
   {% else %}
-    <tr><td colspan="3" class="empty">해당 없음</td></tr>
+    <tr><td colspan="2" class="empty">해당 없음</td></tr>
   {% endif %}
   </tbody>
 </table>
-{% else %}
-<p class="empty">환경 기반 선별 모드가 아닙니다. 해당 없음
-   (선별 방식: {{ r.meta.selection_mode | nz('미기록') }})</p>
-{% endif %}
+<p class="note">{{ r.meta.exclusion_notice }}</p>
 
 {# ─────────────────────────────────────────── A-3 #}
 <h2 id="sec-a3">다. 심각도별 상세</h2>

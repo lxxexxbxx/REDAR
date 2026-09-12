@@ -182,9 +182,10 @@ export function coverageNotice(guide) {
 export function runEnvironment(scan) {
   const importedFrom = scan?.template_selection?.imported_from;
   const MODE_LABEL = {
+    full_scan: "전체 검사",
     explicit: "직접 지정",
     filter: "조건 필터",
-    environment_driven: "환경 기반 자동 선별",
+    environment_driven: "환경 기반 선별",
   };
   const rows = [
     ["결과 출처", importedFrom
@@ -335,26 +336,34 @@ export function toast(message, kind = "ok") {
   toastTimer = setTimeout(() => node.remove(), 3600);
 }
 
-/* environment_driven 선별 근거. 보고서 부록의 "N개 중 M개" 와 같은 값을 사용
- * 인벤토리 미탑재(총 0개) 상태를 감추지 않음 - 감추면 수치가 거짓이 된다 */
+const FALLBACK_LABEL = {
+  no_application: "애플리케이션 미확인 → 전체 실행",
+  no_index: "템플릿 색인 없음 → 전체 실행",
+};
+
+/* 템플릿 실행 범위. 보고서 A-2 와 같은 값. 실제로 무엇을 돌렸는지만 적는다
+ * 기록이 없는 값은 0 으로 채우지 않음 - 채우면 수치가 거짓이 된다 */
 export function selectionBasis(basis) {
   if (!basis) return "";
-  const total = basis.total_available ?? 0;
-  const candidates = basis.candidate_templates ?? 0;
-  // 환경 조사는 기록용이며 실행 범위를 좁히지 않는다. 문구가 '선별' 로 남으면
-  // 실제로 무엇을 돌렸는지 거짓으로 읽힘
-  const line = total
-    ? `보유 템플릿 <strong>${total.toLocaleString()}개</strong>를 전부 실행했습니다.`
-    : "보유 템플릿이 없어 nuclei 기본 저장소로 실행했습니다.";
-  const tags = basis.environment_tags || [];
+  const num = (v) => (v === null || v === undefined)
+    ? "기록 없음" : Number(v).toLocaleString();
+  const excluded = basis.excluded || [];
+  const excludedCount = excluded.reduce((sum, e) => sum + (e.templates || 0), 0);
+  const enums = basis.excluded_enumerators || [];
+  const lines = [
+    `보유 템플릿 <strong>${num(basis.total_available)}개</strong> 중 `
+      + `<strong>${num(basis.total_run)}개</strong> 실행`,
+  ];
+  if (enums.length) lines.push(`전수 열거 ${enums.length}개 제외 (${esc(enums.join(", "))})`);
+  if (excluded.length) {
+    lines.push(`환경 미탐지 제품 ${excluded.length}종 · 템플릿 ${excludedCount}개 제외`);
+  }
+  if (basis.fallback_reason) {
+    lines.push(esc(FALLBACK_LABEL[basis.fallback_reason] || basis.fallback_reason));
+  }
   return `<div class="coverage" style="border-left-color:var(--sev-low)">
-    ${line}
-    <div style="margin-top:6px;color:var(--faint)">
-      환경 조사 결과 구성요소 ${(basis.matched_components || []).length}건 ·
-      스택 ${(basis.matched_stack || []).length}건을 확인했습니다${
-        tags.length ? ` (태그 ${esc(tags.join(", "))})` : ""}.
-      ${candidates ? `이 중 ${candidates}건이 환경에 직접 대응하는 템플릿입니다.` : ""}
-      선별 근거로만 기록하며 실행 범위는 줄이지 않습니다.
-    </div>
+    ${lines.join("<br>")}
+    ${excluded.length ? `<div style="margin-top:6px;color:var(--faint)">
+      제외는 해당 제품이 탐지되지 않았다는 뜻이며 양호를 의미하지 않습니다.</div>` : ""}
   </div>`;
 }
