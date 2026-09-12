@@ -869,6 +869,13 @@ button.chip.pick.on { border-color: var(--brand); color: var(--text); }
 }
 
 /* 처리 로그. 메모리 버퍼를 폴링해 그대로 보여줌 */
+/* 처리 로그 화면 전용. 스캔 화면의 접이식 패널보다 크게 화면을 채움 */
+.logview.tall {
+  max-height: none;
+  height: calc(100vh - 260px);
+  min-height: 320px;
+}
+
 .logview {
   font-family: var(--mono);
   font-size: 11.5px;

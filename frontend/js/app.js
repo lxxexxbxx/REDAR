@@ -22,10 +22,12 @@ import {
 } from "./ui.js";
 
 const NAV = [
+  // 사용 순서. 스캔 전에 템플릿이 있어야 하고, 진행은 처리 로그로 확인
   { path: "dashboard", label: "대시보드" },
+  { path: "templates", label: "템플릿" },
+  { path: "logs", label: "처리 로그" },
   { path: "scan", label: "스캔" },
   { path: "results", label: "탐지 결과" },
-  { path: "templates", label: "템플릿" },
   { path: "report", label: "보고서" },
   // 설정 토글이 꺼져 있으면 메뉴 자체가 없음 (사용자 요구)
   { path: "remediation", label: "조치 가이드", optional: "remediation" },
@@ -343,18 +345,6 @@ function viewScan() {
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-head spread">
-        <div>
-          <h2>처리 로그</h2>
-          <p class="lede">nuclei 출력과 내부 처리 과정을 그대로 보여줍니다.
-             메모리에만 남으며 파일로 저장하지 않습니다.</p>
-        </div>
-        <button class="sm ghost" id="log-toggle">펼치기</button>
-      </div>
-      <pre class="logview" id="logview" hidden></pre>
-    </div>
-
     <div class="panel" id="live" hidden>
       <div class="panel-head spread">
         <div>
@@ -378,7 +368,6 @@ function viewScan() {
 
   renderModeFields();
   document.getElementById("mode").addEventListener("change", renderModeFields);
-  document.getElementById("log-toggle").addEventListener("click", toggleLog);
   const targetBox = document.getElementById("targets");
   targetBox.addEventListener("input", renderTargetCount);
   renderTargetCount();
@@ -593,14 +582,57 @@ async function startScan() {
 const logState = { cursor: 0, timer: null, lines: [] };
 const LOG_MAX_LINES = 800;
 
-function toggleLog() {
-  const view = document.getElementById("logview");
-  const button = document.getElementById("log-toggle");
-  const open = view.hidden;
-  view.hidden = !open;
-  button.textContent = open ? "접기" : "펼치기";
-  if (open) startLogPolling();
-  else stopLogPolling();
+/* 처리 로그 화면. 도크의 로그 보기도 여기로 옴. 저장은 이 화면에서만
+ * 고정 문구뿐이지만 DOM 으로 조립. 로그 본문은 pollLogs 가 이스케이프 후 채움 */
+function viewLogs() {
+  const head = document.createElement("div");
+  head.className = "view-head";
+  const title = document.createElement("h1");
+  title.textContent = "처리 로그";
+  const lede = document.createElement("p");
+  lede.textContent = "nuclei 출력과 내부 처리 과정을 실시간으로 보여줍니다. "
+    + "메모리에만 남으므로 보관이 필요하면 로그 저장을 누르세요.";
+  head.append(title, lede);
+
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  const panelHead = document.createElement("div");
+  panelHead.className = "panel-head spread";
+  const heading = document.createElement("h2");
+  heading.textContent = "실시간 로그";
+  const save = document.createElement("button");
+  save.className = "sm";
+  save.id = "log-save";
+  save.textContent = "로그 저장";
+  save.addEventListener("click", saveLogs);
+  panelHead.append(heading, save);
+  const pre = document.createElement("pre");
+  pre.className = "logview tall";
+  pre.id = "logview";
+  panel.append(panelHead, pre);
+
+  view().replaceChildren(head, panel);
+  // 진입할 때마다 버퍼 전체를 다시 읽음. 서버가 링 버퍼를 유지하므로 누락 없음
+  logState.cursor = 0;
+  logState.lines = [];
+  startLogPolling();
+}
+
+async function saveLogs() {
+  try {
+    const { text, filename } = await api.downloadLogs();
+    const url = URL.createObjectURL(
+      new Blob([text], { type: "text/plain;charset=utf-8" })
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast(`${filename} 으로 저장했습니다.`);
+  } catch (error) {
+    showApiError(error);
+  }
 }
 
 function startLogPolling() {
@@ -1304,6 +1336,7 @@ async function render() {
       state.scanId = null;
       await viewResults(new URLSearchParams());
     } else if (path === "templates") await viewTemplates();
+    else if (path === "logs") viewLogs();
     else if (path === "report") await viewReport();
     else if (path === "remediation") {
       // 기능이 꺼진 상태에서 주소를 직접 입력해도 들어가지 못해야 함
@@ -1442,34 +1475,9 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("hashchange", render);
 
-/* 도크의 로그 버튼 구현. tasks -> app 방향 import 를 만들지 않으려고 주입 */
-tasks.setLogHooks({
-  onShowLog: async () => {
-    if (route().path !== "scan") {
-      go("scan");
-      await render();
-    }
-    const view = document.getElementById("logview");
-    if (view?.hidden) document.getElementById("log-toggle")?.click();
-    view?.scrollIntoView({ behavior: "smooth", block: "center" });
-  },
-  onSaveLog: async () => {
-    try {
-      const { text, filename } = await api.downloadLogs();
-      const url = URL.createObjectURL(
-        new Blob([text], { type: "text/plain;charset=utf-8" })
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
-      toast(`${filename} 으로 저장했습니다.`);
-    } catch (error) {
-      showApiError(error);
-    }
-  },
-});
+/* 도크의 로그 보기. 처리 로그 화면으로 이동만 함 (저장은 그 화면에서만)
+ * tasks -> app 방향 import 를 만들지 않으려고 주입 */
+tasks.setLogHooks({ onShowLog: () => go("logs") });
 
 (async function boot() {
   await refreshContext();

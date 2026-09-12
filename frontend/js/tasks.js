@@ -24,13 +24,12 @@ export function begin(label, detail = "", { onCancel } = {}) {
   return id;
 }
 
-/* 로그 보기·저장은 도크 공통 동작. app.js 가 구현을 넣어준다
- * (tasks -> app 방향 import 를 만들지 않기 위함) */
-const hooks = { onShowLog: null, onSaveLog: null };
+/* 로그 보기는 처리 로그 화면으로 이동. app.js 가 구현을 넣어준다
+ * (tasks -> app 방향 import 를 만들지 않기 위함). 저장은 처리 로그 화면에서만 */
+const hooks = { onShowLog: null };
 
-export function setLogHooks({ onShowLog, onSaveLog }) {
+export function setLogHooks({ onShowLog }) {
   hooks.onShowLog = onShowLog;
-  hooks.onSaveLog = onSaveLog;
 }
 
 export function update(id, patch) {
@@ -117,7 +116,6 @@ function render() {
     }</div>
     <div class="dock-foot">
       <button class="sm ghost" data-dock="log">로그 보기</button>
-      <button class="sm ghost" data-dock="save">로그 저장</button>
     </div>`}`;
 }
 
@@ -132,7 +130,6 @@ export function handleDockClick(target) {
     return true;
   }
   if (action === "log") { hooks.onShowLog?.(); return true; }
-  if (action === "save") { hooks.onSaveLog?.(); return true; }
   if (action === "cancel") {
     const id = target.closest("[data-task]")?.dataset.task;
     const task = tasks.get(id);
