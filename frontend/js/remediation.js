@@ -219,13 +219,42 @@ async function copy(text, label) {
   }
 }
 
+/* 전송 직전 확인 문구. 수동 대화와 보고서 생성 옵션이 같은 문구를 씀 (docs/01 §7.1) */
+export function sendConfirmBody(status, what = "아래 내용을") {
+  return `${what} MonoGPT API 로 보냅니다 - <b>외부 통신이 발생</b>합니다.<br>`
+    + `${status?.masked ? "호스트·IP·경로는 <b>치환</b>되어 나가고 응답에서 되돌립니다. "
+        : "<b>치환이 꺼져 있어 실제 호스트·경로가 그대로 나갑니다.</b> "}`
+    + "요청·응답 원문과 추출값은 보내지 않습니다.";
+}
+
+/* 보고서 생성에 이어 쓰는 자동 경로. 수동 메뉴와 같은 API 를 같은 순서로 호출
+ * 프롬프트(통신 없음) -> 전송(confirm=true, 서버가 치환·역치환) -> 4절 첨부
+ * 전송 동의는 호출하는 쪽이 받음. 여기서는 묻지 않음 */
+export async function generateAndAttachGuide(reportId, status) {
+  const model = status?.model || "LLM";
+  const built = await tasks.track(
+    "프롬프트 생성", reportId, () => api.remediationPrompt(reportId),
+  );
+  // 응답 길이를 알 수 없어 남은 시간을 계산하지 않음. 상태만 표기
+  const reply = await tasks.track(
+    "조치 가이드 생성", `${model} · 실행 중`,
+    () => api.remediationChat([{ role: "user", content: built.prompt }], true),
+  );
+  await tasks.track(
+    "보고서에 가이드 첨부", reportId,
+    () => api.attachRemediationGuide(reportId, {
+      content: reply.content,
+      model: reply.model || status?.model || null,
+      provider: "monogpt",
+    }),
+  );
+  return reply;
+}
+
 async function send(content) {
   const ok = await confirmDialog({
     title: "LLM 에 전송",
-    body: "아래 내용을 MonoGPT API 로 보냅니다 - <b>외부 통신이 발생</b>합니다.<br>"
-        + `${state.status?.masked ? "호스트·IP·경로는 <b>치환</b>되어 나가고 응답에서 되돌립니다. "
-            : "<b>치환이 꺼져 있어 실제 호스트·경로가 그대로 나갑니다.</b> "}`
-        + "요청·응답 원문과 추출값은 보내지 않습니다.",
+    body: sendConfirmBody(state.status),
     confirmLabel: "전송",
   });
   if (!ok) { toast("전송을 취소했습니다."); return; }
