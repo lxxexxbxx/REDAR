@@ -129,6 +129,12 @@ def run(
     try:
         for line in proc.stdout:
             on_stdout_line(line.rstrip("\n"))
+        # stdout 종료 시점엔 프로세스가 아직 종료 중. 바로 terminate 하면
+        # Windows 에서 정상 종료가 종료 코드 1 로 바뀌고 마지막 stats 가 잘림
+        try:
+            proc.wait(timeout=_TERMINATE_GRACE_SEC)
+        except subprocess.TimeoutExpired:
+            logger.warning("stdout 종료 후 nuclei 미종료, 강제 종료로 진행")
     finally:
         _shutdown(proc)
         for worker in workers:
