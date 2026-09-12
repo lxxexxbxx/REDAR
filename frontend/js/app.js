@@ -1095,6 +1095,37 @@ async function openFinding(findingId) {
 
 /* ------------------------------------------------------------ 설정 */
 
+/* MonoGPT 챗 완성 모델 목록 (멘토 전달 문서 기준). id 규칙: 표시명 소문자화 + 공백을 -.
+ * 조치 가이드는 챗 완성만 사용하므로 이미지·실시간·음성·임베딩 계열은 제외 */
+const LLM_MODELS = [
+  ["OpenAI", [
+    "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini",
+    "gpt-5.4-mini-chat", "gpt-5-nano", "gpt-5-nano-chat", "gpt-4.1", "gpt-4o-mini",
+  ]],
+  ["Anthropic (Claude)", [
+    "claude-opus-5.1", "claude-opus-5", "claude-opus-4.8", "claude-opus-4.7",
+    "claude-opus-4.6", "claude-sonnet-5", "claude-sonnet-4.5", "claude-haiku-4.5",
+  ]],
+  ["Google (Gemini)", [
+    "gemini-3.6-flash", "gemini-3.6-flash-search", "gemini-3.6-flash-lite",
+    "gemini-3.5-flash", "gemini-3.5-flash-search", "gemini-3.5-flash-lite",
+    "gemini-3.1-pro-preview", "gemini-2.5-flash-lite",
+  ]],
+];
+
+/* 저장된 값이 목록에 없으면(과거 직접 입력값 등) 먼저 살려 둠. 선택이 조용히 바뀌지 않게 */
+function llmModelOptions(current) {
+  const known = LLM_MODELS.flatMap(([, ids]) => ids);
+  const custom = current && !known.includes(current)
+    ? `<option value="${esc(current)}" selected>${esc(current)} (직접 입력값)</option>`
+    : "";
+  const groups = LLM_MODELS.map(([label, ids]) => `<optgroup label="${esc(label)}">${
+    ids.map((id) => `<option value="${esc(id)}"${
+      id === current ? " selected" : ""}>${esc(id)}</option>`).join("")
+  }</optgroup>`).join("");
+  return custom + groups;
+}
+
 function viewSettings() {
   const s = state.settings || {};
   view().innerHTML = `
@@ -1207,11 +1238,10 @@ function viewSettings() {
                  placeholder="${s.llm?.api_key_set ? "설정됨 · 바꿀 때만 입력" : "mr_..."}">
           <small>이 PC 의 DB 에만 저장됩니다. 화면·API 응답으로 다시 내보내지 않습니다.</small>
         </label>
-        <label class="field" style="flex:1;min-width:150px">
+        <label class="field" style="flex:1;min-width:180px">
           <span>모델</span>
-          <input type="text" id="llm-model" value="${esc(s.llm?.model || "")}"
-                 placeholder="gpt-5.5">
-          <small>gpt-5.5 · claude-haiku-4.5 · gemini-3.5-flash</small>
+          <select id="llm-model">${llmModelOptions(s.llm?.model || "gpt-5.5")}</select>
+          <small>조치 가이드 생성에 쓰는 챗 완성 모델</small>
         </label>
       </div>
       <label class="field">

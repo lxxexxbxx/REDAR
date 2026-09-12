@@ -7,17 +7,36 @@ import {
   confirmDialog, esc, dash, fmtTime, scanTargets, toast,
 } from "./ui.js";
 import * as tasks from "./tasks.js";
+import { generateAndAttachGuide, sendConfirmBody } from "./remediation.js";
 
 const view = () => document.getElementById("view");
+
+/* LLM 조치 가이드 동시 생성 옵션. 기능이 꺼져 있으면 항목 자체가 없음 (메뉴와 같은 조건)
+ * 전송이 막혀 있으면 비활성으로 두고 무엇을 켜야 하는지 알려줌 */
+function guideToggle(status) {
+  if (!status?.feature_enabled) return "";
+  const blocked = status.blocked_reason;
+  return `<div class="toggle">
+      <input type="checkbox" id="rpt-guide"${blocked ? " disabled" : ""}>
+      <span class="t-body"><b>LLM 조치 상세 가이드 포함 (4절)</b>
+        <small>${blocked
+          ? `지금은 사용할 수 없습니다 · ${esc(blocked)} · <a href="#/settings">설정으로 이동</a>`
+          : "보고서를 만든 뒤 조치 가이드 메뉴와 같은 순서(프롬프트 → LLM → 첨부)로 4절을 "
+            + "채웁니다. 외부 통신이 발생하며, 4절에는 LLM 이 작성했다는 사실과 조치 책임이 "
+            + "사용자에게 있다는 고지가 함께 실립니다."}</small></span>
+    </div>`;
+}
 
 const VERDICT_LABEL = { safe: "양호", vulnerable: "취약", not_applicable: "해당 없음" };
 
 /* ------------------------------------------------------------ 화면 */
 
 export async function viewReport() {
-  const [{ items: scans }, { items: reports }] = await Promise.all([
+  const [{ items: scans }, { items: reports }, remediation] = await Promise.all([
     api.listScans({ size: 50 }),
     api.listReports({ size: 50 }),
+    // 상태 조회 실패가 보고서 화면을 막지 않음. 옵션만 숨김
+    api.remediationStatus().catch(() => null),
   ]);
   view().innerHTML = `
     <div class="view-head">
@@ -44,10 +63,11 @@ export async function viewReport() {
           <span class="t-body"><b>탐지 근거 포함</b>
             <small>요청·응답 원문을 보고서에 넣습니다. 민감 정보가 섞일 수 있으니 공유 전에 확인하세요.</small></span>
         </div>
+        ${guideToggle(remediation)}
         <p style="color:var(--faint);font-size:12px;margin:10px 0 0">
-          보고서는 LLM 을 쓰지 않습니다. 같은 스캔에 항상 같은 보고서가 나와야 근거
-          대조가 가능하므로 문장까지 전부 사전 정의값입니다. 조치 절차를 LLM 으로
-          받아 보시려면 <b>조치 가이드</b> 메뉴를 쓰세요.
+          보고서 본문(1~3절)은 LLM 을 쓰지 않습니다. 같은 스캔에 항상 같은 보고서가 나와야
+          근거 대조가 가능하므로 문장까지 전부 사전 정의값입니다. LLM 은 선택했을 때
+          4절 조치 상세 가이드에만 쓰입니다.
         </p>
         <div class="actions">
           <button class="primary" data-rpt="create">보고서 생성</button>
@@ -213,13 +233,40 @@ export async function handleReportClick(target) {
   switch (action) {
     case "create": {
       const scanId = document.getElementById("rpt-scan").value;
+      const guideBox = document.getElementById("rpt-guide");
+      let withGuide = Boolean(guideBox?.checked && !guideBox.disabled);
+      let status = null;
+      if (withGuide) {
+        status = await api.remediationStatus();
+        // 외부 전송 직전 확인 1회. 취소하면 조치 가이드 없이 보고서만 만듦
+        withGuide = await confirmDialog({
+          title: "보고서 생성 + LLM 조치 가이드",
+          body: `${sendConfirmBody(status, "보고서로 만든 프롬프트를")}<br><br>`
+              + "취소하면 조치 가이드 없이 보고서만 만듭니다.",
+          confirmLabel: "전송하고 생성",
+        });
+      }
+
       const created = await tasks.track(
         "보고서 생성", scanId,
         () => api.createReport(scanId, {
           include_evidence: document.getElementById("rpt-evidence").checked,
         }),
       );
-      toast(`보고서를 만들었습니다 · ${created.files.join(", ")}`);
+      if (!withGuide) {
+        toast(`보고서를 만들었습니다 · ${created.files.join(", ")}`);
+        await viewReport();
+        return true;
+      }
+
+      try {
+        await generateAndAttachGuide(created.report_id, status);
+        toast("보고서를 만들고 조치 가이드를 4절에 첨부했습니다.");
+      } catch (error) {
+        // 보고서는 이미 완성품. 4절은 '미생성' 으로 남음 (절대규칙 2)
+        toast(`조치 가이드를 만들지 못했습니다 (${error?.code || "오류"}). `
+          + "보고서는 생성되었으니 조치 가이드 메뉴에서 다시 시도하세요.", "err");
+      }
       await viewReport();
       return true;
     }
