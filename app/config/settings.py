@@ -1,6 +1,6 @@
 """파일·환경 수준 설정.
 
-런타임 플래그(offline_mode / llm_enabled / target_allowlist)의 원본은
+런타임 플래그(offline_mode / target_allowlist)의 원본은
 DB settings 테이블. 여기에는 DB 접속 전 필요한 값만.
 
 패키징(M10) 대응: 읽기 전용 번들 리소스와 쓰기 가능 사용자 경로를 분리함
