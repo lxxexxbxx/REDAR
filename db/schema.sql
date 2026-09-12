@@ -285,6 +285,9 @@ CREATE TABLE IF NOT EXISTS templates (
     -- 자산 식별 전용 템플릿(플러그인·테마 탐지). 취약점이 아니므로 부록 처리.
     is_detection  INTEGER NOT NULL DEFAULT 0,
     component_slugs TEXT,                            -- CSV. 대상 플러그인/테마 slug
+    -- 제품 표지. framework > WordPress 태그 > product. 환경 기반 제외 근거 (005)
+    -- 인덱스를 두지 않음. 기존 DB 는 이 파일 적용 시점에 컬럼이 없어 생성 실패
+    platform      TEXT,
 
     -- 빌더로 만든 경우 폼 구조 보존 (양방향 편집)
     form_json     TEXT,
@@ -621,6 +624,7 @@ INSERT OR IGNORE INTO schema_version (version) VALUES (1);
 INSERT OR IGNORE INTO schema_version (version) VALUES (2);
 INSERT OR IGNORE INTO schema_version (version) VALUES (3);   -- scans.target_input
 INSERT OR IGNORE INTO schema_version (version) VALUES (4);   -- scan_targets.reachable
+INSERT OR IGNORE INTO schema_version (version) VALUES (5);   -- templates.platform
 
 -- settings 기본값은 data/settings_defaults.csv 가 유일한 출처다.
 -- 초기 데이터를 SQL 에 두면 CSV 와 값이 갈라지고 재적재 경로가 두 개가 된다.

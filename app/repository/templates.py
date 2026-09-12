@@ -13,6 +13,7 @@ _COLUMNS = (
     "template_id", "source", "file_path", "name", "description", "severity",
     "vuln_type", "cve_ids", "cwe_ids", "tags", "cvss_score", "cvss_vector",
     "fixed_version", "is_detection", "component_slugs", "form_json", "yaml_hash",
+    "platform",
 )
 
 _UPSERT = f"""
@@ -132,5 +133,8 @@ def _view(row: sqlite3.Row) -> dict[str, Any]:
         "cvss_score": row["cvss_score"],
         "fixed_version": row["fixed_version"],
         "is_detection": bool(row["is_detection"]),
+        "component_slugs": row["component_slugs"],
+        # 제품 표지. 환경 기반 제외의 판단 근거 (마이그레이션 005)
+        "platform": row["platform"],
         "updated_at": row["updated_at"],
     }

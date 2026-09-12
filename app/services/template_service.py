@@ -19,6 +19,7 @@ from typing import Any
 import yaml
 
 from app.config import settings
+from app.domain import template_meta
 from app.domain import url as urlmod
 from app.domain.allowlist import rejected_targets
 from app.domain.enums import Severity
@@ -107,7 +108,8 @@ def _upsert_tolerant(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> in
 
 def _index_row(path: Path, source: str, rules) -> dict[str, Any] | None:
     try:
-        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        document = yaml.safe_load(text)
     except (OSError, yaml.YAMLError):
         # 깨진 템플릿 하나가 색인 전체를 막지 않음
         logger.warning("템플릿 읽기 실패: %s", path)
@@ -121,6 +123,9 @@ def _index_row(path: Path, source: str, rules) -> dict[str, Any] | None:
     classification = info.get("classification") or {}
     if not isinstance(classification, dict):
         classification = {}
+    metadata = info.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
 
     tags = builder._split_tags(info.get("tags"))
     cve_ids = _listify(classification.get("cve-id"))
@@ -144,7 +149,8 @@ def _index_row(path: Path, source: str, rules) -> dict[str, Any] | None:
         "cvss_vector": classification.get("cvss-metrics"),
         "fixed_version": None,
         "is_detection": bool(set(tags) & _DETECTION_TAGS),
-        "component_slugs": None,
+        "component_slugs": template_meta.wp_component_slug(metadata, tags, text),
+        "platform": template_meta.platform_of(metadata, tags),
         "form_json": None,
         "yaml_hash": hashlib.sha256(path.read_bytes()).hexdigest(),
     }
