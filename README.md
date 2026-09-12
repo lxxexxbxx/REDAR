@@ -406,6 +406,7 @@ app/
 ├─ api/            FastAPI 라우터
 ├─ services/       흐름 제어
 ├─ adapters/nuclei/ 실행 · JSONL 파싱 · 진행률
+├─ collectors/     노출 점검 수집기 (generic-http · wordpress)
 ├─ domain/         모델 · Enum · fingerprint · 버전 비교
 ├─ repository/     SQL
 ├─ config/         설정 · 심각도 환산표
@@ -414,7 +415,7 @@ frontend/          GUI (순수 HTML/CSS/JS, 빌드 도구 없음)
 db/schema.sql      18 테이블 / 5 뷰
 data/*.csv         번들 매핑 데이터
 assets/fonts/      한글 폰트 (SIL OFL)
-tests/             499개
+tests/             524개
 ```
 
 의존 방향은 `api → services → repository/adapters → domain` 단방향

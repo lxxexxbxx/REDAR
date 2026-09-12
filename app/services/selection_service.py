@@ -55,7 +55,9 @@ def basis(
     """scans.selection_basis. 보고서 A-2 '템플릿 실행 범위' 의 유일한 근거"""
     available = env_repo.local_template_count(conn)
     if total_run is None and mode == "full_scan":
-        total_run = max(available - len(excluded_ids), 0)
+        # 색인에 없는 열거 템플릿까지 빼면 실행 수가 실제보다 작게 기록됨
+        present = sum(1 for tid in excluded_ids if template_repo.get(conn, tid))
+        total_run = max(available - present, 0)
     return {
         "mode": mode,
         "universe": "environment_filtered" if plan and plan.excluded else "all_templates",

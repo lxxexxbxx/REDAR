@@ -171,28 +171,27 @@ class GuideCoverage(Strict):
     items_covered: int = 0
 
 
-class MatchedComponent(Strict):
-    slug: str
-    version: str | None = None
-    templates: list[str] = Field(default_factory=list)
-
-
-class MatchedStack(Strict):
-    product: str
-    version: str | None = None
-    templates: list[str] = Field(default_factory=list)
+class ExcludedPlatform(Strict):
+    platform: str
+    templates: int
 
 
 class SelectionBasis(Strict):
-    """environment_driven 모드의 템플릿 선별 근거. 타 모드에서는 None.
+    """템플릿 실행 범위 (docs/02 §3.1). explicit 모드에서는 None.
 
-    None 이어도 해당 절 렌더링 (조건부 섹션 금지, 절대규칙 4)
+    None 이어도 A-2 절 렌더링 (조건부 섹션 금지, 절대규칙 4)
     """
 
-    matched_components: list[MatchedComponent] = Field(default_factory=list)
-    matched_stack: list[MatchedStack] = Field(default_factory=list)
-    total_selected: int = 0
+    mode: str
+    universe: str                                    # all_templates | environment_filtered
     total_available: int = 0
+    total_run: int | None = None                     # filter 는 nuclei 가 골라 미확정
+    excluded_enumerators: list[str] = Field(default_factory=list)
+    wp_full_enumeration: bool = False
+    excluded: list[ExcludedPlatform] = Field(default_factory=list)
+    fallback_reason: str | None = None               # no_application | no_index
+    detected: list[str] = Field(default_factory=list)
+    prepass_templates: int = 0
 
 
 class LlmMeta(Strict):
@@ -212,6 +211,7 @@ class ReportMeta(Strict):
     guide_db: GuideDbInfo = Field(default_factory=GuideDbInfo)
     guide_coverage: GuideCoverage = Field(default_factory=GuideCoverage)
     selection_basis: SelectionBasis | None = None
+    exclusion_notice: str = EXCLUSION_CAUTION
     llm: LlmMeta = Field(default_factory=LlmMeta)
 
 

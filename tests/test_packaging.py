@@ -30,6 +30,38 @@ def _load_build():
     return module
 
 
+# ─────────────────────────────── Python 버전 (CLAUDE.md 3.11+)
+
+def test_build_rejects_python_below_311(monkeypatch):
+    """3.10 으로 번들하면 StrEnum ImportError 로 기동 즉시 종료 (실측)"""
+    build = _load_build()
+    monkeypatch.setattr(build.sys, "version_info", (3, 10, 9, "final", 0))
+    with pytest.raises(SystemExit) as exc:
+        build.require_python()
+    assert "3.11" in str(exc.value)
+
+
+def test_build_accepts_python_312(monkeypatch):
+    build = _load_build()
+    monkeypatch.setattr(build.sys, "version_info", (3, 12, 13, "final", 0))
+    build.require_python()
+
+
+@pytest.mark.parametrize("line, expected", [
+    ("version = 3.10.9", (3, 10)),          # python -m venv
+    ("version_info = 3.12.13", (3, 12)),    # uv venv
+])
+def test_venv_version_read_from_pyvenv_cfg(tmp_path, line, expected):
+    """기존 가상환경을 그대로 쓰면 실행 파이썬이 3.12 여도 번들은 3.10"""
+    build = _load_build()
+    (tmp_path / "pyvenv.cfg").write_text(f"home = x\n{line}\n", encoding="utf-8")
+    assert build.venv_version(tmp_path) == expected
+
+
+def test_venv_version_missing_cfg(tmp_path):
+    assert _load_build().venv_version(tmp_path) is None
+
+
 # ─────────────────────────────── 경로 분리 (완료 조건 3)
 
 def test_read_only_and_writable_paths_are_separate():

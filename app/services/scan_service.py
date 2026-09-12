@@ -575,23 +575,28 @@ class ScanService:
                 lines.put((finished, None))
 
         threading.Thread(target=pump, daemon=True).start()
-        while True:
-            try:
-                handler, payload = lines.get(timeout=_FLUSH_SEC)
-            except queue.Empty:
-                writer.flush()               # 출력이 멎어도 탐지 결과가 조회되게 함
-                continue
-            if handler is finished:
-                break
-            if handler is None:
-                raise payload                # nuclei 미설치 등 러너 오류
-            if handler is on_stderr:
+        try:
+            while True:
                 try:
-                    on_stderr(payload)
-                except Exception:  # noqa: BLE001 - 진행률 실패가 스캔 실패는 아니다
-                    logger.warning("stderr 처리 실패", exc_info=True)
-            else:
-                on_stdout(payload)
+                    handler, payload = lines.get(timeout=_FLUSH_SEC)
+                except queue.Empty:
+                    writer.flush()           # 출력이 멎어도 탐지 결과가 조회되게 함
+                    continue
+                if handler is finished:
+                    break
+                if handler is None:
+                    raise payload            # nuclei 미설치 등 러너 오류
+                if handler is on_stderr:
+                    try:
+                        on_stderr(payload)
+                    except Exception:  # noqa: BLE001 - 진행률 실패가 스캔 실패는 아니다
+                        logger.warning("stderr 처리 실패", exc_info=True)
+                else:
+                    on_stdout(payload)
+        except BaseException:
+            # 여기서 빠져나가면 nuclei 는 보조 스레드에서 계속 돎. 러너에 중단 요청
+            run.cancel.set()
+            raise
         writer.flush()
 
     # -------------------------------------------------------------- 이벤트

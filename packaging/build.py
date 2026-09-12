@@ -228,6 +228,33 @@ def report_size(path: Path) -> None:
 VENV_DIR = ROOT / ".venv"
 REQUIREMENTS = ROOT / "requirements.txt"
 APP_NAME = "REDAR"
+# CLAUDE.md 기술 스택. 3.10 번들은 enum.StrEnum ImportError 로 기동 즉시 종료 (실측)
+MIN_PYTHON = (3, 11)
+
+
+def require_python() -> None:
+    """빌드 파이썬 버전 확인. 가상환경과 번들이 이 파이썬을 그대로 따라감"""
+    if tuple(sys.version_info[:2]) < MIN_PYTHON:
+        found = ".".join(str(v) for v in sys.version_info[:3])
+        sys.exit(
+            f"Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} 이상 필요 (현재 {found}).\n"
+            "  Windows   py -3.12 packaging/build.py\n"
+            "  그 외     python3.12 packaging/build.py"
+        )
+
+
+def venv_version(venv_dir: Path) -> tuple[int, int] | None:
+    """기존 가상환경의 파이썬 버전. pyvenv.cfg 의 version(venv) 또는 version_info(uv)"""
+    cfg = venv_dir / "pyvenv.cfg"
+    if not cfg.is_file():
+        return None
+    for line in cfg.read_text(encoding="utf-8", errors="replace").splitlines():
+        key, _, value = line.partition("=")
+        if key.strip() in ("version", "version_info"):
+            parts = value.strip().split(".")
+            if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                return int(parts[0]), int(parts[1])
+    return None
 
 
 def venv_python() -> Path:
@@ -269,6 +296,12 @@ def ensure_venv() -> None:
         # 이미 대상 가상환경 안. 의존성만 확인하고 진행
         ensure_deps(sys.executable)
         return
+
+    old = venv_version(VENV_DIR)
+    if old is not None and old < MIN_PYTHON:
+        # 옛 가상환경을 재사용하면 실행 파이썬이 새 버전이어도 번들은 옛 버전
+        print(f"  가상환경이 Python {old[0]}.{old[1]} 기반. 재생성")
+        shutil.rmtree(VENV_DIR)
 
     if not venv_python().is_file():
         print("  가상환경 생성")
@@ -480,6 +513,7 @@ def main() -> None:
     auto = not args.no_auto_install
 
     print("[1] 툴체인 확인")
+    require_python()
     ensure_venv()
     ensure_nuclei(auto)
 
