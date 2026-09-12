@@ -79,17 +79,6 @@ class GuideVerdict(StrEnum):
     NOT_APPLICABLE = "not_applicable"
 
 
-class CompareState(StrEnum):
-    """fixed / still_vulnerable 아님
-
-    스캐너는 '조치 성공' 판정 불가. '이번엔 탐지되지 않음'만 표현 가능
-    """
-
-    RESOLVED = "resolved"
-    PERSISTED = "persisted"
-    EMERGED = "emerged"
-
-
 class Confidence(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
@@ -131,8 +120,3 @@ GUIDE_VERDICT_LABELS: dict[GuideVerdict, str] = {
     GuideVerdict.NOT_APPLICABLE: "해당 없음",
 }
 
-COMPARE_STATE_LABELS: dict[CompareState, str] = {
-    CompareState.RESOLVED: "미탐지",
-    CompareState.PERSISTED: "지속 탐지",
-    CompareState.EMERGED: "신규 탐지",
-}

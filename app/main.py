@@ -11,7 +11,7 @@ from app import __version__
 from app.adapters.nuclei import version as nuclei_version
 from app.adapters import logbuffer
 from app.api import (
-    compare, dependencies, errors, guide, logs, remediation, reports, scans,
+    dependencies, errors, guide, logs, remediation, reports, scans,
     settings_api, templates,
 )
 from app.config import settings
@@ -38,9 +38,6 @@ app = FastAPI(
 )
 
 errors.register(app)
-# /scans/compare 를 /scans/{scan_id} 보다 먼저 등록함
-# 뒤에 두면 'compare' 가 scan_id 로 해석되어 404 가 됨
-app.include_router(compare.router, prefix=API_PREFIX)
 app.include_router(scans.router, prefix=API_PREFIX)
 app.include_router(settings_api.router, prefix=API_PREFIX)
 app.include_router(guide.router, prefix=API_PREFIX)

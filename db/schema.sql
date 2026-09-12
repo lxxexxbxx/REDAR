@@ -344,7 +344,6 @@ CREATE TABLE IF NOT EXISTS scan_templates (
 CREATE TABLE IF NOT EXISTS reports (
     report_id            TEXT PRIMARY KEY,           -- 'rpt_' + ULID
     scan_id              TEXT NOT NULL REFERENCES scans(scan_id) ON DELETE CASCADE,
-    compare_with_scan_id TEXT REFERENCES scans(scan_id) ON DELETE SET NULL,
 
     status               TEXT NOT NULL DEFAULT 'generating'
         CHECK (status IN ('generating','completed','failed')),
@@ -554,7 +553,7 @@ LEFT JOIN guide_items   g ON g.item_code  = r.item_code;
 
 
 -- 보고서 Part B 본문 단위. 점검항목별로 묶고 우선순위를 확정한다.
--- 정렬을 SQL 로 고정하는 이유: 같은 스캔에 같은 순서가 나와야 재점검 비교가 성립한다.
+-- 정렬을 SQL 로 고정하는 이유: 같은 스캔이면 몇 번 생성해도 같은 순서가 나와야 한다.
 -- LLM 은 이 순서에 개입하지 않는다.
 CREATE VIEW IF NOT EXISTS v_report_sections AS
 SELECT

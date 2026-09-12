@@ -1,19 +1,16 @@
-/* 보고서 화면 + 스캔 비교.
+/* 보고서 화면.
  *
  * 미리보기는 Report JSON 을 그대로 사용. 화면이 DB 를 다시 조회하면 파일 산출물과
  * 갈라짐 (docs/04 §3). PDF 는 브라우저 인쇄로 파생 (절대규칙 4-1) */
 import { api } from "./api.js";
 import {
-  confirmDialog, esc, dash, fmtTime, scanTargets, toast, SEVERITY_LABEL,
+  confirmDialog, esc, dash, fmtTime, scanTargets, toast,
 } from "./ui.js";
 import * as tasks from "./tasks.js";
 
 const view = () => document.getElementById("view");
 
 const VERDICT_LABEL = { safe: "양호", vulnerable: "취약", not_applicable: "해당 없음" };
-const COMPARE_LABEL = { resolved: "미탐지", persisted: "지속 탐지", emerged: "신규 탐지" };
-
-const state = { scans: [], reports: [], compare: null, selected: null };
 
 /* ------------------------------------------------------------ 화면 */
 
@@ -22,9 +19,6 @@ export async function viewReport() {
     api.listScans({ size: 50 }),
     api.listReports({ size: 50 }),
   ]);
-  state.scans = scans;
-  state.reports = reports;
-
   view().innerHTML = `
     <div class="view-head">
       <h1>보고서</h1>
@@ -71,40 +65,7 @@ export async function viewReport() {
       </div>
       ${reports.length ? reportTable(reports) : `
         <p class="empty" style="margin:0">아직 생성된 보고서가 없습니다.</p>`}
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <h2>스캔 비교</h2>
-      </div>
-      <p style="color:var(--muted);margin:0 0 12px">
-        조치 전후 두 스캔의 차이만 보여 드립니다. 조치 성공 여부는 도구가 판정하지 않으며,
-        비교 결과는 보고서에 실리지 않습니다.
-      </p>
-      ${scans.length >= 2 ? `
-        <div class="row" style="align-items:flex-start">
-          <label class="field" style="flex:1">
-            <span>기준 스캔 · 이전</span>
-            <select id="cmp-base">${scanOptions(scans, 1)}</select>
-          </label>
-          <label class="field" style="flex:1">
-            <span>비교 스캔 · 이후</span>
-            <select id="cmp-target">${scanOptions(scans, 0)}</select>
-          </label>
-        </div>
-        <div class="actions">
-          <button data-rpt="compare">비교 실행</button>
-        </div>` : `
-        <p class="empty" style="margin:0">비교하려면 스캔이 2건 이상 필요합니다.</p>`}
-      <div id="cmp-result">${state.compare ? compareResult(state.compare) : ""}</div>
     </div>`;
-}
-
-function scanOptions(scans, selectedIndex) {
-  return scans.map((s, i) => `<option value="${esc(s.scan_id)}"${
-    i === selectedIndex ? " selected" : ""}>
-    ${esc(scanTargets(s))} · ${esc(fmtTime(s.started_at || s.created_at))}
-  </option>`).join("");
 }
 
 function reportTable(reports) {
@@ -126,51 +87,6 @@ function reportTable(reports) {
         <td><button class="sm danger" data-rpt-delete="${esc(r.report_id)}">삭제</button></td>
       </tr>`).join("")}
     </tbody></table>`;
-}
-
-function compareResult(result) {
-  const rows = ["resolved", "persisted", "emerged"];
-  return `
-    <table style="margin-top:14px">
-      <thead><tr><th style="width:30mm">분류</th><th class="num" style="width:20mm">건수</th><th>설명</th></tr></thead>
-      <tbody>
-        <tr><td>미탐지</td><td class="num">${result.summary.resolved}</td>
-            <td>이번 스캔에서 탐지되지 않음</td></tr>
-        <tr><td>지속 탐지</td><td class="num">${result.summary.persisted}</td>
-            <td>양쪽 모두에서 탐지</td></tr>
-        <tr><td>신규 탐지</td><td class="num">${result.summary.emerged}</td>
-            <td>이번 스캔에서 새로 탐지</td></tr>
-      </tbody>
-    </table>
-    <div class="coverage" style="border-left-color:var(--warn)">${esc(result.disclaimer)}</div>
-    ${rows.map((key) => `
-      <h3 style="font-size:14px;margin:14px 0 6px">${COMPARE_LABEL[key]}
-        (${result[key].length}건)</h3>
-      ${result[key].length ? `<table>
-        <thead><tr><th>탐지 항목</th><th style="width:22mm">심각도</th><th>대상</th></tr></thead>
-        <tbody>${result[key].map((e) => `
-          <tr><td>${esc(e.name)}</td>
-              <td><span class="sev sev-${esc(e.severity)}">${esc(SEVERITY_LABEL[e.severity] || e.severity)}</span></td>
-              <td class="mono">${esc(e.target_host)}</td></tr>`).join("")}
-        </tbody></table>` : '<p class="empty" style="margin:0">해당 없음</p>'}`).join("")}
-    ${environmentDiff(result.environment_diff)}`;
-}
-
-function environmentDiff(diff) {
-  const total = diff.changed.length + diff.added.length + diff.removed.length;
-  return `<h3 style="font-size:14px;margin:14px 0 6px">환경 변화 (${total}건)</h3>
-    ${total ? `<table>
-      <thead><tr><th>항목</th><th style="width:34mm">이전</th><th style="width:34mm">이후</th></tr></thead>
-      <tbody>
-        ${diff.changed.map((c) => `<tr><td class="mono">${esc(c.key)}</td>
-          <td class="mono">${esc(String(c.before))}</td>
-          <td class="mono">${esc(String(c.after))}</td></tr>`).join("")}
-        ${diff.added.map((c) => `<tr><td class="mono">${esc(c.key)}</td>
-          <td class="empty">-</td><td class="mono">${esc(String(c.after))}</td></tr>`).join("")}
-        ${diff.removed.map((c) => `<tr><td class="mono">${esc(c.key)}</td>
-          <td class="mono">${esc(String(c.before))}</td><td class="empty">-</td></tr>`).join("")}
-      </tbody></table>`
-      : '<p class="empty" style="margin:0">해당 없음</p>'}`;
 }
 
 /* ------------------------------------------------------ 미리보기 드로어 */
@@ -305,14 +221,6 @@ export async function handleReportClick(target) {
       );
       toast(`보고서를 만들었습니다 · ${created.files.join(", ")}`);
       await viewReport();
-      return true;
-    }
-    case "compare": {
-      const base = document.getElementById("cmp-base").value;
-      const target2 = document.getElementById("cmp-target").value;
-      if (base === target2) { toast("서로 다른 두 스캔을 고르세요.", "err"); return true; }
-      state.compare = await api.compareScans(base, target2);
-      document.getElementById("cmp-result").innerHTML = compareResult(state.compare);
       return true;
     }
     case "close":

@@ -11,7 +11,6 @@ from app.domain import fingerprint as fp
 from app.domain import models
 from app.domain import version as ver
 from app.domain.enums import (
-    CompareState,
     FindingStatus,
     GuideVerdict,
     Severity,
@@ -53,7 +52,6 @@ def test_enum_values_match_api_spec():
     ]
     assert [t.value for t in TemplateSource] == ["official", "custom"]
     assert [g.value for g in GuideVerdict] == ["safe", "vulnerable", "not_applicable"]
-    assert [c.value for c in CompareState] == ["resolved", "persisted", "emerged"]
 
 
 def test_vuln_type_rules_csv_uses_only_known_enum_values():
@@ -74,7 +72,7 @@ def test_fingerprint_is_deterministic():
 
 
 def test_query_string_does_not_affect_fingerprint():
-    """?page=1 이 fingerprint 를 변경하면 재스캔 비교가 전부 '신규'로 집계"""
+    """?page=1 이 fingerprint 를 변경하면 같은 지점이 여러 건으로 집계"""
     base = fp.make_fingerprint("t", "h", 80, "/a/b")
     assert fp.make_fingerprint("t", "h", 80, "/a/b?page=1") == base
     assert fp.make_fingerprint("t", "h", 80, "/a/b?page=2&x=y") == base

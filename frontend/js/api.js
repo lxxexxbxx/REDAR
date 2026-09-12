@@ -141,9 +141,6 @@ export const api = {
     return { text: await response.text(), filename: match?.[1] || `report.${format}` };
   },
 
-  compareScans: (base, target) =>
-    request(`/scans/compare${query({ base, target })}`),
-
   templateSchema: () => request("/templates/schema"),
   listTemplates: (params = {}) => request("/templates" + query(params)),
   getTemplate: (id) => request(`/templates/${encodeURIComponent(id)}`),
