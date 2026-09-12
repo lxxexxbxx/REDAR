@@ -25,7 +25,7 @@ _MAX_TARGET_FILE_BYTES = 1 * 1024 * 1024
 class TemplateSelection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["explicit", "filter", "environment_driven"]
+    mode: Literal["full_scan", "explicit", "filter", "environment_driven"]
     template_ids: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     severity: list[str] = Field(default_factory=list)

@@ -45,9 +45,9 @@ CREATE TABLE IF NOT EXISTS scans (
     status              TEXT NOT NULL
         CHECK (status IN ('queued','running','completed','failed','canceled')),
 
-    -- 템플릿 선별
+    -- 템플릿 선별. full_scan 은 마이그레이션 006
     selection_mode      TEXT NOT NULL
-        CHECK (selection_mode IN ('explicit','filter','environment_driven')),
+        CHECK (selection_mode IN ('explicit','filter','environment_driven','full_scan')),
     selection_detail    TEXT,                        -- JSON: template_ids / tags / severity
     selection_basis     TEXT,                        -- JSON: environment_driven 선별 근거
 
@@ -625,6 +625,7 @@ INSERT OR IGNORE INTO schema_version (version) VALUES (2);
 INSERT OR IGNORE INTO schema_version (version) VALUES (3);   -- scans.target_input
 INSERT OR IGNORE INTO schema_version (version) VALUES (4);   -- scan_targets.reachable
 INSERT OR IGNORE INTO schema_version (version) VALUES (5);   -- templates.platform
+INSERT OR IGNORE INTO schema_version (version) VALUES (6);   -- scans.selection_mode full_scan
 
 -- settings 기본값은 data/settings_defaults.csv 가 유일한 출처다.
 -- 초기 데이터를 SQL 에 두면 CSV 와 값이 갈라지고 재적재 경로가 두 개가 된다.

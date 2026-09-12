@@ -138,3 +138,17 @@ def _view(row: sqlite3.Row) -> dict[str, Any]:
         "platform": row["platform"],
         "updated_at": row["updated_at"],
     }
+
+
+def all_meta(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """제외 계산 입력. 전 행을 한 번에 읽음 (1.3만 행 수준)"""
+    return [
+        {
+            "template_id": r["template_id"], "source": r["source"],
+            "file_path": r["file_path"], "tags": json.loads(r["tags"] or "[]"),
+            "platform": r["platform"],
+        }
+        for r in conn.execute(
+            "SELECT template_id, source, file_path, tags, platform FROM templates"
+        )
+    ]

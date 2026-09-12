@@ -124,7 +124,7 @@ def test_spec_lists_dynamic_imports():
     """수집기·LLM Provider 는 동적 import 라 정적 분석이 놓침"""
     text = SPEC.read_text(encoding="utf-8")
     for module in ("app.collectors.wordpress", "app.collectors.generic_http",
-                   "app.collectors.apache", "app.adapters.llm.monogpt"):
+                   "app.adapters.llm.monogpt"):
         assert module in text, module
 
 

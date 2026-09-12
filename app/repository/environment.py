@@ -144,44 +144,24 @@ def _view(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def advisory_templates(
-    conn: sqlite3.Connection, slugs: list[str]
-) -> dict[str, list[str]]:
-    """구성요소 슬러그 -> 연결된 템플릿 id. environment_driven 선별 입력"""
-    if not slugs:
-        return {}
-    marks = ", ".join("?" * len(slugs))
-    out: dict[str, list[str]] = {}
-    for row in conn.execute(
-        f"SELECT slug, template_id FROM component_advisories"
-        f" WHERE slug IN ({marks}) AND template_id IS NOT NULL"
-        f" ORDER BY slug, template_id",
-        slugs,
-    ):
-        out.setdefault(row["slug"], []).append(row["template_id"])
-    return out
-
-
 def local_template_count(conn: sqlite3.Connection) -> int:
-    """로컬 템플릿 인벤토리 크기. selection_basis.total_available 의 분모.
-
-    M5 의 템플릿 관리가 채움. 그전에는 0 이며 선별 근거에 0 으로 남음
-    """
+    """로컬 템플릿 인벤토리 크기. selection_basis.total_available 의 분모"""
     return conn.execute("SELECT COUNT(*) FROM templates").fetchone()[0]
 
 
-def templates_for_ids(
-    conn: sqlite3.Connection, template_ids: list[str]
-) -> list[str]:
-    """인벤토리에 실제로 존재하는 템플릿만 남김. 없으면 빈 목록"""
-    if not template_ids:
-        return []
-    marks = ", ".join("?" * len(template_ids))
+def detection_rows(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:
+    """스캔 finding 중 색인에 있는 템플릿 결과. 사전 패스 집합 판정은 서비스가 함"""
     return [
-        r["template_id"]
+        dict(r) | {
+            "tags": json.loads(r["tags"] or "[]"),
+            "ev_extracted": json.loads(r["ev_extracted"] or "[]"),
+        }
         for r in conn.execute(
-            f"SELECT template_id FROM templates WHERE template_id IN ({marks})"
-            f" ORDER BY template_id",
-            template_ids,
+            "SELECT f.target_host, f.target_port, f.target_scheme, f.template_id,"
+            "       f.matcher_name, f.ev_extracted, t.source, t.file_path, t.tags,"
+            "       t.platform, t.component_slugs"
+            "  FROM findings f JOIN templates t ON t.template_id = f.template_id"
+            " WHERE f.scan_id = ? ORDER BY f.detected_at",
+            (scan_id,),
         )
     ]

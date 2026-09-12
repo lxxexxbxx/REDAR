@@ -97,6 +97,8 @@ class TargetContext:
     port: int | None
     timeout_sec: int = 5
     http: Callable[..., Response] | None = None
+    # nuclei detection 이 확인한 제품. 수집기 applicable() 의 합집합 근거
+    detected: frozenset[str] = frozenset()
     # 앞선 수집기 결과. applicable() 이 상위 판단을 참조 (docs/01 §4.1)
     collected: dict[str, CollectResult] = field(default_factory=dict)
     # 응답 캐시. 대상 1개 조사 동안만 유효

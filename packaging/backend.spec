@@ -38,8 +38,6 @@ datas = [
 hiddenimports = [
     "app.collectors.generic_http",
     "app.collectors.wordpress",
-    "app.collectors.apache",
-    "app.collectors.framework",
     "app.adapters.llm.monogpt",
     "uvicorn.logging",
     "uvicorn.loops.auto",

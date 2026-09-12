@@ -55,6 +55,10 @@ class WordPressCollector:
 
     def applicable(self, ctx: TargetContext) -> bool:
         """WordPress 징후가 없으면 실행하지 않음. 무관한 대상에 8회 요청 금지"""
+        # nuclei 가 WordPress 로 봤으면 HTML 징후와 무관하게 실행. 하드닝으로 징후를
+        # 지운 사이트를 놓치지 않기 위한 합집합 (docs/01 §4.1)
+        if "wordpress" in ctx.detected:
+            return True
         root = ctx.get("/")
         if not root.status:
             return False

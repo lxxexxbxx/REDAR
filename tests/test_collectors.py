@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.collectors import base as collectors
@@ -75,8 +77,8 @@ def _collector(key: str):
 def test_registry_discovers_collectors_from_files():
     """파일 추가만으로 등록되어야 한다. 등록표를 따로 두면 누락이 생김"""
     keys = [c.key for c in collectors.registry()]
-    # 순서도 규약이다. framework 는 wordpress 뒤에 와야 '이미 확정됐는지' 를 볼 수 있음
-    assert keys == ["generic-http", "wordpress", "framework", "apache"]
+    # 제품·버전 식별은 nuclei detection 이 담당. 수집기는 노출 점검 전담 (docs/01 §4.1)
+    assert keys == ["generic-http", "wordpress"]
 
 
 def test_registry_order_is_generic_then_app_then_middleware():
@@ -299,9 +301,7 @@ def test_profile_round_trip(conn, collected):
     assert profile["application"]["product"] == "WordPress"
     assert profile["application"]["version"] == "6.4.2"
     assert len(profile["exposures"]) == 11
-    assert profile["collectors_run"] == [
-        "generic-http", "wordpress", "framework", "apache",
-    ]
+    assert profile["collectors_run"] == ["generic-http", "wordpress"]
     assert profile["collectors_failed"] == []
 
 
@@ -324,57 +324,78 @@ def test_version_null_is_stored_as_null(conn, collected):
 
 # ─────────────────────────────────────────────── 선별 근거
 
-def test_selection_basis_records_evidence(conn, collected):
-    selection = svc.select_templates(conn, [collected])
-    basis = selection.basis
-
-    slugs = {m["slug"] for m in basis["matched_components"]}
-    assert "contact-form-7" in slugs
-    assert all(m["templates"] for m in basis["matched_components"])
-    assert {"product": "WordPress", "version": "6.4.2", "templates": []} in \
-        basis["matched_stack"]
-    assert "wordpress" in basis["environment_tags"]
-    # 분모는 로컬 인벤토리
-    assert basis["universe"] == "templates"
-    assert basis["total_available"] == env_repo.local_template_count(conn)
-    assert basis["candidate_templates"] > 0
-    # 환경 근거는 남기되 실행 범위를 좁히지는 않음
-    assert basis["filtered"] is False
-    assert basis["total_selected"] == basis["total_available"]
-
-
-def test_environment_never_narrows_execution(conn, collected):
-    """환경 조사로 실행 범위를 좁히지 않는다.
-
-    이전에는 인벤토리에 있는 id 만 골라 -id 로 넘겼고, 태그와 함께 나가면서
-    nuclei 가 교집합만 실행해 취약한 대상이 0건으로 끝났다 (실측)
-    """
+def _seed_detection(conn, scan_id, template_id, extracted, platform, tags,
+                    slug=None, matcher=None, path=None):
     conn.execute(
-        "INSERT OR IGNORE INTO templates"
-        " (template_id, source, file_path, name) VALUES"
-        " ('wp-contact-form-7-fpd', 'official', 'x.yaml', 'CF7 FPD')"
+        "INSERT OR IGNORE INTO templates (template_id, source, file_path, name, tags,"
+        " platform, component_slugs) VALUES (?, 'official', ?, ?, ?, ?, ?)",
+        (template_id, path or f"/t/official/http/technologies/{template_id}.yaml",
+         template_id, json.dumps(tags), platform, slug),
+    )
+    conn.execute(
+        "INSERT INTO findings (finding_id, scan_id, fingerprint, template_id, target_raw,"
+        " target_host, target_port, target_scheme, name, severity, severity_guide,"
+        " matcher_name, ev_extracted)"
+        " VALUES (?, ?, ?, ?, 'http://wp.local:8080/', 'wp.local', 8080, 'http', ?,"
+        " 'info', '하', ?, ?)",
+        (f"fnd_{template_id}", scan_id, f"fp_{template_id}", template_id, template_id,
+         matcher, json.dumps(extracted)),
     )
     conn.commit()
-    try:
-        selection = svc.select_templates(conn, [collected])
-        assert selection.template_ids == []
-        assert selection.tags == []
-        # 환경에서 도출된 후보는 근거로만 남음
-        assert selection.basis["environment_templates"] == ["wp-contact-form-7-fpd"]
-        assert selection.basis["total_selected"] == 1     # 보유 전부가 실행 대상
-    finally:
-        conn.execute("DELETE FROM templates WHERE template_id = 'wp-contact-form-7-fpd'")
-        conn.commit()
 
 
-def test_selection_basis_persisted_on_scan(conn, collected):
-    from app.repository import scans as scan_repo
+@pytest.fixture
+def detected_scan(conn):
+    conn.execute("INSERT OR IGNORE INTO scans (scan_id, status, selection_mode)"
+                 " VALUES ('scn_tech', 'running', 'full_scan')")
+    _seed_detection(conn, "scn_tech", "redar-wordpress-detect", ["6.9.4"], "wordpress",
+                    ["tech", "wordpress"])
+    _seed_detection(conn, "scn_tech", "redar-wordpress-litespeed-cache", ["6.3.0.1"],
+                    "wordpress", ["tech", "wp-plugin"], slug="litespeed-cache",
+                    matcher="outdated_version")
+    yield "scn_tech"
+    conn.execute("DELETE FROM findings WHERE scan_id = 'scn_tech'")
+    conn.execute("DELETE FROM environment_profiles WHERE scan_id = 'scn_tech'")
+    conn.execute("DELETE FROM templates WHERE template_id LIKE 'redar-wordpress-%'")
+    conn.execute("DELETE FROM scans WHERE scan_id = 'scn_tech'")
+    conn.commit()
 
-    selection = svc.select_templates(conn, [collected])
-    scan_repo.set_selection_basis(conn, "scn_env", selection.basis)
-    view = scan_repo.get_scan(conn, "scn_env")
-    assert view["selection_basis"]["universe"] == "templates"
-    assert view["template_selection"]["mode"] == "environment_driven"
+
+def test_tech_profiles_keyed_by_host_port(conn, detected_scan):
+    profiles = svc.tech_profiles(conn, detected_scan)
+    profile = profiles[svc.host_key("http://wp.local:8080")]
+    assert profile.stack["application"]["version"] == "6.9.4"
+
+
+def test_nuclei_plugin_fills_gap_left_by_html_collector(conn, detected_scan):
+    """?ver= 가 없어 수집기가 놓친 플러그인도 프로필에 들어가야 패치 계획에 잡힘"""
+    tech = svc.tech_profiles(conn, detected_scan)[svc.host_key("http://wp.local:8080")]
+    result = svc.collect_target(conn, detected_scan, "http://wp.local:8080",
+                                http=_responder(_wordpress_site()), tech=tech)
+    slugs = {c["slug"]: c for c in result.components}
+    assert slugs["litespeed-cache"]["version"] == "6.3.0.1"
+    assert slugs["contact-form-7"]["version"] == "5.9.3"        # 수집기 결과 유지
+
+
+def test_non_prepass_findings_are_not_environment(conn, detected_scan):
+    """취약점 템플릿 결과는 환경 근거가 아님. 사전 패스 집합만 해석"""
+    _seed_detection(conn, "scn_tech", "redar-wordpress-cve-x", ["9.9.9"], "joomla",
+                    ["cve"], path="/t/official/http/cves/redar-wordpress-cve-x.yaml")
+    profile = svc.tech_profiles(conn, detected_scan)[svc.host_key("http://wp.local:8080")]
+    assert "joomla" not in profile.detected
+
+
+def test_wordpress_collector_runs_when_nuclei_detected_it():
+    """HTML 징후가 없어도 nuclei 가 WordPress 로 봤으면 노출 점검 실행 (합집합)"""
+    ctx = _ctx({"/": Response(200, {}, "<html>hardened</html>", "http://wp.local/")},
+               detected=frozenset({"wordpress"}))
+    assert _collector("wordpress").applicable(ctx) is True
+
+
+def test_host_key_uses_scheme_default_port():
+    assert svc.host_key("http://a.local") == "a.local:80"
+    assert svc.host_key("https://a.local") == "a.local:443"
+    assert svc.host_key("a.local:8080") == "a.local:8080"
 
 
 # ─────────────────────────────────────────────── nuclei 인자 조립

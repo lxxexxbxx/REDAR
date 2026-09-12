@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 import queue
+import shutil
+import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
@@ -17,6 +19,7 @@ from app.adapters.nuclei import version as nuclei_version
 from app.config import settings
 from app.domain import url as urlmod
 from app.domain import target_range
+from app.domain import template_exclusion
 from app.domain.allowlist import rejected_targets
 from app.domain.enums import ScanStatus
 from app.domain.ids import new_id
@@ -26,7 +29,7 @@ from app.repository import templates as template_repo
 from app.repository.db import session
 from app.repository.findings import FindingBatchWriter
 from app.repository.rules import load_vuln_type_rules
-from app.services import environment_service, guide_service
+from app.services import environment_service, guide_service, selection_service
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +192,7 @@ class ScanService:
                 "environment_driven 모드는 환경 조사(collect_environment) 필요",
                 details=[{"field": "collect_environment", "reason": "required"}],
             )
-        if req.mode not in ("explicit", "filter", "environment_driven"):
+        if req.mode not in ("full_scan", "explicit", "filter", "environment_driven"):
             raise ScanError("INVALID_REQUEST", f"알 수 없는 모드입니다: {req.mode}")
 
         # 'host:33-4444' 를 개별 대상으로 전개. nuclei 에는 포트 범위 옵션이 없음
@@ -299,45 +302,34 @@ class ScanService:
             with session(self._db_path) as conn:
                 rules = load_vuln_type_rules(conn)
                 scan_repo.set_status(conn, run.scan_id, ScanStatus.RUNNING)
-                self._emit(run, "progress", {
-                    # percent 는 None. 이 단계는 총량을 알 수 없음.
-                    # 0 을 보내면 화면이 '0% 에서 멈춤' 으로 표시됨
-                    "scan_id": run.scan_id, "percent": None,
-                    "phase": "selecting_templates",
-                    "templates_done": 0, "templates_total": None, "findings_so_far": 0,
-                })
-
                 req = replace(req, targets=self._probe_targets(run, req, conn))
-
-                template_ids, tags = list(req.template_ids), list(req.tags)
-                if req.collect_environment:
-                    selection = self._collect_environment(run, req, conn)
-                    if selection is not None:
-                        template_ids, tags = selection.template_ids, selection.tags
-
-                command = self._command_builder(
-                    runner.RunOptions(
-                        targets=list(req.targets),
-                        template_ids=template_ids,
-                        template_paths=template_paths(),
-                        tags=tags,
-                        severities=list(req.severities),
-                        threads=req.threads,
-                        timeout_sec=req.timeout_sec,
-                        retries=req.retries,
-                        rate_limit=req.rate_limit,
-                    )
-                )
-                # 실행 명령을 남긴다. '왜 안 잡혔나' 는 무엇을 실행했는지 모르면
-                # 답할 수 없다. 실제로 -id 와 -tags 가 함께 나가 대부분이
-                # 실행되지 않던 문제를 이 기록 없이 한참 뒤에야 찾았음
-                logger.info("nuclei 실행: %s", " ".join(command))
-
-                with FindingBatchWriter(conn) as writer:
-                    self._stream(run, command, rules, writer, conn)
+                excluded_ids = selection_service.enumerator_exclusions(conn, req.mode)
+                # 사전·본 패스 목록 파일. 스캔 종료 시 삭제
+                work = Path(tempfile.mkdtemp(prefix="redar-scan-"))
+                try:
+                    with FindingBatchWriter(conn) as writer:
+                        if req.mode == "environment_driven":
+                            main, basis = self._environment_pass(
+                                run, req, conn, rules, writer, excluded_ids, work
+                            )
+                        else:
+                            main = self._options(req, excluded_ids)
+                            basis = None if req.mode == "explicit" else \
+                                selection_service.basis(
+                                    conn, mode=req.mode, excluded_ids=excluded_ids
+                                )
+                        if not run.cancel.is_set():
+                            self._run_nuclei(run, main, rules, writer, conn, "scanning")
+                finally:
+                    shutil.rmtree(work, ignore_errors=True)
+                if basis is not None:
+                    scan_repo.set_selection_basis(conn, run.scan_id, basis)
 
                 if run.cancel.is_set():
                     status = ScanStatus.CANCELED
+                elif req.collect_environment:
+                    # nuclei 결과를 모은 뒤 조사. 노출 11종은 가이드 매핑 입력
+                    self._collect_environment(run, req, conn)
 
                 # 가이드 매핑. 본문 미탑재여도 매핑은 저장됨 (절대규칙 3)
                 try:
@@ -403,34 +395,103 @@ class ScanService:
             )
         return alive
 
-    def _collect_environment(self, run: _Run, req: ScanRequest, conn):
-        """수집 -> 선별. 실패해도 스캔을 중단하지 않음 (M4 규칙 2).
+    def _options(
+        self, req: ScanRequest, excluded_ids: list[str], **extra: Any
+    ) -> runner.RunOptions:
+        base: dict[str, Any] = dict(
+            targets=list(req.targets), template_ids=list(req.template_ids),
+            template_paths=template_paths(), tags=list(req.tags),
+            severities=list(req.severities), threads=req.threads,
+            timeout_sec=req.timeout_sec, retries=req.retries, rate_limit=req.rate_limit,
+            exclude_ids=excluded_ids,
+        )
+        base.update(extra)
+        return runner.RunOptions(**base)
 
-        environment_driven 이 아니면 선별 결과를 쓰지 않고 조사 기록만 남김
-        """
+    def _run_nuclei(self, run: _Run, opts, rules, writer, conn, phase: str) -> None:
+        command = self._command_builder(opts)
+        # 실행 명령을 남긴다. '왜 안 잡혔나' 는 무엇을 실행했는지 모르면
+        # 답할 수 없다. 실제로 -id 와 -tags 가 함께 나가 대부분이
+        # 실행되지 않던 문제를 이 기록 없이 한참 뒤에야 찾았음
+        logger.info("nuclei 실행 (%s): %s", phase, " ".join(command))
+        self._stream(run, command, rules, writer, conn, phase)
+
+    def _environment_pass(self, run: _Run, req: ScanRequest, conn, rules, writer,
+                          excluded_ids: list[str], work: Path):
+        """사전 패스 -> 제외 계산 -> 본 패스 옵션. 애매하면 전체 (미탐지 0 우선)"""
+        metas = selection_service.load_metas(conn)
+        prepass = selection_service.prepass_files(metas)
+        if not prepass or not settings.OFFICIAL_DIR.is_dir():
+            # 제품 식별 수단이 없으면 제외 근거도 없음. 전체 실행
+            return self._options(req, excluded_ids), selection_service.basis(
+                conn, mode=req.mode, excluded_ids=excluded_ids,
+                fallback_reason="no_index",
+            )
+
+        self._emit_phase(run, "prescanning")
+        pre = runner.RunOptions(
+            targets=list(req.targets),
+            template_list=str(selection_service.write_list(prepass, work, "prepass.txt")),
+            threads=req.threads, timeout_sec=req.timeout_sec, retries=req.retries,
+            rate_limit=req.rate_limit,
+        )
+        self._run_nuclei(run, pre, rules, writer, conn, "prescanning")
+        writer.flush()
+
+        self._emit_phase(run, "selecting_templates")
+        profiles = environment_service.tech_profiles(conn, run.scan_id)
+        envs = []
+        for target in req.targets:
+            profile = profiles.get(environment_service.host_key(target))
+            envs.append(template_exclusion.TargetEnv(
+                profile.detected if profile else frozenset(),
+                bool(profile and profile.app_identified),
+            ))
+        plan = template_exclusion.decide(metas, envs)
+        # 사전 패스분은 이미 실행. 본 패스에서 다시 돌리면 요청 중복
+        skip = {template_exclusion.normalize_path(p) for p in prepass}
+        skip |= {template_exclusion.normalize_path(m.file_path) for m in plan.excluded}
+        files = template_exclusion.main_pass_files(settings.OFFICIAL_DIR, skip)
+        custom = settings.CUSTOM_DIR
+        main = self._options(
+            req, excluded_ids,
+            template_list=str(selection_service.write_list(files, work, "main.txt")),
+            # 사용자 템플릿은 항상 전체
+            template_paths=[str(custom)] if custom.is_dir() and any(custom.iterdir()) else [],
+        )
+        detected = sorted({d for env in envs for d in env.detected})
+        return main, selection_service.basis(
+            conn, mode=req.mode, excluded_ids=excluded_ids, plan=plan,
+            prepass=len(prepass), total_run=len(prepass) + len(files), detected=detected,
+        )
+
+    def _emit_phase(self, run: _Run, phase: str) -> None:
+        # percent 는 None. 총량을 모르는 단계에서 0 을 보내면 '멈춤' 으로 보임
         self._emit(run, "progress", {
-            "scan_id": run.scan_id, "percent": None,
-            "phase": "collecting_environment",
+            "scan_id": run.scan_id, "percent": None, "phase": phase,
             "templates_done": 0, "templates_total": None,
             "findings_so_far": run.findings_so_far,
         })
-        results = []
+
+    def _collect_environment(self, run: _Run, req: ScanRequest, conn) -> None:
+        """nuclei detection + 노출 수집기. 실패해도 스캔을 중단하지 않음 (M4 규칙 2)"""
+        self._emit_phase(run, "collecting_environment")
+        try:
+            profiles = environment_service.tech_profiles(conn, run.scan_id)
+        except Exception:  # noqa: BLE001 - 프로필 해석 실패가 스캔 실패는 아니다
+            logger.warning("환경 프로필 해석 실패", exc_info=True)
+            profiles = {}
         for target in req.targets:
             try:
-                results.append(environment_service.collect_target(
-                    conn, run.scan_id, target, timeout_sec=req.timeout_sec
-                ))
+                environment_service.collect_target(
+                    conn, run.scan_id, target, timeout_sec=req.timeout_sec,
+                    tech=profiles.get(environment_service.host_key(target)),
+                )
             except Exception:  # noqa: BLE001 - 조사 실패가 스캔 실패는 아니다
                 logger.warning("환경 조사 실패: %s", target, exc_info=True)
 
-        if req.mode != "environment_driven":
-            return None
-
-        selection = environment_service.select_templates(conn, results)
-        scan_repo.set_selection_basis(conn, run.scan_id, selection.basis)
-        return selection
-
-    def _stream(self, run: _Run, command, rules, writer, conn) -> None:
+    def _stream(self, run: _Run, command, rules, writer, conn,
+                phase: str = "scanning") -> None:
         last_event = 0.0
         emitted_this_sec = 0
 
@@ -484,7 +545,7 @@ class ScanService:
             self._emit(run, "progress", {
                 "scan_id": run.scan_id,
                 "percent": stats.percent,
-                "phase": "scanning",
+                "phase": phase,
                 "templates_done": stats.requests_done,
                 "templates_total": stats.requests_total,
                 "findings_so_far": run.findings_so_far,

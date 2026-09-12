@@ -109,3 +109,11 @@ def offline_mode(conn: sqlite3.Connection) -> bool:
         "SELECT value FROM settings WHERE key = 'offline_mode'"
     ).fetchone()
     return as_bool(row["value"] if row else None, default=True)
+
+
+def wp_full_enumeration(conn: sqlite3.Connection) -> bool:
+    """WordPress 플러그인·테마 전수 열거 opt-in. 기본 꺼짐 (요청 약 12.5만 증가)"""
+    row = conn.execute(
+        "SELECT value FROM settings WHERE key = 'scan_wp_full_enumeration'"
+    ).fetchone()
+    return as_bool(row["value"] if row else None)

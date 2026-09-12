@@ -27,6 +27,10 @@ class RunOptions:
     template_paths: Sequence[str] = field(default_factory=tuple)
     tags: Sequence[str] = field(default_factory=tuple)
     severities: Sequence[str] = field(default_factory=tuple)
+    # 템플릿 id 제외. 탐지 가치 대비 비용이 큰 열거 템플릿 (-eid)
+    exclude_ids: Sequence[str] = field(default_factory=tuple)
+    # 템플릿 경로 목록 파일. 제외 id 수천 개는 Windows 명령줄 한도(32k) 초과
+    template_list: str | None = None
     threads: int = 20
     timeout_sec: int = 10
     retries: int = 1
@@ -56,8 +60,12 @@ def build_command(opts: RunOptions, exe: str | None = None) -> list[str]:
     for target in opts.targets:
         cmd += ["-target", target]
     # -t 는 경로, -id 는 템플릿 id 필터. id 를 -t 로 넘기면 경로로 해석되어 실패
+    if opts.template_list:
+        cmd += ["-t", opts.template_list]
     for path in opts.template_paths:
         cmd += ["-t", path]
+    if opts.exclude_ids:
+        cmd += ["-eid", ",".join(opts.exclude_ids)]
     # -id 와 -tags 를 함께 주지 않는다. nuclei 는 서로 다른 필터를 AND 로 묶어
     # 교집합만 남기므로, 둘 다 주면 의도한 것보다 훨씬 적게 실행된다
     # (실측: id 몇 건 + tags wordpress -> 사실상 0건)

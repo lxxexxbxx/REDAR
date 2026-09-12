@@ -734,26 +734,6 @@ def test_id_and_tags_never_sent_together():
         )
 
 
-def test_environment_mode_runs_all_templates(conn):
-    """환경 조사로 범위를 좁히지 않는다. 진단 도구에서 선별로 놓치는 것은
-    시간을 아끼는 것보다 나쁨"""
-    from app.services import environment_service
-
-    result = environment_service.EnvironmentResult(
-        profile_id="env_x", target_host="wp.local",
-        stack={"application": {"product": "WordPress", "version": "6.4.2"}},
-        components=[{"type": "wp_plugin", "slug": "contact-form-7",
-                     "version": "5.9", "confidence": "high"}],
-    )
-    selection = environment_service.select_templates(conn, [result])
-
-    assert selection.template_ids == []
-    assert selection.tags == []
-    assert selection.basis["filtered"] is False
-    # 환경 근거는 남아야 보고서가 무엇을 봤는지 설명할 수 있음
-    assert selection.basis["matched_stack"][0]["product"] == "WordPress"
-
-
 # ------------------------------------------------------------- 대상 응답 확인
 
 def test_unreachable_targets_excluded_and_recorded(db_path, allowlisted, scannable):
