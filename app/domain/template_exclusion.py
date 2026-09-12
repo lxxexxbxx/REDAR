@@ -98,11 +98,14 @@ def main_pass_files(official_dir: Path, skip: set[str]) -> list[str]:
     """본 패스 목록 = 디스크의 템플릿 전부 - skip.
 
     색인이 아니라 디스크 기준인 이유: 수동 반입 등 색인에 없는 파일이 조용히 빠지지 않음
+    확장자는 색인과 같은 집합(.yaml·.yml). 한쪽만 보면 본 패스에서 조용히 빠져 미탐지
     """
     if not official_dir.is_dir():
         return []
     files = []
-    for path in sorted(official_dir.rglob("*.yaml")):
+    for path in sorted(
+        [*official_dir.rglob("*.yaml"), *official_dir.rglob("*.yml")]
+    ):
         rel = path.relative_to(official_dir).parts
         if rel[0] in _NON_TEMPLATE_TOP or any(part.startswith(".") for part in rel):
             continue

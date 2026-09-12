@@ -600,13 +600,16 @@ class ScanService:
                     break
                 if handler is None:
                     raise payload            # nuclei 미설치 등 러너 오류
-                if handler is on_stderr:
-                    try:
-                        on_stderr(payload)
-                    except Exception:  # noqa: BLE001 - 진행률 실패가 스캔 실패는 아니다
-                        logger.warning("stderr 처리 실패", exc_info=True)
-                else:
-                    on_stdout(payload)
+                # 한 줄 처리 실패로 스캔 전체를 끝내지 않음. stdout 도 같다 -
+                # 탐지 1건 해석 실패가 스캔을 실패로 만들면 나머지 결과까지 잃음
+                # (adapters/nuclei/parser 모듈 계약)
+                try:
+                    handler(payload)
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "%s 처리 실패", "stderr" if handler is on_stderr else "stdout",
+                        exc_info=True,
+                    )
         except BaseException:
             # 여기서 빠져나가면 nuclei 는 보조 스레드에서 계속 돎. 러너에 중단 요청
             run.cancel.set()

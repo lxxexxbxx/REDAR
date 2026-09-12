@@ -303,6 +303,23 @@ def test_scan_runs_and_stores_findings(client, allowlisted):
     assert len(findings["aggregations"]["by_vuln_type"]) == 14
 
 
+def test_stdout_handler_error_does_not_fail_scan(client, allowlisted, monkeypatch):
+    """탐지 1건 해석 실패로 스캔 전체를 잃지 않음.
+
+    parser 모듈 계약은 '깨진 줄만 건너뜀'. stderr 만 보호하고 stdout 을 열어두면
+    그 계약이 스캔 스레드에서 깨짐 (22.10 과 같은 구조)
+    """
+    from app.adapters.nuclei import parser
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("해석 실패")
+
+    monkeypatch.setattr(parser, "parse_line", boom)
+
+    scan_id = _create(client, ["http://localhost:7860"]).json()["scan_id"]
+    assert _wait_done(client, scan_id)["status"] == "completed"
+
+
 def test_findings_filter_does_not_change_aggregations(client, allowlisted):
     scan_id = _create(client, ["http://localhost:7860"]).json()["scan_id"]
     _wait_done(client, scan_id)

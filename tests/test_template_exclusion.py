@@ -102,5 +102,19 @@ def test_main_pass_files_skip_and_keep_unindexed(tmp_path):
     }
 
 
+def test_main_pass_files_includes_yml_extension(tmp_path):
+    """색인은 .yml 도 넣는다 (template_service). 본 패스가 .yaml 만 보면 조용히 미탐지"""
+    root = tmp_path / "official"
+    for rel in ("http/cves/a.yaml", "http/cves/b.yml"):
+        f = root / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("id: x", encoding="utf-8")
+    files = {te.normalize_path(p) for p in te.main_pass_files(root, set())}
+    assert files == {
+        te.normalize_path(str(root / "http/cves/a.yaml")),
+        te.normalize_path(str(root / "http/cves/b.yml")),
+    }
+
+
 def test_main_pass_files_missing_dir(tmp_path):
     assert te.main_pass_files(tmp_path / "none", set()) == []
