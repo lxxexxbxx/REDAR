@@ -210,6 +210,25 @@ def test_stats_line_parsed():
     assert (p.templates, p.hosts, p.matched, p.errors) == (1234, 1, 5, 2)
 
 
+def test_stderr_reader_survives_handler_error():
+    """핸들러 예외로 리더가 멈추면 stderr 파이프가 차서 nuclei 가 쓰기에서 멈춤"""
+    seen: list[str] = []
+
+    def handler(line: str) -> None:
+        seen.append(line)
+        if len(seen) == 1:
+            raise RuntimeError("첫 줄 처리 실패")
+
+    code = runner.run(
+        [sys.executable, "-c",
+         "import sys; [sys.stderr.write('line%d\\n' % i) for i in range(3)]"],
+        on_stdout_line=lambda line: None,
+        on_stderr_line=handler,
+    )
+    assert code == 0
+    assert seen == ["line0", "line1", "line2"]
+
+
 def test_json_stats_line_parsed():
     """nuclei 3.x 는 -jsonl 과 함께 stats 를 JSON 한 줄로 냄 (v3.11.1 실측).
 
@@ -223,6 +242,13 @@ def test_json_stats_line_parsed():
     assert (p.requests_done, p.requests_total) == (615, 1234)
     assert p.percent == pytest.approx(49.8, abs=0.1)
     assert (p.templates, p.hosts, p.matched, p.errors) == (1234, 1, 5, 2)
+
+
+def test_percent_capped_when_done_exceeds_total():
+    """nuclei 가 리다이렉트까지 세면 완료 수가 총량을 넘음 (v3.11.1 실측 4/3)"""
+    p = progress.parse_stats_line('{"requests":"4","total":"3"}')
+    assert (p.requests_done, p.requests_total, p.percent) == (4, 3, 100.0)
+    assert progress.parse_stats_line("| Requests: 4/3 (133%)").percent == 100.0
 
 
 @pytest.mark.parametrize(

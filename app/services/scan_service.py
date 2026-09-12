@@ -42,6 +42,9 @@ _EVENT_QUEUE_MAX = 2000
 _IDLE_TIMEOUT_SEC = 180.0
 # 연결 유지 신호 주기. 프록시·브라우저가 조용한 연결을 끊지 않게 함
 _HEARTBEAT_SEC = 10.0
+# 출력이 없어도 이 주기로 배치 커밋·진행률 저장. 새 탐지가 없으면 마지막 묶음이
+# 스캔 끝까지 조회되지 않음 (docs/02 §5.3 '1초 단위 배치 커밋')
+_FLUSH_SEC = 1.0
 
 
 def _stats_line(stats, found: int) -> str:
@@ -537,6 +540,8 @@ class ScanService:
                 return
             # 원문 JSON 은 한 줄이 길어 읽을 수 없다. 필요한 값만 추려 남김
             logbuffer.append("진행", _stats_line(stats, run.findings_so_far))
+            # 스캔 스레드에서 실행 (아래 큐 소비). 러너의 리더 스레드에서 conn 을 쓰면
+            # ProgrammingError 로 리더가 죽고 stderr 파이프가 막혀 스캔이 멈춤 (실측)
             scan_repo.set_status(
                 conn, run.scan_id, ScanStatus.RUNNING,
                 templates_total=stats.requests_total,
@@ -551,12 +556,43 @@ class ScanService:
                 "findings_so_far": run.findings_so_far,
             })
 
-        self._command_runner(
-            command,
-            on_stdout_line=on_stdout,
-            on_stderr_line=on_stderr,
-            cancel=run.cancel,
-        )
+        # 러너는 보조 스레드에서 돌고 줄만 큐에 넣음. DB 는 이 스레드(스캔 스레드)만 씀.
+        # sqlite 연결은 스레드 간 공유 불가이고, 별도 연결은 배치 쓰기 트랜잭션에 막힘
+        lines: queue.Queue = queue.Queue()
+        finished = object()
+
+        def pump() -> None:
+            try:
+                self._command_runner(
+                    command,
+                    on_stdout_line=lambda line: lines.put((on_stdout, line)),
+                    on_stderr_line=lambda line: lines.put((on_stderr, line)),
+                    cancel=run.cancel,
+                )
+            except BaseException as exc:  # noqa: BLE001 - 스캔 스레드에서 다시 올림
+                lines.put((None, exc))
+            finally:
+                lines.put((finished, None))
+
+        threading.Thread(target=pump, daemon=True).start()
+        while True:
+            try:
+                handler, payload = lines.get(timeout=_FLUSH_SEC)
+            except queue.Empty:
+                writer.flush()               # 출력이 멎어도 탐지 결과가 조회되게 함
+                continue
+            if handler is finished:
+                break
+            if handler is None:
+                raise payload                # nuclei 미설치 등 러너 오류
+            if handler is on_stderr:
+                try:
+                    on_stderr(payload)
+                except Exception:  # noqa: BLE001 - 진행률 실패가 스캔 실패는 아니다
+                    logger.warning("stderr 처리 실패", exc_info=True)
+            else:
+                on_stdout(payload)
+        writer.flush()
 
     # -------------------------------------------------------------- 이벤트
 

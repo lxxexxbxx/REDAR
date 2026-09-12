@@ -32,6 +32,13 @@ def _int(text: str) -> int | None:
         return None
 
 
+def _percent(done: int | None, total: int | None) -> float | None:
+    """완료 비율. nuclei 는 리다이렉트 등으로 완료 수가 총량을 넘기도 함 (실측 4/3) - 100 에서 자름"""
+    if done is None or not total:
+        return None
+    return min(100.0, round(done / total * 100, 1))
+
+
 def _parse_json(text: str) -> Progress | None:
     """nuclei 3.x 는 -jsonl 과 함께 stats 를 JSON 한 줄로 냄 (v3.11.1 실측).
 
@@ -47,7 +54,7 @@ def _parse_json(text: str) -> Progress | None:
     done = _int(str(data.get("requests", "")))
     total = _int(str(data.get("total", "")))
     return Progress(
-        percent=round(done / total * 100, 1) if done is not None and total else None,
+        percent=_percent(done, total),
         requests_done=done,
         requests_total=total,
         templates=_int(str(data.get("templates", ""))),
@@ -75,7 +82,7 @@ def parse_stats_line(line: str) -> Progress | None:
         if fraction:
             done, total = int(fraction.group(1)), int(fraction.group(2))
             # 표기된 퍼센트를 그대로 쓰지 않고 재계산. 반올림 표기 차이 제거
-            percent = round(done / total * 100, 1) if total else None
+            percent = _percent(done, total)
 
     progress = Progress(
         percent=percent,

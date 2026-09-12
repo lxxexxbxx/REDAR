@@ -1,6 +1,7 @@
 """스캔 흐름 두 모드. nuclei 대신 명령을 기록하는 러너를 주입"""
 from __future__ import annotations
 
+import threading
 import time
 
 import pytest
@@ -47,8 +48,31 @@ class _Recorder:
         return 0
 
 
-def _run_scan(db_path, mode):
-    rec = _Recorder()
+class _ThreadedStats(_Recorder):
+    """실제 runner 처럼 stderr 콜백을 별도 리더 스레드에서 호출"""
+
+    LINE = ('{"duration":"0:00:05","errors":"0","hosts":"1","matched":"0","percent":"49",'
+            '"requests":"615","templates":"1","total":"1234"}')
+
+    def run(self, command, *, on_stdout_line, on_stderr_line=None, cancel=None):
+        errors: list[BaseException] = []
+
+        def reader() -> None:
+            try:
+                on_stderr_line(self.LINE)
+            except BaseException as exc:  # noqa: BLE001 - 호출 스레드로 전달해 실패시킴
+                errors.append(exc)
+
+        worker = threading.Thread(target=reader)
+        worker.start()
+        worker.join()
+        if errors:
+            raise errors[0]
+        return 0
+
+
+def _run_scan(db_path, mode, rec=None):
+    rec = rec or _Recorder()
     scan_service.set_service(ScanService(
         db_path, command_builder=rec.build, command_runner=rec.run,
         prober=lambda t: list(t),
@@ -95,6 +119,14 @@ def test_full_scan_runs_once_and_excludes_enumerators(db_path, seeded):
     assert basis["mode"] == "full_scan"
     assert basis["universe"] == "all_templates"
     assert basis["excluded_enumerators"] == list(ENUMERATOR_IDS)
+
+
+def test_progress_from_reader_thread_is_recorded(db_path, seeded):
+    """stderr 는 리더 스레드에서 옴. 스캔 스레드의 DB 연결을 쓰면 ProgrammingError 로
+    리더가 죽고, 비워지지 않은 stderr 파이프에 nuclei 가 막혀 스캔이 멈춤 (실측)"""
+    rec, view = _run_scan(db_path, "full_scan", _ThreadedStats())
+    assert view["status"] == "completed", view.get("error")
+    assert (view["templates_done"], view["templates_total"]) == (615, 1234)
 
 
 def test_wp_full_enumeration_opt_in(db_path, seeded):

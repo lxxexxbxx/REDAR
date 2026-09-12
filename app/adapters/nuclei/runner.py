@@ -88,10 +88,14 @@ def build_command(opts: RunOptions, exe: str | None = None) -> list[str]:
 
 
 def _drain(stream, handler: Callable[[str], None], label: str) -> None:
+    """파이프를 끝까지 비움. 읽기를 멈추면 버퍼가 차서 nuclei 가 쓰기에서 멈춤"""
     try:
         for line in stream:
-            handler(line.rstrip("\n"))
-    except Exception:  # noqa: BLE001 - 리더 스레드 예외가 스캔을 죽이면 안 됨
+            try:
+                handler(line.rstrip("\n"))
+            except Exception:  # noqa: BLE001 - 한 줄 처리 실패로 읽기를 멈추지 않음
+                logger.warning("%s 처리 실패. 읽기는 계속", label, exc_info=True)
+    except Exception:  # noqa: BLE001 - 스트림 자체 오류. 리더 스레드가 스캔을 죽이면 안 됨
         logger.warning("%s 리더 중단", label, exc_info=True)
 
 
