@@ -16,7 +16,7 @@ import {
   VULN_TYPE_LABEL, VULN_TYPE_ORDER,
   confirmDialog, coverageNotice, dash, emptyState, esc, fmtDuration, fmtTime,
   scanTargets,
-  runEnvironment, selectionBasis, severityAxis, severityTag, target,
+  optionSummary, runEnvironment, selectionBasis, severityAxis, severityTag, target,
   targetEnvironment, targetProbe,
   toast, vulnTypeAxis,
 } from "./ui.js";
@@ -331,41 +331,10 @@ function viewScan() {
           </label>`).join("")}
       </div>
       <div id="mode-fields"></div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <h2>실행 옵션</h2>
-      </div>
-      <div class="row" style="align-items:flex-start;gap:20px">
-        <label class="field" style="flex:1;min-width:150px">
-          <span>동시 실행</span>
-          <input type="number" id="threads" value="${state.settings?.scan_defaults?.threads ?? 20}" min="1" max="200">
-          <small>한 번에 보낼 요청 수입니다. 낮출수록 느리지만 부하가 적습니다.</small>
-        </label>
-        <label class="field" style="flex:1;min-width:150px">
-          <span>응답 대기 · 초</span>
-          <input type="number" id="timeout" value="${state.settings?.scan_defaults?.timeout_sec ?? 10}" min="1" max="300">
-          <small>이 시간 안에 답이 없으면 넘어갑니다.</small>
-        </label>
-        <label class="field" style="flex:1;min-width:150px">
-          <span>재시도</span>
-          <input type="number" id="retries" value="${state.settings?.scan_defaults?.retries ?? 1}" min="0" max="10">
-          <small>실패한 요청을 다시 보낼 횟수입니다.</small>
-        </label>
-        <label class="field" style="flex:1;min-width:150px">
-          <span>초당 요청 상한</span>
-          <input type="number" id="ratelimit" placeholder="제한 없음" min="1">
-          <small>운영 중인 서버라면 지정하시길 권장합니다.</small>
-        </label>
-      </div>
-      <div class="toggle">
-        <input type="checkbox" id="collect-env" checked>
-        <span class="t-body">
-          <b>대상 환경 먼저 조사</b>
-          <small>어떤 웹서버·CMS·플러그인을 쓰는지 확인합니다. 보고서에 대상 정보가
-            함께 실립니다.</small>
-        </span>
+      <div class="hintbox" style="margin-top:var(--gap)">
+        <b>실행 옵션</b>
+        <small>${optionSummary(state.settings?.scan_defaults)} ·
+          <a href="#/settings">설정에서 변경</a></small>
       </div>
       <div id="range-notice"></div>
       <div class="actions">
@@ -488,17 +457,6 @@ function renderModeFields() {
   const host = document.getElementById("mode-fields");
   const mode = scanMode();
 
-  // 환경 기반 선별은 조사 결과가 입력. 끄면 백엔드가 400 으로 거부하므로 미리 고정
-  const env = document.getElementById("collect-env");
-  if (env) {
-    const required = mode === "environment_driven";
-    if (required) env.checked = true;
-    env.disabled = required;
-    env.closest(".toggle").querySelector("small").textContent = required
-      ? "어떤 웹서버·CMS·플러그인을 쓰는지 확인. 환경 기반 선별에 필요해 항상 켜짐"
-      : "어떤 웹서버·CMS·플러그인을 쓰는지 확인. 보고서에 대상 정보가 함께 실림";
-  }
-
   if (mode === "full_scan") {
     host.innerHTML = `
       <div class="hintbox">
@@ -583,17 +541,11 @@ function buildScanPayload() {
     ).map((node) => node.dataset.sev);
   }
 
-  const rateLimit = Number(document.getElementById("ratelimit").value);
+  // 실행 옵션은 서버가 설정값으로 채움 (설정 한 곳). 환경 조사는 항상 수행 -
+  // 끄면 노출 점검·패치 계획·조치 가이드 입력이 빠지는데 추가 요청은 약 15건뿐
   return {
     targets: splitList(document.getElementById("targets").value),
     template_selection: selection,
-    collect_environment: document.getElementById("collect-env").checked,
-    options: {
-      threads: Number(document.getElementById("threads").value) || 20,
-      timeout_sec: Number(document.getElementById("timeout").value) || 10,
-      retries: Number(document.getElementById("retries").value) || 0,
-      ...(rateLimit ? { rate_limit: rateLimit } : {}),
-    },
   };
 }
 
@@ -1158,7 +1110,12 @@ function viewSettings() {
           <input type="number" id="d-timeout" value="${s.scan_defaults?.timeout_sec ?? 10}" min="1" max="300"></label>
         <label class="field" style="flex:1"><span>재시도</span>
           <input type="number" id="d-retries" value="${s.scan_defaults?.retries ?? 1}" min="0" max="10"></label>
+        <label class="field" style="flex:1"><span>초당 요청 상한</span>
+          <input type="number" id="d-ratelimit" value="${s.scan_defaults?.rate_limit ?? ""}" min="0" placeholder="제한 없음"></label>
       </div>
+      <p style="color:var(--faint);font-size:12px;margin:6px 0 0">
+        스캔은 여기 값을 그대로 씁니다. 초당 요청 상한은 비우거나 0 이면 제한 없음이며,
+        운영 중인 서버라면 지정을 권장합니다.</p>
       <div class="toggle">
         <input type="checkbox" id="d-wp-enum" ${s.scan_defaults?.wp_full_enumeration ? "checked" : ""}>
         <span class="t-body">
@@ -1265,6 +1222,7 @@ async function saveSettings(kind) {
       threads: Number(document.getElementById("d-threads").value),
       timeout_sec: Number(document.getElementById("d-timeout").value),
       retries: Number(document.getElementById("d-retries").value),
+      rate_limit: Number(document.getElementById("d-ratelimit").value) || 0,
       wp_full_enumeration: document.getElementById("d-wp-enum").checked,
     };
   } else if (kind === "llm") {

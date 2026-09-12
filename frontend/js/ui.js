@@ -336,6 +336,18 @@ export function toast(message, kind = "ok") {
   toastTimer = setTimeout(() => node.remove(), 3600);
 }
 
+/* 스캔 실행 옵션 한 줄 요약. 입력은 설정 화면 한 곳 */
+export function optionSummary(defaults) {
+  const o = defaults || {};
+  return [
+    `동시 ${o.threads ?? 20}`,
+    `대기 ${o.timeout_sec ?? 10}초`,
+    `재시도 ${o.retries ?? 1}`,
+    `초당 상한 ${o.rate_limit ? `${o.rate_limit}건` : "없음"}`,
+    `전수 열거 ${o.wp_full_enumeration ? "켬" : "끔"}`,
+  ].map(esc).join(" · ");
+}
+
 const FALLBACK_LABEL = {
   no_application: "애플리케이션 미확인 → 전체 실행",
   no_index: "템플릿 색인 없음 → 전체 실행",

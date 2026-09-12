@@ -71,7 +71,7 @@ class _ThreadedStats(_Recorder):
         return 0
 
 
-def _run_scan(db_path, mode, rec=None):
+def _run_scan(db_path, mode, rec=None, options=None):
     rec = rec or _Recorder()
     scan_service.set_service(ScanService(
         db_path, command_builder=rec.build, command_runner=rec.run,
@@ -83,6 +83,8 @@ def _run_scan(db_path, mode, rec=None):
             body = {"targets": ["http://localhost:7860"],
                     "template_selection": {"mode": mode},
                     "collect_environment": mode == "environment_driven"}
+            if options is not None:
+                body["options"] = options
             created = client.post(f"{API}/scans", json=body)
             assert created.status_code == 202, created.text
             scan_id = created.json()["scan_id"]
@@ -145,6 +147,33 @@ def test_explicit_mode_keeps_user_choice(db_path, seeded):
     rec, view = _run_scan(db_path, "explicit")
     assert list(rec.options[0].exclude_ids) == []
     assert view["selection_basis"] is None
+
+
+def test_options_default_to_settings(db_path, seeded):
+    """스캔 화면에 옵션 입력이 없음. 요청에 없으면 설정값을 씀 (설정 한 곳)"""
+    with session(db_path) as conn:
+        settings_repo.put_many(conn, {"scan_default_threads": 7,
+                                      "scan_default_rate_limit": 30})
+    try:
+        rec, _ = _run_scan(db_path, "full_scan")
+        assert (rec.options[0].threads, rec.options[0].rate_limit) == (7, 30)
+    finally:
+        with session(db_path) as conn:
+            settings_repo.put_many(conn, {"scan_default_threads": 20,
+                                          "scan_default_rate_limit": 0})
+
+
+def test_explicit_options_override_settings(db_path, seeded):
+    """API 로 직접 넘긴 항목만 덮어쓰고 나머지는 설정값"""
+    rec, _ = _run_scan(db_path, "full_scan", options={"threads": 3})
+    assert rec.options[0].threads == 3
+    assert rec.options[0].timeout_sec == 10
+
+
+def test_zero_rate_limit_means_unlimited():
+    """0 = 제한 없음. None 은 '지정 안 함' 과 구분되지 않아 저장값으로 쓰지 않음"""
+    assert settings_repo.scan_defaults({"scan_default_rate_limit": "0"})["rate_limit"] is None
+    assert settings_repo.scan_defaults({"scan_default_rate_limit": "25"})["rate_limit"] == 25
 
 
 def test_filter_mode_excludes_enumerators(db_path, seeded):

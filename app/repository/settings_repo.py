@@ -111,6 +111,20 @@ def offline_mode(conn: sqlite3.Connection) -> bool:
     return as_bool(row["value"] if row else None, default=True)
 
 
+def scan_defaults(raw: dict[str, str]) -> dict[str, int | None]:
+    """설정의 스캔 옵션. 스캔 화면에 입력이 없어 이 값이 곧 실행값 (옵션은 설정 한 곳)
+
+    초당 상한 0 = 제한 없음. None 은 '지정 안 함' 과 구분되지 않아 저장값으로 쓰지 않음
+    """
+    rate = as_int(raw.get("scan_default_rate_limit"), 0)
+    return {
+        "threads": as_int(raw.get("scan_default_threads"), 20),
+        "timeout_sec": as_int(raw.get("scan_default_timeout"), 10),
+        "retries": as_int(raw.get("scan_default_retries"), 1),
+        "rate_limit": rate if rate > 0 else None,
+    }
+
+
 def wp_full_enumeration(conn: sqlite3.Connection) -> bool:
     """WordPress 플러그인·테마 전수 열거 opt-in. 기본 꺼짐 (요청 약 12.5만 증가)"""
     row = conn.execute(

@@ -33,11 +33,13 @@ class TemplateSelection(BaseModel):
 
 
 class ScanOptions(BaseModel):
+    """보낸 항목만 적용. 빠진 항목은 설정의 스캔 옵션 (docs/00 §2)"""
+
     model_config = ConfigDict(extra="forbid")
 
-    threads: int = Field(default=20, ge=1, le=200)
-    timeout_sec: int = Field(default=10, ge=1, le=300)
-    retries: int = Field(default=1, ge=0, le=10)
+    threads: int | None = Field(default=None, ge=1, le=200)
+    timeout_sec: int | None = Field(default=None, ge=1, le=300)
+    retries: int | None = Field(default=None, ge=0, le=10)
     rate_limit: int | None = Field(default=None, ge=1)
 
 
@@ -47,7 +49,7 @@ class CreateScanRequest(BaseModel):
     targets: list[str] = Field(min_length=1)
     template_selection: TemplateSelection
     collect_environment: bool = True
-    options: ScanOptions = Field(default_factory=ScanOptions)
+    options: ScanOptions | None = None
     # 포트 범위가 상한을 넘을 때만 의미가 있음. 기본값은 되묻기
     confirm_expanded: bool = False
 
@@ -81,10 +83,8 @@ def create_scan(body: CreateScanRequest) -> dict[str, Any]:
             tags=selection.tags,
             severities=selection.severity,
             collect_environment=body.collect_environment,
-            threads=body.options.threads,
-            timeout_sec=body.options.timeout_sec,
-            retries=body.options.retries,
-            rate_limit=body.options.rate_limit,
+            # 보낸 항목만 넘김. 빠진 항목은 서비스가 설정값으로 채움
+            options=body.options.model_dump(exclude_none=True) if body.options else {},
             confirm_expanded=body.confirm_expanded,
         )
     )

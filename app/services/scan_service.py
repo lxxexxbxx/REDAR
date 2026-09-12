@@ -147,6 +147,9 @@ class ScanRequest:
     timeout_sec: int = 10
     retries: int = 1
     rate_limit: int | None = None
+    # API 로 받은 옵션 중 명시된 항목. 있으면 빠진 항목을 설정값으로 채움.
+    # None 이면 위 값을 그대로 씀 (직접 생성·테스트)
+    options: dict[str, Any] | None = None
     # 포트 범위 전개가 상한을 넘을 때의 사용자 동의. 기본값은 되묻기
     confirm_expanded: bool = False
 
@@ -223,6 +226,15 @@ class ScanService:
             )
 
         with session(self._db_path) as conn:
+            if req.options is not None:
+                # 스캔 화면에 옵션 입력이 없음. 요청에 없는 항목은 설정값 (설정 한 곳)
+                resolved = settings_repo.scan_defaults(settings_repo.get_all(conn))
+                resolved.update(req.options)
+                req = replace(
+                    req, threads=resolved["threads"], timeout_sec=resolved["timeout_sec"],
+                    retries=resolved["retries"], rate_limit=resolved["rate_limit"],
+                    options=None,
+                )
             allowlist = settings_repo.target_allowlist(conn)
             # 판정은 호스트 기준. 전개 결과 전체를 검사하면 같은 호스트를 수천 번 봄
             hosts = target_range.hosts(req.targets)

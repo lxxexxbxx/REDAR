@@ -40,6 +40,8 @@ class ScanDefaults(BaseModel):
     threads: int | None = Field(default=None, ge=1, le=200)
     timeout_sec: int | None = Field(default=None, ge=1, le=300)
     retries: int | None = Field(default=None, ge=0, le=10)
+    # 초당 요청 상한. 0 = 제한 없음
+    rate_limit: int | None = Field(default=None, ge=0, le=10000)
     # WordPress 전수 열거 opt-in. 켜면 요청 약 12.5만 증가
     wp_full_enumeration: bool | None = None
 
@@ -99,9 +101,7 @@ def _view(raw: dict[str, str]) -> dict[str, Any]:
             "api_key_set": bool(raw.get("llm_api_key")),
         },
         "scan_defaults": {
-            "threads": settings_repo.as_int(raw.get("scan_default_threads"), 20),
-            "timeout_sec": settings_repo.as_int(raw.get("scan_default_timeout"), 10),
-            "retries": settings_repo.as_int(raw.get("scan_default_retries"), 1),
+            **settings_repo.scan_defaults(raw),
             "wp_full_enumeration": settings_repo.as_bool(
                 raw.get("scan_wp_full_enumeration")
             ),
@@ -222,6 +222,7 @@ def update_settings(body: UpdateSettingsRequest) -> dict[str, Any]:
             "threads": "scan_default_threads",
             "timeout_sec": "scan_default_timeout",
             "retries": "scan_default_retries",
+            "rate_limit": "scan_default_rate_limit",
             "wp_full_enumeration": "scan_wp_full_enumeration",
         }
         for field_name, value in body.scan_defaults.model_dump(
