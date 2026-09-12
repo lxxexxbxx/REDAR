@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.repository import templates as template_repo
 from app.repository.db import session
@@ -40,14 +40,6 @@ class ValidateRequest(BaseModel):
 
     yaml: str | None = None
     form: dict[str, Any] | None = None
-
-
-class DryrunRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    yaml: str
-    target: str
-    timeout_sec: int = Field(default=10, ge=1, le=120)
 
 
 def _csv(value: str | None) -> list[str] | None:
@@ -98,14 +90,6 @@ def validate_template(body: ValidateRequest) -> dict[str, Any]:
         text = builder.build(body.form)
     # 검증한 YAML 을 함께 돌려줌. 프론트가 YAML 을 조립하면 조립 규칙이 두 곳에 생김
     return {**validator.validate(text), "yaml": text}
-
-
-@router.post("/templates/dryrun")
-def dryrun_template(body: DryrunRequest) -> dict[str, Any]:
-    with session() as conn:
-        return service.dryrun(
-            conn, body.yaml, body.target, timeout_sec=body.timeout_sec
-        )
 
 
 @router.post("/templates/sync")

@@ -5,7 +5,6 @@ nuclei 는 실행하지 않음. 문법 검증은 미설치 시 건너뜀으로 �
 """
 from __future__ import annotations
 
-import json
 import sqlite3
 
 import pytest
@@ -379,91 +378,17 @@ def test_detection_template_flagged(conn, custom_dir, clean_templates):
     assert template_repo.get(conn, "wp-detect")["is_detection"] is True
 
 
-# ─────────────────────────────────────────── 드라이런 (완료 조건 4)
+# ─────────────────────────────────────────── 드라이런 (v0.5 제거)
 
-def _dryrun_runner(matched_ids: set[str]):
-    """nuclei 대체. 매칭된 템플릿만 JSONL 로 출력하는 동작을 모사"""
+def test_dryrun_endpoint_removed():
+    """드라이런은 제거된 기능. 경로가 남으면 대상에 요청을 보내는 입구가 남음"""
+    from fastapi.testclient import TestClient
 
-    def run(root, target, timeout_sec) -> list[str]:
-        lines = []
-        for path in sorted(root.glob("*.yaml")):
-            document = yaml.safe_load(path.read_text(encoding="utf-8"))
-            if document["id"] in matched_ids:
-                lines.append(json.dumps({
-                    "template-id": document["id"],
-                    "matched-at": target,
-                    "request": "POST /wp-json/xyz/v1/run HTTP/1.1",
-                    "response": "HTTP/1.1 200 OK\n\nuid=0(root)",
-                }))
-        return lines
+    from app.main import app
 
-    return run
-
-
-@pytest.fixture
-def allowlisted(conn):
-    conn.execute(
-        "INSERT INTO settings (key, value) VALUES ('target_allowlist', ?)"
-        " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-        (json.dumps(["example.com"]),),
-    )
-    conn.commit()
-    yield
-    conn.execute("UPDATE settings SET value = '[]' WHERE key = 'target_allowlist'")
-    conn.commit()
-
-
-def test_dryrun_identifies_failing_matcher(conn, allowlisted):
-    """matched: false 일 때 어느 matcher 에서 실패했는지 특정되어야 한다"""
-    text = builder.build(VALID_FORM)
-    # status 변형만 매칭. word 변형과 원본은 미매칭
-    result = service.dryrun(
-        conn, text, "http://example.com",
-        runner=_dryrun_runner({"demo-rce-redar-m0"}),
-    )
-
-    assert result["matched"] is False
-    results = result["requests"][0]["matcher_results"]
-    assert [(r["type"], r["matched"]) for r in results] == [
-        ("status", True), ("word", False),
-    ]
-
-
-def test_dryrun_reports_match_with_evidence(conn, allowlisted):
-    text = builder.build(VALID_FORM)
-    result = service.dryrun(
-        conn, text, "http://example.com",
-        runner=_dryrun_runner(
-            {"demo-rce", "demo-rce-redar-m0", "demo-rce-redar-m1"}
-        ),
-    )
-    assert result["matched"] is True
-    assert result["requests"][0]["response_status"] == 200
-    assert "uid=" in result["requests"][0]["response_excerpt"]
-    assert all(r["matched"] for r in result["requests"][0]["matcher_results"])
-    assert result["duration_ms"] >= 0
-
-
-def test_dryrun_records_target(conn, allowlisted):
-    """입력한 대상을 기록. 게이트로 막지 않되 무엇에 요청했는지는 남아야 함
-    (절대규칙 6 개정 - 설정에서 대상을 등록하는 화면이 없어졌음)"""
-    from app.repository import settings_repo
-
-    service.dryrun(
-        conn, builder.build(VALID_FORM), "http://evil.example.net:8080/x",
-        runner=_dryrun_runner(set()),
-    )
-    # 호스트로 정규화되어 기록됨
-    assert "evil.example.net" in settings_repo.target_allowlist(conn)
-
-
-def test_dryrun_rejects_malformed_target(conn, allowlisted):
-    """형식 검사는 그대로. 해석 불가 대상에 요청을 보내면 안 됨"""
-    with pytest.raises(ValueError):
-        service.dryrun(
-            conn, builder.build(VALID_FORM), "http://h:abc/",
-            runner=_dryrun_runner(set()),
-        )
+    response = TestClient(app).post("/api/v1/templates/dryrun", json={})
+    assert response.status_code in (404, 405)
+    assert not hasattr(service, "dryrun")
 
 
 # ─────────────────────────────────────────── sync (완료 조건 5)

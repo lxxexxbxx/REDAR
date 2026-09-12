@@ -231,7 +231,7 @@ class ScanService:
                 # 사용자가 방금 직접 입력한 대상이므로 그 입력이 곧 동의다.
                 # 같은 값을 설정에 한 번 더 적게 하는 것은 통제가 아니라 반복 작업이며,
                 # 등록 결과는 허용 목록에 남아 무엇을 스캔했는지 추적 가능
-                # (절대규칙 6 개정. 임포트·드라이런·API 직접 호출에는 게이트 유지)
+                # (절대규칙 6 개정. 임포트·API 직접 호출에는 게이트 유지)
                 auto_allowed = settings_repo.add_allowlist(conn, rejected)
                 logger.info("허용 목록 자동 등록 %s", auto_allowed)
             else:

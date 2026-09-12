@@ -11,8 +11,6 @@ import json
 import logging
 import sqlite3
 import subprocess
-import tempfile
-import time
 from pathlib import Path
 from typing import Any
 
@@ -20,8 +18,6 @@ import yaml
 
 from app.config import settings
 from app.domain import template_meta
-from app.domain import url as urlmod
-from app.domain.allowlist import rejected_targets
 from app.domain.enums import Severity
 from app.domain.vuln_type import normalize
 from app.repository import settings_repo
@@ -38,7 +34,6 @@ logger = logging.getLogger(__name__)
 _SOURCE_OFFICIAL = "official"
 _SOURCE_CUSTOM = "custom"
 _SYNC_TIMEOUT_SEC = 600
-_DRYRUN_TIMEOUT_SEC = 60
 # 자산 식별 전용 템플릿. 취약점이 아니므로 보고서 부록으로 간다 (docs/05 자주 하는 실수)
 _DETECTION_TAGS = frozenset({"tech", "detect", "detection", "favicon"})
 
@@ -368,138 +363,3 @@ def _run_update() -> None:
             + (f": {detail.splitlines()[-1][:300]}" if detail else ""),
             status_code=502,
         )
-
-
-# ────────────────────────────────────────────── 드라이런
-
-def dryrun(
-    conn: sqlite3.Connection,
-    yaml_text: str,
-    target: str,
-    *,
-    timeout_sec: int = 10,
-    runner=None,
-) -> dict[str, Any]:
-    """대상 1개에 실제 요청. matcher 별 결과를 돌려줌
-
-    matcher 를 하나만 남긴 변형 템플릿을 함께 실행해 실패 지점을 특정함
-    nuclei 는 매칭된 결과만 출력하므로 원본만으로는 어느 matcher 가 걸렸는지 알 수 없음
-    """
-    urlmod.parse(target)                       # 형식 오류는 여기서 걸린다
-    # 사용자가 방금 입력한 대상이므로 그 입력이 곧 동의. 스캔과 같은 기준
-    # (절대규칙 6 개정). 기록은 남겨 무엇에 요청을 보냈는지 추적 가능
-    settings_repo.add_allowlist(conn, [target])
-
-    document = yaml.safe_load(yaml_text)
-    if not isinstance(document, dict):
-        raise ScanError("INVALID_REQUEST", "YAML 최상위가 매핑이 아닙니다.")
-    base_id = str(document.get("id") or "dryrun")
-    matchers = _first_matchers(document)
-    if not matchers:
-        raise ScanError("INVALID_REQUEST", "탐지 조건이 없습니다.")
-
-    started = time.monotonic()
-    with tempfile.TemporaryDirectory(prefix="redar-dryrun-") as tmp:
-        root = Path(tmp)
-        (root / "main.yaml").write_text(yaml_text, encoding="utf-8")
-        variants: dict[str, dict[str, Any]] = {}
-        for index, matcher in enumerate(matchers):
-            variant_id = f"{base_id}-redar-m{index}"
-            variant = _single_matcher_document(document, index)
-            variant["id"] = variant_id
-            (root / f"m{index}.yaml").write_text(
-                yaml.safe_dump(variant, sort_keys=False, allow_unicode=True),
-                encoding="utf-8",
-            )
-            variants[variant_id] = {
-                "index": index,
-                "type": matcher.get("type"),
-                "name": matcher.get("name") or f"m{index}",
-            }
-
-        execute = runner or _run_dryrun
-        lines = execute(root, target, timeout_sec)
-
-    matched_ids: dict[str, dict[str, Any]] = {}
-    for line in lines:
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(event, dict) and event.get("template-id"):
-            matched_ids[str(event["template-id"])] = event
-
-    matcher_results = [
-        {
-            "type": meta["type"],
-            "name": meta["name"],
-            "matched": variant_id in matched_ids,
-        }
-        for variant_id, meta in sorted(variants.items(), key=lambda kv: kv[1]["index"])
-    ]
-    main_event = matched_ids.get(base_id)
-
-    return {
-        "matched": main_event is not None,
-        "duration_ms": int((time.monotonic() - started) * 1000),
-        "requests": [{
-            "request": (main_event or {}).get("request"),
-            "response_status": _status_of(main_event),
-            "response_excerpt": ((main_event or {}).get("response") or "")[:400] or None,
-            "matcher_results": matcher_results,
-        }],
-        "warnings": validator.check_policy(yaml_text)["warnings"],
-    }
-
-
-def _first_matchers(document: dict[str, Any]) -> list[dict[str, Any]]:
-    requests = document.get("http") or document.get("requests") or []
-    if not isinstance(requests, list):
-        return []
-    for entry in requests:
-        if isinstance(entry, dict) and isinstance(entry.get("matchers"), list):
-            return [m for m in entry["matchers"] if isinstance(m, dict)]
-    return []
-
-
-def _single_matcher_document(document: dict[str, Any], keep: int) -> dict[str, Any]:
-    """matcher 하나만 남긴 사본. 원본을 변형하지 않음"""
-    copy = json.loads(json.dumps(document, default=str))
-    requests = copy.get("http") or copy.get("requests") or []
-    for entry in requests:
-        if isinstance(entry, dict) and isinstance(entry.get("matchers"), list):
-            entry["matchers"] = [entry["matchers"][keep]]
-            entry.pop("matchers-condition", None)
-            break
-    return copy
-
-
-def _run_dryrun(root: Path, target: str, timeout_sec: int) -> list[str]:
-    binary = settings.nuclei_bin()
-    if not binary:
-        raise ScanError(
-            "NUCLEI_UNAVAILABLE", "nuclei 실행 파일 없음", status_code=503
-        )
-    command = [
-        binary, "-t", str(root), "-target", target, "-jsonl", "-silent", "-nc",
-        "-duc", "-irr", "-timeout", str(timeout_sec), "-retries", "0",
-    ]
-    try:
-        proc = subprocess.run(
-            command, capture_output=True, text=True,
-            timeout=_DRYRUN_TIMEOUT_SEC, encoding="utf-8", errors="replace",
-            stdin=subprocess.DEVNULL,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise ScanError("INTERNAL_ERROR", f"드라이런 실행 실패: {exc}") from exc
-    return proc.stdout.splitlines()
-
-
-def _status_of(event: dict[str, Any] | None) -> int | None:
-    if not event:
-        return None
-    response = event.get("response") or ""
-    parts = response.split(" ", 2)
-    if len(parts) >= 2 and parts[1].isdigit():
-        return int(parts[1])
-    return None

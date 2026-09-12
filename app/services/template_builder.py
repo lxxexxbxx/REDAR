@@ -246,7 +246,7 @@ def _matchers(raw: Any) -> list[dict[str, Any]]:
             raise BuildError(f"matchers[{index}].values", "값을 입력하세요.")
 
         matcher: dict[str, Any] = {"type": kind}
-        # 드라이런이 matcher 별 결과를 특정하려면 이름이 필요 (M5 완료 조건)
+        # 탐지 결과의 matcher-name 과 fingerprint 가 matcher 를 구분하려면 이름이 필요
         matcher["name"] = f"m{index}"
         if kind == "status":
             try:

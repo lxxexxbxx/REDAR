@@ -84,23 +84,6 @@ export async function viewTemplates() {
         ${state.editing ? '<button data-tpl="cancel-edit">편집 취소</button>' : ""}
       </div>
       <div id="tpl-result"></div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <h2>드라이런</h2>
-      </div>
-      <p style="color:var(--muted);margin:0 0 12px">
-        저장 전에 대상 1개로 실제 요청을 보내 matcher 별 결과를 확인합니다.
-      </p>
-      <label class="field">
-        <span>대상</span>
-        <input type="text" id="tpl-target" placeholder="http://192.168.1.50">
-      </label>
-      <div class="actions">
-        <button data-tpl="dryrun">드라이런 실행</button>
-      </div>
-      <div id="tpl-dryrun"></div>
     </div>`;
 }
 
@@ -169,7 +152,7 @@ function emptyInventory() {
       <small>인터넷이 없는 환경용입니다. 아래 경로에 <span class="mono">.yaml</span> 을 넣고
         <b>폴더 재색인</b> 을 실행하세요.<br><span class="mono">${esc(dir)}</span></small>
       <b style="margin-top:10px">3 · 직접 작성</b>
-      <small>아래 폼으로 진단 항목을 만들어 저장합니다. 저장 전 드라이런으로 매칭을 확인할 수 있습니다.</small>
+      <small>아래 폼으로 진단 항목을 만들어 저장합니다. 저장 전 YAML 미리보기로 검증할 수 있습니다.</small>
     </div>
   </div>`;
 }
@@ -419,41 +402,6 @@ async function save() {
                 syntax: result.syntax || {} });
 }
 
-async function dryrun() {
-  const target = document.getElementById("tpl-target").value.trim();
-  const box = document.getElementById("tpl-dryrun");
-  if (!target) { toast("대상을 입력하세요.", "err"); return; }
-
-  const built = await api.validateTemplate({ form: collectForm() });
-  if (!built.policy.valid) {
-    toast("정책 검증을 먼저 통과해야 합니다.", "err");
-    renderCheck(built);
-    return;
-  }
-  const result = await tasks.track(
-    "드라이런", `${target} 에 실제 요청`,
-    () => api.dryrunTemplate({ yaml: built.yaml, target, timeout_sec: 10 }),
-  );
-  const request = result.requests?.[0] || {};
-  box.innerHTML = `
-    <div class="coverage" style="margin-top:14px;border-left-color:${
-      result.matched ? "var(--ok)" : "var(--warn)"}">
-      <strong>${result.matched ? "매칭됨" : "매칭되지 않음"}</strong>
-      · ${result.duration_ms}ms
-      ${request.response_status ? ` · 응답 ${request.response_status}` : ""}
-      <div style="margin-top:8px">
-        ${(request.matcher_results || []).map((m) => `
-          <div><span class="mono">${esc(m.name || m.type)}</span>
-            ${esc(m.type)} -
-            <span style="color:${m.matched ? "var(--ok)" : "var(--brand)"}">
-              ${m.matched ? "매칭" : "미매칭"}</span></div>`).join("")}
-      </div>
-    </div>
-    ${request.response_excerpt
-      ? `<pre class="evidence" style="margin-top:10px">${esc(request.response_excerpt)}</pre>`
-      : ""}`;
-}
-
 async function openTemplate(templateId) {
   const detail = await api.getTemplate(templateId);
   document.querySelector(".drawer")?.remove();
@@ -632,7 +580,6 @@ export async function handleTemplateClick(target) {
     }
     case "preview": await preview(); return true;
     case "save": await save(); return true;
-    case "dryrun": await dryrun(); return true;
     case "cancel-edit":
       state.editing = null;
       await viewTemplates();

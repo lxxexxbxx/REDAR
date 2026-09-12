@@ -160,8 +160,6 @@ export const api = {
     request("/templates/parse", { method: "POST", body: JSON.stringify(payload) }),
   validateTemplate: (payload) =>
     request("/templates/validate", { method: "POST", body: JSON.stringify(payload) }),
-  dryrunTemplate: (payload) =>
-    request("/templates/dryrun", { method: "POST", body: JSON.stringify(payload) }),
   remediationStatus: () => request("/remediation/status"),
   remediationPrompt: (reportId) =>
     request(`/remediation/${encodeURIComponent(reportId)}/prompt`,
