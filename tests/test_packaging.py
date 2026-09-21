@@ -717,3 +717,13 @@ def test_launch_reports_when_binary_missing(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(build, "ROOT", tmp_path)
     build.launch()
     assert "실행 파일을 찾지 못함" in capsys.readouterr().out
+
+
+def test_build_log_encoding_is_pinned():
+    """빌드 로그가 한글이다. Windows 는 stdout 인코딩을 콘솔 코드페이지에서
+    가져오므로 cp949 가 아닌 환경에서는 첫 print 부터 UnicodeEncodeError 로 죽는다
+    (실측: CI windows 러너의 cp1252)"""
+    text = BUILD.read_text(encoding="utf-8")
+    setup = text.split("def main()")[1].split("parser = argparse")[0]
+    assert 'encoding="utf-8"' in setup
+    assert "sys.stderr" in setup  # 트레이스백도 한글을 실어 나름
