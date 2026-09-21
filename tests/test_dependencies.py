@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-import os
 import stat
 from functools import lru_cache
 from pathlib import Path
@@ -301,3 +300,33 @@ def test_missing_override_is_not_reported_available(conn, home, monkeypatch,
     assert entry["available"] is False
     assert entry["version"] is None
     assert entry["source"] is None
+
+
+def test_zip_extract_rejects_path_traversal(tmp_path):
+    """zip 에는 tarfile 의 filter='data' 같은 안전장치가 없다.
+
+    go_asset() 이 sha256 을 비워 주면 체크섬 대조가 건너뛰어지므로,
+    경로 이탈 차단이 마지막 방어선이 된다
+    """
+    import zipfile
+
+    archive = tmp_path / "evil.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("../escaped.txt", "x")
+
+    with pytest.raises(ScanError, match="경로 이탈"):
+        dependency_service._extract(archive, tmp_path / "go")
+
+    assert not (tmp_path.parent / "escaped.txt").exists()
+
+
+def test_zip_extract_accepts_normal_members(tmp_path):
+    """정상 아카이브는 그대로 풀려야 한다. 차단이 과하면 설치가 막힘"""
+    import zipfile
+
+    archive = tmp_path / "go.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("go/bin/go", "x")
+
+    dependency_service._extract(archive, tmp_path / "out" / "go")
+    assert (tmp_path / "out" / "go" / "bin" / "go").is_file()

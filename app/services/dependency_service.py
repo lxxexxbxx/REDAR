@@ -348,7 +348,9 @@ def _install_go() -> Path:
     with tempfile.TemporaryDirectory(prefix="redar-go-") as tmp:
         archive = Path(tmp) / filename
         digest = hashlib.sha256()
-        with urllib.request.urlopen(
+        # 절대규칙 5 가 허용한 의존성 설치. 베이스 URL 은 상수이고,
+        # 내려받은 아카이브는 아래에서 SHA256 을 대조한 뒤에만 풀어낸다
+        with urllib.request.urlopen(  # noqa: S310
             GO_DOWNLOAD_BASE + filename, timeout=_NET_TIMEOUT
         ) as response, archive.open("wb") as out:
             while chunk := response.read(1 << 20):
@@ -370,13 +372,27 @@ def _install_go() -> Path:
     return binary
 
 
+def _reject_unsafe_members(names: list[str], root: Path) -> None:
+    """경로 이탈 멤버 차단. 하나라도 걸리면 통째로 거부
+
+    go_asset() 이 sha256 을 비워 주면 체크섬 대조가 건너뛰어진다. 그 경우
+    아카이브 내용이 검증되지 않은 채 여기까지 오므로 마지막 방어선이 필요
+    """
+    base = root.resolve()
+    for name in names:
+        if not (base / name).resolve().is_relative_to(base):
+            raise ScanError("INTERNAL_ERROR", f"아카이브에 경로 이탈 항목: {name}")
+
+
 def _extract(archive: Path, destination: Path) -> None:
     """아카이브 최상위가 go/ 이므로 상위 디렉터리에 풀어냄"""
     shutil.rmtree(destination, ignore_errors=True)
     destination.parent.mkdir(parents=True, exist_ok=True)
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive) as zf:
-            zf.extractall(destination.parent)
+            # zip 에는 tarfile 의 filter='data' 같은 안전장치가 없어 직접 막음
+            _reject_unsafe_members(zf.namelist(), destination.parent)
+            zf.extractall(destination.parent)  # noqa: S202
     else:
         with tarfile.open(archive) as tf:
             # filter='data' 로 경로 이탈·특수 파일 차단
