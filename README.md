@@ -1,5 +1,7 @@
 # REDAR
 
+![CI](https://github.com/lxxexxbxx/REDAR/actions/workflows/ci.yml/badge.svg)
+
 Nuclei 기반 웹 취약점 **진단** 도구. 스캔 실행, 결과 정리, 보고서 생성을 로컬에서 처리
 
 - 모든 처리는 사용자 PC 안에서 완결. 외부 통신은 옵션이며 기본 비활성
@@ -435,6 +437,35 @@ python -m pytest tests -q
 
 nuclei 실행 테스트는 실제 바이너리 대신 `tests/fixtures/nuclei_sample.jsonl` 로 대체.
 외부 대상에 요청을 보내는 테스트는 포함하지 않음.
+
+린트·포맷은 ruff 하나로 처리. 규칙과 완화 사유는 `ruff.toml` 에 있음
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
+```
+
+### CI 파이프라인
+
+`.github/workflows/ci.yml`
+
+| 잡 | 러너 | 트리거 | 내용 |
+|---|---|---|---|
+| Lint (Python) | ubuntu | PR · main push | `ruff check` · `ruff format --check` |
+| Lint (Rust) | windows | PR · main push | `cargo fmt --check` · `cargo clippy -D warnings` |
+| Test | ubuntu | PR · main push | `pytest` — 매핑 · 템플릿 선별 · 보고서 생성 포함 |
+| Build (Tauri) | windows | main push | `packaging/build.py` 번들 후 아티팩트 업로드 |
+
+- 제품이 오프라인 우선 설계이므로 CI 도 네트워크 의존 없이 동작.
+  nuclei 실행 대신 `tests/fixtures/` 의 고정 JSONL 을 입력으로 사용
+- 빌드 잡이 Windows 인 이유: `tauri.conf.json` 의 `bundle.targets` 가 `msi`·`nsis` 라
+  Linux 러너에서는 산출물이 나오지 않음. 제품 설계를 CI 편의로 바꾸지 않음
+- Rust 린트도 Windows 에 둠. Linux 에서 tauri 를 컴파일하려면 `libwebkit2gtk` 계열
+  시스템 패키지가 필요한데, 빌드하지 않는 플랫폼의 환경을 CI 가 떠안을 이유가 없음
+- `ruff` 는 `requirements-dev.txt` 에서 버전 고정. 판올림으로 기본 규칙이 넓어져
+  코드를 건드리지 않아도 main 이 깨지는 것을 막음
+- `main` 은 보호 브랜치. 위 세 린트·테스트 잡이 통과해야 머지 가능
 
 ### 데이터 파일
 
