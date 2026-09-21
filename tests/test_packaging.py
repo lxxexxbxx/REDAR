@@ -600,7 +600,11 @@ def test_build_reexec_does_not_recurse(monkeypatch):
     calls: list[list[str]] = []
     monkeypatch.setattr(build.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
     monkeypatch.setattr(build, "ensure_deps", lambda python: None)
-    assert build.in_target_venv() is True  # 테스트는 venv 안에서 돔
+    # 가상환경 안에서 도는 상황을 만든다. pytest 를 어느 파이썬으로 띄웠는지에
+    # 따라 결과가 달라지면 안 됨 - CI 는 저장소 .venv 가 아닌 곳에서 돈다.
+    # 가정하지 않고 두면 진짜 ensure_venv 가 저장소 .venv 를 갈아엎는다
+    monkeypatch.setattr(build.sys, "prefix", str(build.VENV_DIR))
+    assert build.in_target_venv() is True
     build.ensure_venv()
     assert calls == []  # 재실행하지 않음
 
@@ -630,6 +634,8 @@ def test_build_installs_deps_even_inside_venv(monkeypatch):
     build = _load_build()
     installed: list[str] = []
     monkeypatch.setattr(build, "ensure_deps", installed.append)
+    # 위와 같은 이유로 가상환경 안을 가정한다
+    monkeypatch.setattr(build.sys, "prefix", str(build.VENV_DIR))
     build.ensure_venv()
     assert installed == [sys.executable]
 
