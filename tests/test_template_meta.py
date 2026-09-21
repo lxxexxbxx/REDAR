@@ -1,4 +1,5 @@
 """색인 표지 산출. 제외 계산의 입력이므로 틀리면 미탐지로 이어짐"""
+
 from __future__ import annotations
 
 import sqlite3
@@ -7,7 +8,10 @@ from app.domain import template_meta as tm
 
 
 def test_framework_wins_over_product():
-    assert tm.platform_of({"framework": "wordpress", "product": "tourfic"}, []) == "wordpress"
+    assert (
+        tm.platform_of({"framework": "wordpress", "product": "tourfic"}, [])
+        == "wordpress"
+    )
 
 
 def test_wordpress_tags_imply_platform():
@@ -28,7 +32,10 @@ def test_no_marker_is_none():
 
 
 def test_wp_slug_from_namespace():
-    assert tm.wp_component_slug({"plugin_namespace": "ad-inserter"}, ["wp-plugin"], "") == "ad-inserter"
+    assert (
+        tm.wp_component_slug({"plugin_namespace": "ad-inserter"}, ["wp-plugin"], "")
+        == "ad-inserter"
+    )
 
 
 def test_wp_slug_from_request_path_when_namespace_missing():
@@ -73,11 +80,14 @@ def test_index_stores_platform_and_slug(conn, tmp_path, monkeypatch):
     official.mkdir(parents=True)
     (official / "a.yaml").write_text(
         "id: redar-t-a\ninfo:\n  name: a\n  severity: high\n"
-        "  metadata:\n    framework: wordpress\n  tags: cve\n", encoding="utf-8")
+        "  metadata:\n    framework: wordpress\n  tags: cve\n",
+        encoding="utf-8",
+    )
     (official / "b.yaml").write_text(
         "id: redar-t-b\ninfo:\n  name: b\n  severity: info\n"
         "  metadata:\n    plugin_namespace: give\n  tags: tech,wordpress,wp-plugin\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     monkeypatch.setattr(settings, "OFFICIAL_DIR", tmp_path / "official")
     monkeypatch.setattr(settings, "CUSTOM_DIR", tmp_path / "custom")
     try:

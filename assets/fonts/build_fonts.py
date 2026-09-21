@@ -16,6 +16,7 @@ assets/fonts/*.woff2 재생성 스크립트.
     둘 다 SIL Open Font License 1.1. 재배포 가능하나 라이선스 원문 동봉이 요구된다.
     assets/fonts/LICENSE-OFL.txt 참조.
 """
+
 import argparse
 import os
 import sys
@@ -37,10 +38,9 @@ UNICODES = "U+0020-007E,U+00A0-00FF,U+2000-206F,U+20A0-20BF,U+2190-21FF,U+2200-2
 
 # (출력 파일명, 원본 파일명 후보)
 TARGETS = [
-    ("NanumGothic.woff2",     ["NanumGothic.ttf"]),
+    ("NanumGothic.woff2", ["NanumGothic.ttf"]),
     ("NanumGothicBold.woff2", ["NanumGothicBold.ttf"]),
-    ("D2Coding.woff2",        ["D2Coding-Ver1.3.2-20180524-ligature.ttf",
-                               "D2Coding.ttf"]),
+    ("D2Coding.woff2", ["D2Coding-Ver1.3.2-20180524-ligature.ttf", "D2Coding.ttf"]),
 ]
 
 
@@ -55,7 +55,9 @@ def find_source(src_dir: str, candidates: list) -> str | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True, help="원본 TTF 가 있는 디렉터리 (재귀 탐색)")
+    ap.add_argument(
+        "--src", required=True, help="원본 TTF 가 있는 디렉터리 (재귀 탐색)"
+    )
     ap.add_argument("--out", default=os.path.dirname(os.path.abspath(__file__)))
     args = ap.parse_args()
 
@@ -73,20 +75,26 @@ def main() -> int:
             continue
 
         out_path = os.path.join(args.out, out_name)
-        subset.main([
-            src,
-            f"--output-file={out_path}",
-            "--flavor=woff2",
-            "--layout-features=*",
-            "--no-hinting",
-            "--desubroutinize",
-            f"--unicodes={UNICODES}",
-        ])
+        subset.main(
+            [
+                src,
+                f"--output-file={out_path}",
+                "--flavor=woff2",
+                "--layout-features=*",
+                "--no-hinting",
+                "--desubroutinize",
+                f"--unicodes={UNICODES}",
+            ]
+        )
         size = os.path.getsize(out_path)
         total += size
-        print(f"[OK]   {out_name:24s} {size/1024:7.1f} KB   <- {os.path.basename(src)}")
+        print(
+            f"[OK]   {out_name:24s} {size / 1024:7.1f} KB   <- {os.path.basename(src)}"
+        )
 
-    print(f"\n합계 {total/1024:.1f} KB  ->  base64 임베딩 시 약 {total*4/3/1024:.1f} KB")
+    print(
+        f"\n합계 {total / 1024:.1f} KB  ->  base64 임베딩 시 약 {total * 4 / 3 / 1024:.1f} KB"
+    )
     print("보고서 HTML 1건에 이 크기가 더해진다.")
     return 0
 

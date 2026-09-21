@@ -3,6 +3,7 @@
 한 줄 = 탐지 1건. 파일 완성 후 일괄 읽기 대신 라인 단위 처리 (docs/01 §3.1).
 한 줄이 깨져도 스캔 전체를 중단하지 않고 해당 줄만 건너뜀
 """
+
 from __future__ import annotations
 
 import json

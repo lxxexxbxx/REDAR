@@ -2,6 +2,7 @@
 
 exposure_key 3종의 정본은 docs/00 §1.2 (generic-http 담당분)
 """
+
 from __future__ import annotations
 
 import re
@@ -41,7 +42,7 @@ class GenericHttpCollector:
     order = ORDER_GENERIC
 
     def applicable(self, ctx: TargetContext) -> bool:
-        return True                       # 모든 대상에 적용
+        return True  # 모든 대상에 적용
 
     def collect(self, ctx: TargetContext) -> CollectResult:
         result = CollectResult()
@@ -80,8 +81,9 @@ def _parse_stack(raw: str, evidence: str) -> StackFinding:
 
 def _server_header_exposure(raw: str) -> ExposureFinding:
     """제품명만 있으면 노출 아님. 버전까지 드러나면 노출 (WEB-16)"""
-    has_version = bool(raw and _SERVER_RE.match(raw.strip()) and
-                       _SERVER_RE.match(raw.strip()).group(2))
+    has_version = bool(
+        raw and _SERVER_RE.match(raw.strip()) and _SERVER_RE.match(raw.strip()).group(2)
+    )
     return ExposureFinding(
         key="server_header_verbose",
         value=has_version,
@@ -97,11 +99,15 @@ def _directory_listing(ctx: TargetContext) -> ExposureFinding:
         checked.append(f"{path} {resp.status or resp.error}")
         if resp.ok and any(m in resp.text.lower() for m in _LISTING_MARKERS):
             return ExposureFinding(
-                key="directory_listing", value=True, path=path,
+                key="directory_listing",
+                value=True,
+                path=path,
                 evidence=f"{path} 응답에 인덱스 표기",
             )
     return ExposureFinding(
-        key="directory_listing", value=False, path=_LISTING_PATHS[0],
+        key="directory_listing",
+        value=False,
+        path=_LISTING_PATHS[0],
         evidence="확인 경로에서 인덱스 표기 없음: " + ", ".join(checked),
     )
 
@@ -110,7 +116,9 @@ def _tls_exposure(ctx: TargetContext) -> ExposureFinding:
     """TLS 미제공 또는 TLS1.0/1.1 수락이면 취약 (WEB-20, WA-17)"""
     if ctx.scheme != "https":
         return ExposureFinding(
-            key="tls_weak_config", value=True, path="/",
+            key="tls_weak_config",
+            value=True,
+            path="/",
             evidence="대상이 평문 HTTP. TLS 미적용",
         )
 
@@ -121,11 +129,15 @@ def _tls_exposure(ctx: TargetContext) -> ExposureFinding:
             accepted.append(label)
     if accepted:
         return ExposureFinding(
-            key="tls_weak_config", value=True, path="/",
+            key="tls_weak_config",
+            value=True,
+            path="/",
             evidence=f"취약 프로토콜 수락: {', '.join(accepted)}",
         )
     return ExposureFinding(
-        key="tls_weak_config", value=False, path="/",
+        key="tls_weak_config",
+        value=False,
+        path="/",
         evidence="TLS1.0/1.1 핸드셰이크 거부",
     )
 
@@ -140,7 +152,7 @@ def _handshake_ok(host: str, port: int, version, timeout: int) -> bool:
         context.minimum_version = version
         context.maximum_version = version
     except ValueError:
-        return False                       # 런타임 OpenSSL 이 해당 버전을 막아둔 경우
+        return False  # 런타임 OpenSSL 이 해당 버전을 막아둔 경우
     try:
         with (
             socket.create_connection((host, port), timeout=timeout) as raw,

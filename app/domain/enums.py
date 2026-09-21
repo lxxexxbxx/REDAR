@@ -3,6 +3,7 @@
 문자열 리터럴 분산 방지용 단일 정의 지점.
 값 추가 순서: API 문서 -> GUI 표시 문자열 -> 이 파일
 """
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -119,4 +120,3 @@ GUIDE_VERDICT_LABELS: dict[GuideVerdict, str] = {
     GuideVerdict.VULNERABLE: "취약",
     GuideVerdict.NOT_APPLICABLE: "해당 없음",
 }
-

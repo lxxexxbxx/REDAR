@@ -6,6 +6,7 @@
 응답 본문·추출값은 애초에 컨텍스트에 넣지 않음. 마스킹은 2차 방어이며
 1차 방어는 화이트리스트 (remediation_service.report_context)
 """
+
 from __future__ import annotations
 
 import re
@@ -65,8 +66,11 @@ class Masker:
     def _path(self, match: re.Match[str]) -> str:
         value = match.group(0)
         # 이미 치환된 토큰만 남은 경로는 다시 감싸지 않음 (중첩 방지)
-        return value if _TOKEN_RE.fullmatch(value.lstrip("/")) \
+        return (
+            value
+            if _TOKEN_RE.fullmatch(value.lstrip("/"))
             else self._token("path", value)
+        )
 
     def mask_context(self, context: dict[str, Any]) -> dict[str, Any]:
         return {key: self._mask_value(value) for key, value in context.items()}

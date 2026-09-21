@@ -3,6 +3,7 @@
 제품·버전 식별은 nuclei detection finding, 자체 수집기는 노출 점검 전담 (docs/01 §4.1)
 수집기 실패는 스캔 중단 사유가 아님. collectors_failed 에 남기고 계속 (M4 규칙 2)
 """
+
 from __future__ import annotations
 
 import logging
@@ -54,12 +55,17 @@ def tech_profiles(
     grouped: dict[str, list[tech_profile.DetectionHit]] = {}
     for row in env_repo.detection_rows(conn, scan_id):
         meta = TemplateMeta(
-            row["template_id"], row["file_path"], row["source"],
-            tuple(row["tags"]), row["platform"],
+            row["template_id"],
+            row["file_path"],
+            row["source"],
+            tuple(row["tags"]),
+            row["platform"],
         )
         if not is_prepass(meta):
             continue
-        port = row["target_port"] or _DEFAULT_PORT.get(row["target_scheme"] or "http", 80)
+        port = row["target_port"] or _DEFAULT_PORT.get(
+            row["target_scheme"] or "http", 80
+        )
         grouped.setdefault(f"{row['target_host']}:{port}", []).append(
             tech_profile.DetectionHit(
                 template_id=row["template_id"],
@@ -170,7 +176,9 @@ def _better(new: dict[str, Any], old: dict[str, Any]) -> bool:
         return True
     if old.get("version") and not new.get("version"):
         return False
-    return _RANK.get(str(new.get("confidence")), 0) > _RANK.get(str(old.get("confidence")), 0)
+    return _RANK.get(str(new.get("confidence")), 0) > _RANK.get(
+        str(old.get("confidence")), 0
+    )
 
 
 def _stack_dict(found: collectors.StackFinding) -> dict[str, Any]:

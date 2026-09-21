@@ -1,4 +1,5 @@
 """스캔 실행 흐름 제어. HTTP 객체 참조 없음 (docs/01 §2.1)."""
+
 from __future__ import annotations
 
 import logging
@@ -73,21 +74,25 @@ def preflight(conn) -> dict[str, Any]:
 
     blockers: list[dict[str, str]] = []
     if not settings.nuclei_bin():
-        blockers.append({
-            "code": "NUCLEI_MISSING",
-            "message": "nuclei 가 없어 스캔할 수 없습니다.",
-            "action": "의존성 설정 열기",
-            "goto": "settings",
-        })
+        blockers.append(
+            {
+                "code": "NUCLEI_MISSING",
+                "message": "nuclei 가 없어 스캔할 수 없습니다.",
+                "action": "의존성 설정 열기",
+                "goto": "settings",
+            }
+        )
     # 허용 목록이 비어 있어도 막지 않는다. 스캔 화면 입력이 곧 등록이므로
     # 여기서 막으면 첫 스캔을 시작할 방법이 없음 (절대규칙 6 개정)
     if not official and not custom and not store:
-        blockers.append({
-            "code": "NO_TEMPLATES",
-            "message": "실행할 템플릿이 0개라 스캔해도 결과가 항상 0건입니다.",
-            "action": "템플릿 화면 열기",
-            "goto": "templates",
-        })
+        blockers.append(
+            {
+                "code": "NO_TEMPLATES",
+                "message": "실행할 템플릿이 0개라 스캔해도 결과가 항상 0건입니다.",
+                "action": "템플릿 화면 열기",
+                "goto": "templates",
+            }
+        )
 
     return {
         "ready": not blockers,
@@ -102,7 +107,8 @@ def preflight(conn) -> dict[str, Any]:
             "custom_dir": str(settings.CUSTOM_DIR),
         },
         # 갱신은 외부 통신 지점. 막혀 있으면 버튼이 403 으로만 끝나 이유를 알 수 없음
-        "sync_allowed": not settings_repo.offline_mode(conn) and settings_repo.as_bool(
+        "sync_allowed": not settings_repo.offline_mode(conn)
+        and settings_repo.as_bool(
             settings_repo.get_all(conn).get("ext_template_sync_enabled")
         ),
     }
@@ -117,7 +123,8 @@ def template_paths() -> list[str]:
     존재하는 디렉터리만 넘김. 둘 다 없으면 nuclei 기본 경로로 넘어감
     """
     return [
-        str(path) for path in (settings.OFFICIAL_DIR, settings.CUSTOM_DIR)
+        str(path)
+        for path in (settings.OFFICIAL_DIR, settings.CUSTOM_DIR)
         if path.is_dir() and any(path.iterdir())
     ]
 
@@ -125,8 +132,13 @@ def template_paths() -> list[str]:
 class ScanError(Exception):
     """서비스 계층 오류. API 가 §0.2 형식으로 변환."""
 
-    def __init__(self, code: str, message: str, status_code: int = 400,
-                 details: list[dict[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status_code: int = 400,
+        details: list[dict[str, Any]] | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
@@ -169,7 +181,9 @@ class ScanService:
         self,
         db_path: Path | None = None,
         *,
-        command_builder: Callable[[runner.RunOptions], list[str]] = runner.build_command,
+        command_builder: Callable[
+            [runner.RunOptions], list[str]
+        ] = runner.build_command,
         command_runner: Callable[..., int] = runner.run,
         prober: Callable[[Sequence[str]], list[str]] = portprobe.reachable,
     ) -> None:
@@ -205,7 +219,8 @@ class ScanService:
             expansion = target_range.expand(req.targets)
         except target_range.RangeError as exc:
             raise ScanError(
-                "INVALID_REQUEST", str(exc),
+                "INVALID_REQUEST",
+                str(exc),
                 details=[{"field": "targets", "reason": "range"}],
             ) from exc
 
@@ -230,8 +245,11 @@ class ScanService:
                 resolved = settings_repo.scan_defaults(settings_repo.get_all(conn))
                 resolved.update(req.options)
                 req = replace(
-                    req, threads=resolved["threads"], timeout_sec=resolved["timeout_sec"],
-                    retries=resolved["retries"], rate_limit=resolved["rate_limit"],
+                    req,
+                    threads=resolved["threads"],
+                    timeout_sec=resolved["timeout_sec"],
+                    retries=resolved["retries"],
+                    rate_limit=resolved["rate_limit"],
                     options=None,
                 )
             allowlist = settings_repo.target_allowlist(conn)
@@ -251,9 +269,7 @@ class ScanService:
             # 템플릿 0개면 nuclei 가 아무것도 실행하지 않고 성공으로 끝남.
             # 그대로 두면 '탐지 0건' 이 '양호' 로 오독됨 (절대규칙 10)
             ready = preflight(conn)
-            no_templates = [
-                b for b in ready["blockers"] if b["code"] == "NO_TEMPLATES"
-            ]
+            no_templates = [b for b in ready["blockers"] if b["code"] == "NO_TEMPLATES"]
             if no_templates:
                 raise ScanError(
                     "NO_TEMPLATES",
@@ -262,8 +278,11 @@ class ScanService:
                 )
 
             with self._lock:
-                if self._active is not None and self._active.thread is not None \
-                        and self._active.thread.is_alive():
+                if (
+                    self._active is not None
+                    and self._active.thread is not None
+                    and self._active.thread.is_alive()
+                ):
                     raise ScanError(
                         "SCAN_ALREADY_RUNNING",
                         "이미 실행 중인 스캔 있음",
@@ -328,10 +347,13 @@ class ScanService:
                             )
                         else:
                             main = self._options(req, excluded_ids)
-                            basis = None if req.mode == "explicit" else \
-                                selection_service.basis(
+                            basis = (
+                                None
+                                if req.mode == "explicit"
+                                else selection_service.basis(
                                     conn, mode=req.mode, excluded_ids=excluded_ids
                                 )
+                            )
                         if not run.cancel.is_set():
                             self._run_nuclei(run, main, rules, writer, conn, "scanning")
                 finally:
@@ -350,10 +372,10 @@ class ScanService:
                     guide_service.map_scan(conn, run.scan_id)
                 except Exception:
                     logger.warning("가이드 매핑 실패 %s", run.scan_id, exc_info=True)
-        except ScanError as exc:                       # 대상 전부 무응답 등
+        except ScanError as exc:  # 대상 전부 무응답 등
             status, error = ScanStatus.FAILED, (exc.code, exc.message)
             logger.warning("스캔 중단 %s: %s", run.scan_id, exc.message)
-        except RuntimeError as exc:                    # nuclei 미설치 등
+        except RuntimeError as exc:  # nuclei 미설치 등
             status, error = ScanStatus.FAILED, ("NUCLEI_UNAVAILABLE", str(exc))
             logger.warning("스캔 실패 %s: %s", run.scan_id, exc)
         except Exception as exc:
@@ -362,19 +384,25 @@ class ScanService:
 
         with session(self._db_path) as conn:
             scan_repo.set_status(
-                conn, run.scan_id, status,
+                conn,
+                run.scan_id,
+                status,
                 error_code=error[0] if error else None,
                 error_message=error[1] if error else None,
             )
             view = scan_repo.get_scan(conn, run.scan_id) or {}
 
-        self._emit(run, "done", {
-            "scan_id": run.scan_id,
-            "status": status.value,
-            "duration_sec": view.get("duration_sec"),
-            "findings_total": run.findings_so_far,
-            "error": view.get("error"),
-        })
+        self._emit(
+            run,
+            "done",
+            {
+                "scan_id": run.scan_id,
+                "status": status.value,
+                "duration_sec": view.get("duration_sec"),
+                "findings_total": run.findings_so_far,
+                "error": view.get("error"),
+            },
+        )
         # 스트림 종료 신호
         self._emit(run, None, None)
 
@@ -384,11 +412,18 @@ class ScanService:
         포트 범위는 대부분이 닫힌 포트다. 전부에 템플릿을 돌리면 시간만 쓴다.
         무엇을 건너뛰었는지는 DB 에 남겨 보고서가 점검 범위를 밝힐 수 있게 함
         """
-        self._emit(run, "progress", {
-            "scan_id": run.scan_id, "percent": None, "phase": "probing_targets",
-            "templates_done": 0, "templates_total": None,
-            "findings_so_far": run.findings_so_far,
-        })
+        self._emit(
+            run,
+            "progress",
+            {
+                "scan_id": run.scan_id,
+                "percent": None,
+                "phase": "probing_targets",
+                "templates_done": 0,
+                "templates_total": None,
+                "findings_so_far": run.findings_so_far,
+            },
+        )
         logger.info("대상 응답 확인 시작: %d건", len(req.targets))
         try:
             alive = self._prober(req.targets)
@@ -398,7 +433,8 @@ class ScanService:
 
         logger.info(
             "대상 응답 확인 완료: 응답 %d건 · 무응답 %d건",
-            len(alive), len(req.targets) - len(alive),
+            len(alive),
+            len(req.targets) - len(alive),
         )
         scan_repo.mark_reachable(conn, run.scan_id, alive)
         if not alive:
@@ -413,10 +449,15 @@ class ScanService:
         self, req: ScanRequest, excluded_ids: list[str], **extra: Any
     ) -> runner.RunOptions:
         base: dict[str, Any] = {
-            "targets": list(req.targets), "template_ids": list(req.template_ids),
-            "template_paths": template_paths(), "tags": list(req.tags),
-            "severities": list(req.severities), "threads": req.threads,
-            "timeout_sec": req.timeout_sec, "retries": req.retries, "rate_limit": req.rate_limit,
+            "targets": list(req.targets),
+            "template_ids": list(req.template_ids),
+            "template_paths": template_paths(),
+            "tags": list(req.tags),
+            "severities": list(req.severities),
+            "threads": req.threads,
+            "timeout_sec": req.timeout_sec,
+            "retries": req.retries,
+            "rate_limit": req.rate_limit,
             "exclude_ids": excluded_ids,
         }
         base.update(extra)
@@ -430,23 +471,37 @@ class ScanService:
         logger.info("nuclei 실행 (%s): %s", phase, " ".join(command))
         self._stream(run, command, rules, writer, conn, phase)
 
-    def _environment_pass(self, run: _Run, req: ScanRequest, conn, rules, writer,
-                          excluded_ids: list[str], work: Path):
+    def _environment_pass(
+        self,
+        run: _Run,
+        req: ScanRequest,
+        conn,
+        rules,
+        writer,
+        excluded_ids: list[str],
+        work: Path,
+    ):
         """사전 패스 -> 제외 계산 -> 본 패스 옵션. 애매하면 전체 (미탐지 0 우선)"""
         metas = selection_service.load_metas(conn)
         prepass = selection_service.prepass_files(metas)
         if not prepass or not settings.OFFICIAL_DIR.is_dir():
             # 제품 식별 수단이 없으면 제외 근거도 없음. 전체 실행
             return self._options(req, excluded_ids), selection_service.basis(
-                conn, mode=req.mode, excluded_ids=excluded_ids,
+                conn,
+                mode=req.mode,
+                excluded_ids=excluded_ids,
                 fallback_reason="no_index",
             )
 
         self._emit_phase(run, "prescanning")
         pre = runner.RunOptions(
             targets=list(req.targets),
-            template_list=str(selection_service.write_list(prepass, work, "prepass.txt")),
-            threads=req.threads, timeout_sec=req.timeout_sec, retries=req.retries,
+            template_list=str(
+                selection_service.write_list(prepass, work, "prepass.txt")
+            ),
+            threads=req.threads,
+            timeout_sec=req.timeout_sec,
+            retries=req.retries,
             rate_limit=req.rate_limit,
         )
         self._run_nuclei(run, pre, rules, writer, conn, "prescanning")
@@ -457,10 +512,12 @@ class ScanService:
         envs = []
         for target in req.targets:
             profile = profiles.get(environment_service.host_key(target))
-            envs.append(template_exclusion.TargetEnv(
-                profile.detected if profile else frozenset(),
-                bool(profile and profile.app_identified),
-            ))
+            envs.append(
+                template_exclusion.TargetEnv(
+                    profile.detected if profile else frozenset(),
+                    bool(profile and profile.app_identified),
+                )
+            )
         plan = template_exclusion.decide(metas, envs)
         # 사전 패스분은 이미 실행. 본 패스에서 다시 돌리면 요청 중복
         skip = {template_exclusion.normalize_path(p) for p in prepass}
@@ -468,24 +525,39 @@ class ScanService:
         files = template_exclusion.main_pass_files(settings.OFFICIAL_DIR, skip)
         custom = settings.CUSTOM_DIR
         main = self._options(
-            req, excluded_ids,
+            req,
+            excluded_ids,
             template_list=str(selection_service.write_list(files, work, "main.txt")),
             # 사용자 템플릿은 항상 전체
-            template_paths=[str(custom)] if custom.is_dir() and any(custom.iterdir()) else [],
+            template_paths=[str(custom)]
+            if custom.is_dir() and any(custom.iterdir())
+            else [],
         )
         detected = sorted({d for env in envs for d in env.detected})
         return main, selection_service.basis(
-            conn, mode=req.mode, excluded_ids=excluded_ids, plan=plan,
-            prepass=len(prepass), total_run=len(prepass) + len(files), detected=detected,
+            conn,
+            mode=req.mode,
+            excluded_ids=excluded_ids,
+            plan=plan,
+            prepass=len(prepass),
+            total_run=len(prepass) + len(files),
+            detected=detected,
         )
 
     def _emit_phase(self, run: _Run, phase: str) -> None:
         # percent 는 None. 총량을 모르는 단계에서 0 을 보내면 '멈춤' 으로 보임
-        self._emit(run, "progress", {
-            "scan_id": run.scan_id, "percent": None, "phase": phase,
-            "templates_done": 0, "templates_total": None,
-            "findings_so_far": run.findings_so_far,
-        })
+        self._emit(
+            run,
+            "progress",
+            {
+                "scan_id": run.scan_id,
+                "percent": None,
+                "phase": phase,
+                "templates_done": 0,
+                "templates_total": None,
+                "findings_so_far": run.findings_so_far,
+            },
+        )
 
     def _collect_environment(self, run: _Run, req: ScanRequest, conn) -> None:
         """nuclei detection + 노출 수집기. 실패해도 스캔을 중단하지 않음 (M4 규칙 2)"""
@@ -498,14 +570,18 @@ class ScanService:
         for target in req.targets:
             try:
                 environment_service.collect_target(
-                    conn, run.scan_id, target, timeout_sec=req.timeout_sec,
+                    conn,
+                    run.scan_id,
+                    target,
+                    timeout_sec=req.timeout_sec,
                     tech=profiles.get(environment_service.host_key(target)),
                 )
             except Exception:
                 logger.warning("환경 조사 실패: %s", target, exc_info=True)
 
-    def _stream(self, run: _Run, command, rules, writer, conn,
-                phase: str = "scanning") -> None:
+    def _stream(
+        self, run: _Run, command, rules, writer, conn, phase: str = "scanning"
+    ) -> None:
         last_event = 0.0
         emitted_this_sec = 0
 
@@ -524,7 +600,8 @@ class ScanService:
                 "탐지",
                 f"[{finding.severity.value.upper()}] {cve} · {finding.name}"
                 f" → {finding.target.raw}",
-                level="WARN" if finding.severity.value in ("critical", "high")
+                level="WARN"
+                if finding.severity.value in ("critical", "high")
                 else "INFO",
             )
 
@@ -532,15 +609,22 @@ class ScanService:
             if now - last_event >= 1.0:
                 last_event, emitted_this_sec = now, 0
             if emitted_this_sec >= _FINDING_EVENTS_PER_SEC:
-                return                                  # 이벤트만 생략. 저장은 완료
+                return  # 이벤트만 생략. 저장은 완료
             emitted_this_sec += 1
-            self._emit(run, "finding", {
-                "finding_id": finding.finding_id,
-                "name": finding.name,
-                "severity": finding.severity.value,
-                "vuln_type": finding.vuln_type.value,
-                "target": {"host": finding.target.host, "port": finding.target.port},
-            })
+            self._emit(
+                run,
+                "finding",
+                {
+                    "finding_id": finding.finding_id,
+                    "name": finding.name,
+                    "severity": finding.severity.value,
+                    "vuln_type": finding.vuln_type.value,
+                    "target": {
+                        "host": finding.target.host,
+                        "port": finding.target.port,
+                    },
+                },
+            )
 
         def on_stderr(line: str) -> None:
             stats = progress.parse_stats_line(line)
@@ -554,20 +638,26 @@ class ScanService:
             # 스캔 스레드에서 실행 (아래 큐 소비). 러너의 리더 스레드에서 conn 을 쓰면
             # ProgrammingError 로 리더가 죽고 stderr 파이프가 막혀 스캔이 멈춤 (실측)
             scan_repo.set_status(
-                conn, run.scan_id, ScanStatus.RUNNING,
+                conn,
+                run.scan_id,
+                ScanStatus.RUNNING,
                 templates_total=stats.requests_total,
                 templates_done=stats.requests_done,
             )
-            self._emit(run, "progress", {
-                "scan_id": run.scan_id,
-                "percent": stats.percent,
-                "phase": phase,
-                "templates_done": stats.requests_done,
-                "templates_total": stats.requests_total,
-                # 현재 패스 기준 남은 초. 속도·총량을 모르면 None
-                "eta_sec": progress.eta_seconds(stats),
-                "findings_so_far": run.findings_so_far,
-            })
+            self._emit(
+                run,
+                "progress",
+                {
+                    "scan_id": run.scan_id,
+                    "percent": stats.percent,
+                    "phase": phase,
+                    "templates_done": stats.requests_done,
+                    "templates_total": stats.requests_total,
+                    # 현재 패스 기준 남은 초. 속도·총량을 모르면 None
+                    "eta_sec": progress.eta_seconds(stats),
+                    "findings_so_far": run.findings_so_far,
+                },
+            )
 
         # 러너는 보조 스레드에서 돌고 줄만 큐에 넣음. DB 는 이 스레드(스캔 스레드)만 씀.
         # sqlite 연결은 스레드 간 공유 불가이고, 별도 연결은 배치 쓰기 트랜잭션에 막힘
@@ -593,12 +683,12 @@ class ScanService:
                 try:
                     handler, payload = lines.get(timeout=_FLUSH_SEC)
                 except queue.Empty:
-                    writer.flush()           # 출력이 멎어도 탐지 결과가 조회되게 함
+                    writer.flush()  # 출력이 멎어도 탐지 결과가 조회되게 함
                     continue
                 if handler is finished:
                     break
                 if handler is None:
-                    raise payload            # nuclei 미설치 등 러너 오류
+                    raise payload  # nuclei 미설치 등 러너 오류
                 # 한 줄 처리 실패로 스캔 전체를 끝내지 않음. stdout 도 같다 -
                 # 탐지 1건 해석 실패가 스캔을 실패로 만들면 나머지 결과까지 잃음
                 # (adapters/nuclei/parser 모듈 계약)
@@ -606,7 +696,8 @@ class ScanService:
                     handler(payload)
                 except Exception:
                     logger.warning(
-                        "%s 처리 실패", "stderr" if handler is on_stderr else "stdout",
+                        "%s 처리 실패",
+                        "stderr" if handler is on_stderr else "stdout",
                         exc_info=True,
                     )
         except BaseException:
@@ -635,13 +726,14 @@ class ScanService:
                 return
             except queue.Full:
                 try:
-                    run.events.get_nowait()      # 가장 오래된 진행률을 버림
+                    run.events.get_nowait()  # 가장 오래된 진행률을 버림
                 except queue.Empty:
                     continue
         logger.warning("종료 신호를 큐에 넣지 못함 %s", run.scan_id)
 
-    def events(self, scan_id: str, timeout: float = _IDLE_TIMEOUT_SEC
-               ) -> Iterator[tuple[str, dict]]:
+    def events(
+        self, scan_id: str, timeout: float = _IDLE_TIMEOUT_SEC
+    ) -> Iterator[tuple[str, dict]]:
         """SSE 구독. 스트림 종료 신호를 받으면 종료.
 
         timeout 은 **무활동** 기준이다. 구독 시작 기준 절대 시간으로 두면

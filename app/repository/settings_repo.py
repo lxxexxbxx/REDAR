@@ -3,6 +3,7 @@
 key-value 구조라 항목 추가에 마이그레이션 불필요 (db/schema.sql §0).
 값은 JSON 또는 스칼라 문자열
 """
+
 from __future__ import annotations
 
 import json
@@ -15,7 +16,9 @@ from typing import Any
 # 통제가 무너짐. URL 기본값은 데이터이므로 data/settings_defaults.csv 의
 # ext_<key>_url 이 출처
 EXTERNAL_ENDPOINT_KEYS = (
-    "template_sync", "llm_api", "cve_lookup",
+    "template_sync",
+    "llm_api",
+    "cve_lookup",
     # 의존성(nuclei 등) 자동 설치. 기본 비활성이며 요청마다 명시적 동의가 필요
     # 폐쇄망에서는 켜지 않고 파일 반입으로 등록 (docs/01 §7.1)
     "dependency_install",

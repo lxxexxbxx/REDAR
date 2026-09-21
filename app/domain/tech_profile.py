@@ -3,6 +3,7 @@
 tech-detect(Wappalyzer) 는 탐지 집합을 넓히기만 함. 애플리케이션 확정에 쓰면
 jquery 하나로 '정체 확인' 이 되어 환경 기반 제외가 발동함 (미탐지 위험)
 """
+
 from __future__ import annotations
 
 import re
@@ -12,14 +13,37 @@ from typing import Any
 
 _VERSION_RE = re.compile(r"(\d+(?:\.\d+){1,3}[a-z0-9]*)", re.IGNORECASE)
 _SUFFIXES = ("-detect", "-detection", "-version", "-panel", "-login")
-_WEB_SERVERS = ("http_server", "apache", "nginx", "iis", "litespeed", "openresty",
-                "lighttpd", "caddy", "tomcat", "jetty", "tengine")
+_WEB_SERVERS = (
+    "http_server",
+    "apache",
+    "nginx",
+    "iis",
+    "litespeed",
+    "openresty",
+    "lighttpd",
+    "caddy",
+    "tomcat",
+    "jetty",
+    "tengine",
+)
 _LANGUAGES = ("php", "python", "node.js", "asp.net", "java", "ruby")
 # 애플리케이션 선정 우선순위. 조치 가이드의 주 대상
-_CMS = ("wordpress", "joomla", "drupal", "magento", "prestashop", "typo3", "moodle",
-        "opencart", "ghost")
+_CMS = (
+    "wordpress",
+    "joomla",
+    "drupal",
+    "magento",
+    "prestashop",
+    "typo3",
+    "moodle",
+    "opencart",
+    "ghost",
+)
 # 매처 이름이 곧 슬러그인 범용 탐지 템플릿
-_GENERIC_WP = {"wordpress-plugin-detect": "wp_plugin", "wordpress-theme-detect": "wp_theme"}
+_GENERIC_WP = {
+    "wordpress-plugin-detect": "wp_plugin",
+    "wordpress-theme-detect": "wp_theme",
+}
 
 
 @dataclass(frozen=True)
@@ -60,11 +84,18 @@ def _product(hit: DetectionHit) -> str:
     return name
 
 
-def _component(ctype: str, slug: str, version: str | None, evidence: str) -> dict[str, Any]:
+def _component(
+    ctype: str, slug: str, version: str | None, evidence: str
+) -> dict[str, Any]:
     return {
-        "type": ctype, "slug": slug, "name": None, "version": version, "active": None,
+        "type": ctype,
+        "slug": slug,
+        "name": None,
+        "version": version,
+        "active": None,
         # 버전을 못 읽으면 존재만 확인. 추정값 확정 표기 금지 (M4 규칙 3)
-        "confidence": "high" if version else "medium", "evidence": evidence,
+        "confidence": "high" if version else "medium",
+        "evidence": evidence,
     }
 
 
@@ -90,13 +121,17 @@ def build(hits: Sequence[DetectionHit]) -> TechProfile:
             if hit.matcher_name:
                 name = hit.matcher_name.lower()
                 detected.add(name)
-                components.setdefault(("tech", name), _component("tech", name, None, evidence))
+                components.setdefault(
+                    ("tech", name), _component("tech", name, None, evidence)
+                )
             continue
 
         if hit.template_id in _GENERIC_WP and hit.matcher_name:
             ctype = _GENERIC_WP[hit.template_id]
             slug = hit.matcher_name.lower()
-            components.setdefault((ctype, slug), _component(ctype, slug, None, evidence))
+            components.setdefault(
+                (ctype, slug), _component(ctype, slug, None, evidence)
+            )
             continue
 
         wp_type = _wp_type(hit.tags)
@@ -106,7 +141,9 @@ def build(hits: Sequence[DetectionHit]) -> TechProfile:
                 evidence += " · 최신 버전보다 낮음"
             key = (wp_type, hit.component_slug)
             if key not in components or (version and not components[key]["version"]):
-                components[key] = _component(wp_type, hit.component_slug, version, evidence)
+                components[key] = _component(
+                    wp_type, hit.component_slug, version, evidence
+                )
             continue
 
         product = _product(hit)
@@ -115,8 +152,10 @@ def build(hits: Sequence[DetectionHit]) -> TechProfile:
         current = products.get(product)
         if current is None or (version and not current["version"]):
             products[product] = {
-                "product": product, "version": version,
-                "confidence": "high" if version else "medium", "evidence": evidence,
+                "product": product,
+                "version": version,
+                "confidence": "high" if version else "medium",
+                "evidence": evidence,
             }
 
     stack: dict[str, dict[str, Any]] = {}
@@ -141,7 +180,8 @@ def build(hits: Sequence[DetectionHit]) -> TechProfile:
             if name != app:
                 p = products[name]
                 components.setdefault(
-                    ("tech", name), _component("tech", name, p["version"], p["evidence"])
+                    ("tech", name),
+                    _component("tech", name, p["version"], p["evidence"]),
                 )
 
     return TechProfile(

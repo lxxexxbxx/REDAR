@@ -1,4 +1,5 @@
 """번들 매핑 테이블 조회."""
+
 from __future__ import annotations
 
 import sqlite3

@@ -1,4 +1,5 @@
 """제외 계산. 한 건이라도 잘못 제외하면 미탐지. 유지 쪽 후퇴를 검증"""
+
 from __future__ import annotations
 
 from app.domain import template_exclusion as te
@@ -7,14 +8,36 @@ M = te.TemplateMeta
 
 
 def _meta(tid, platform=None, path=None, tags=(), source="official"):
-    return M(tid, path or f"/t/official/http/cves/{tid}.yaml", source, tuple(tags), platform)
+    return M(
+        tid, path or f"/t/official/http/cves/{tid}.yaml", source, tuple(tags), platform
+    )
 
 
 DETECTORS = [
-    _meta("joomla-detect", "joomla", "/t/official/http/technologies/joomla-detect.yaml", ("tech",)),
-    _meta("apache-detect", "http_server", "/t/official/http/technologies/apache-detect.yaml", ("tech",)),
-    _meta("wordpress-detect", "wordpress", "/t/official/http/technologies/wordpress-detect.yaml", ("tech",)),
-    _meta("adminer-panel", "adminer", "/t/official/http/exposed-panels/adminer-panel.yaml", ("panel",)),
+    _meta(
+        "joomla-detect",
+        "joomla",
+        "/t/official/http/technologies/joomla-detect.yaml",
+        ("tech",),
+    ),
+    _meta(
+        "apache-detect",
+        "http_server",
+        "/t/official/http/technologies/apache-detect.yaml",
+        ("tech",),
+    ),
+    _meta(
+        "wordpress-detect",
+        "wordpress",
+        "/t/official/http/technologies/wordpress-detect.yaml",
+        ("tech",),
+    ),
+    _meta(
+        "adminer-panel",
+        "adminer",
+        "/t/official/http/exposed-panels/adminer-panel.yaml",
+        ("panel",),
+    ),
 ]
 WP_ENV = te.TargetEnv(frozenset({"wordpress", "php"}), True)
 
@@ -34,8 +57,10 @@ def test_unobservable_product_is_kept():
 
 def test_server_layer_is_kept_even_if_undetected():
     """리버스 프록시 뒤 백엔드는 앞단에서 안 보임"""
-    plan = te.decide([*DETECTORS, _meta("cve-apache", "http_server")],
-                     [te.TargetEnv(frozenset({"wordpress", "nginx"}), True)])
+    plan = te.decide(
+        [*DETECTORS, _meta("cve-apache", "http_server")],
+        [te.TargetEnv(frozenset({"wordpress", "nginx"}), True)],
+    )
     assert plan.excluded == ()
 
 
@@ -52,8 +77,10 @@ def test_panel_detected_product_is_kept():
 
 
 def test_no_application_falls_back_to_all():
-    plan = te.decide([*DETECTORS, _meta("cve-joomla", "joomla")],
-                     [te.TargetEnv(frozenset({"nginx"}), False)])
+    plan = te.decide(
+        [*DETECTORS, _meta("cve-joomla", "joomla")],
+        [te.TargetEnv(frozenset({"nginx"}), False)],
+    )
     assert plan.excluded == ()
     assert plan.fallback_reason == "no_application"
 
@@ -89,8 +116,14 @@ def test_prepass_membership():
 
 def test_main_pass_files_skip_and_keep_unindexed(tmp_path):
     root = tmp_path / "official"
-    for rel in ("http/cves/a.yaml", "http/cves/b.yaml", "http/new/unindexed.yaml",
-                "helpers/x.yaml", "profiles/p.yml", ".git/c.yaml"):
+    for rel in (
+        "http/cves/a.yaml",
+        "http/cves/b.yaml",
+        "http/new/unindexed.yaml",
+        "helpers/x.yaml",
+        "profiles/p.yml",
+        ".git/c.yaml",
+    ):
         f = root / rel
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("id: x", encoding="utf-8")

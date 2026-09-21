@@ -1,4 +1,5 @@
 """findings 저장. SQL 은 이 계층 전용."""
+
 from __future__ import annotations
 
 import json
@@ -10,12 +11,34 @@ from types import TracebackType
 from app.domain.models import Finding
 
 _COLUMNS = (
-    "finding_id", "scan_id", "fingerprint", "source", "template_id",
-    "template_source", "matcher_name", "target_raw", "target_scheme",
-    "target_host", "target_port", "target_path", "name", "description",
-    "vuln_type", "severity", "severity_guide", "cve_ids", "cwe_ids",
-    "cvss_score", "cvss_vector", "component_type", "component_slug",
-    "ev_request", "ev_response", "ev_extracted", "ev_curl", "status",
+    "finding_id",
+    "scan_id",
+    "fingerprint",
+    "source",
+    "template_id",
+    "template_source",
+    "matcher_name",
+    "target_raw",
+    "target_scheme",
+    "target_host",
+    "target_port",
+    "target_path",
+    "name",
+    "description",
+    "vuln_type",
+    "severity",
+    "severity_guide",
+    "cve_ids",
+    "cwe_ids",
+    "cvss_score",
+    "cvss_vector",
+    "component_type",
+    "component_slug",
+    "ev_request",
+    "ev_response",
+    "ev_extracted",
+    "ev_curl",
+    "status",
     "detected_at",
 )
 

@@ -4,6 +4,7 @@ official 템플릿은 수정·삭제 불가. fork 로 custom 사본을 만들어
 파일 쓰기는 templates/custom/ 안으로 제한됨 - template_id 정규식이 1차 방어이고
 경로 해석 결과 확인이 2차 방어 (M5 보안)
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -40,6 +41,7 @@ _DETECTION_TAGS = frozenset({"tech", "detect", "detection", "favicon"})
 
 # ────────────────────────────────────────────── 경로
 
+
 def custom_path(template_id: str) -> Path:
     """custom 템플릿 파일 경로. 디렉터리 밖으로 나가면 거부"""
     if not builder.TEMPLATE_ID_RE.match(template_id):
@@ -58,6 +60,7 @@ def custom_path(template_id: str) -> Path:
 
 # ────────────────────────────────────────────── 색인
 
+
 def index_all(conn: sqlite3.Connection) -> dict[str, int]:
     """templates/ 트리를 훑어 DB 색인 갱신. 파일이 정본이고 DB 는 색인"""
     rules = load_vuln_type_rules(conn)
@@ -69,7 +72,9 @@ def index_all(conn: sqlite3.Connection) -> dict[str, int]:
     ):
         if not directory.is_dir():
             continue
-        for path in sorted(directory.rglob("*.yaml")) + sorted(directory.rglob("*.yml")):
+        for path in sorted(directory.rglob("*.yaml")) + sorted(
+            directory.rglob("*.yml")
+        ):
             row = _index_row(path, source, rules)
             if row:
                 rows.append(row)
@@ -174,6 +179,7 @@ def _listify(value: Any) -> list[str]:
 
 # ────────────────────────────────────────────── 조회
 
+
 def detail(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
     row = template_repo.get(conn, template_id)
     if row is None:
@@ -186,11 +192,14 @@ def detail(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
 
 # ────────────────────────────────────────────── 생성 · 수정 · 삭제
 
+
 def create(conn: sqlite3.Connection, form: dict[str, Any]) -> dict[str, Any]:
     yaml_text, template_id = _render(form)
     if template_repo.get(conn, template_id) is not None:
         raise ScanError(
-            "CONFLICT", "같은 ID 의 템플릿 존재", status_code=409,
+            "CONFLICT",
+            "같은 ID 의 템플릿 존재",
+            status_code=409,
             details=[{"field": "info.id", "reason": template_id}],
         )
     return _write(conn, template_id, yaml_text, form)
@@ -203,7 +212,8 @@ def update(
     yaml_text, new_id = _render(form)
     if new_id != template_id:
         raise ScanError(
-            "INVALID_REQUEST", "템플릿 ID 변경 불가. fork 사용",
+            "INVALID_REQUEST",
+            "템플릿 ID 변경 불가. fork 사용",
             details=[{"field": "info.id", "reason": new_id}],
         )
     del existing
@@ -221,11 +231,15 @@ def fork(conn: sqlite3.Connection, template_id: str, new_id: str) -> dict[str, A
     """official 사본을 custom 으로. 수정 불가 템플릿을 편집하는 유일한 경로"""
     source = detail(conn, template_id)
     if template_repo.get(conn, new_id) is not None:
-        raise ScanError("CONFLICT", "같은 ID 의 템플릿이 이미 있습니다.", status_code=409)
+        raise ScanError(
+            "CONFLICT", "같은 ID 의 템플릿이 이미 있습니다.", status_code=409
+        )
 
     document = yaml.safe_load(source["yaml"]) or {}
     if not builder.TEMPLATE_ID_RE.match(new_id):
-        raise ScanError("INVALID_REQUEST", "템플릿 ID 는 소문자·숫자·하이픈만 쓸 수 있습니다.")
+        raise ScanError(
+            "INVALID_REQUEST", "템플릿 ID 는 소문자·숫자·하이픈만 쓸 수 있습니다."
+        )
     document["id"] = new_id
     yaml_text = yaml.safe_dump(
         document, sort_keys=False, allow_unicode=True, default_flow_style=False
@@ -238,7 +252,8 @@ def _render(form: dict[str, Any]) -> tuple[str, str]:
         yaml_text = builder.build(form)
     except builder.BuildError as exc:
         raise ScanError(
-            "INVALID_REQUEST", exc.message,
+            "INVALID_REQUEST",
+            exc.message,
             details=[{"field": exc.field, "reason": exc.message}],
         ) from exc
     return yaml_text, str((form.get("info") or {}).get("id"))
@@ -253,7 +268,8 @@ def _write(
     checked = validator.validate(yaml_text)
     if not checked["policy"]["valid"]:
         raise ScanError(
-            "INVALID_REQUEST", "정책 검증 실패",
+            "INVALID_REQUEST",
+            "정책 검증 실패",
             details=[
                 {"field": e["field"], "reason": e["message"]}
                 for e in checked["policy"]["errors"]
@@ -293,6 +309,7 @@ def _require_editable(conn: sqlite3.Connection, template_id: str) -> dict[str, A
 
 
 # ────────────────────────────────────────────── 갱신 (외부 통신)
+
 
 def sync(conn: sqlite3.Connection, *, runner=None) -> dict[str, Any]:
     """공식 템플릿 갱신. 수동 트리거만. 오프라인 모드에서 403 (절대규칙 5)"""
@@ -337,14 +354,15 @@ def sync(conn: sqlite3.Connection, *, runner=None) -> dict[str, Any]:
 def _run_update() -> None:
     binary = settings.nuclei_bin()
     if not binary:
-        raise ScanError(
-            "NUCLEI_UNAVAILABLE", "nuclei 실행 파일 없음", status_code=503
-        )
+        raise ScanError("NUCLEI_UNAVAILABLE", "nuclei 실행 파일 없음", status_code=503)
     settings.OFFICIAL_DIR.mkdir(parents=True, exist_ok=True)
     try:
         completed = subprocess.run(
             [binary, "-update-templates", "-ud", str(settings.OFFICIAL_DIR), "-silent"],
-            capture_output=True, text=True, timeout=_SYNC_TIMEOUT_SEC, check=False,
+            capture_output=True,
+            text=True,
+            timeout=_SYNC_TIMEOUT_SEC,
+            check=False,
             stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.SubprocessError) as exc:

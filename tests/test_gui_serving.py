@@ -1,4 +1,5 @@
 """GUI 정적 서빙 + guide/status 검증."""
+
 from __future__ import annotations
 
 import re
@@ -16,6 +17,7 @@ FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
 def _notice_tail() -> str:
     """고지 문구의 고정부. 표현이 바뀌어도 존재 여부는 계속 검증"""
     return models.COVERAGE_NOTICE_TEMPLATE.split("{scope}")[-1].strip()
+
 
 @pytest.fixture(scope="module")
 def client(request):
@@ -54,7 +56,9 @@ def test_every_module_import_resolves():
     """import 경로가 틀리면 화면이 통째로 안 뜬다. 브라우저 없이 정적 확인"""
     missing = []
     for file in (FRONTEND / "js").glob("*.js"):
-        for spec in re.findall(r'from\s+"\./([A-Za-z0-9_.-]+)"', file.read_text("utf-8")):
+        for spec in re.findall(
+            r'from\s+"\./([A-Za-z0-9_.-]+)"', file.read_text("utf-8")
+        ):
             if not (FRONTEND / "js" / spec).is_file():
                 missing.append(f"{file.name} -> {spec}")
     assert not missing, missing

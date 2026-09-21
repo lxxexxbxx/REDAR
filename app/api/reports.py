@@ -1,4 +1,5 @@
 """보고서 라우터 (docs/00 §5). HTTP 전용."""
+
 from __future__ import annotations
 
 from typing import Annotated, Any, Literal
@@ -51,8 +52,11 @@ def attach_remediation_guide(
 ) -> dict[str, Any]:
     with session() as conn:
         view = report_service.attach_guide(
-            conn, report_id, body.content,
-            model=body.model, provider=body.provider,
+            conn,
+            report_id,
+            body.content,
+            model=body.model,
+            provider=body.provider,
         )
     return {
         "report_id": view["report_id"],

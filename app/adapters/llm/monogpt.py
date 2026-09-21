@@ -3,6 +3,7 @@
 허용된 외부 통신 4곳 중 하나. 오프라인 모드에서는 호출 지점에서 차단됨
 (remediation_service). 이 클래스는 통신만 담당하며 차단 판단을 하지 않음
 """
+
 from __future__ import annotations
 
 import json
@@ -43,7 +44,9 @@ class MonoGptProvider:
         base = (self.endpoint or "").rstrip("/")
         if not base:
             raise LlmError("LLM 엔드포인트가 설정되지 않았습니다.")
-        return base if base.endswith("/chat/completions") else f"{base}/chat/completions"
+        return (
+            base if base.endswith("/chat/completions") else f"{base}/chat/completions"
+        )
 
     def complete(
         self,
@@ -61,12 +64,14 @@ class MonoGptProvider:
         MonoGPT 샘플 코드도 넣지 않는다. 프롬프트가 이미 로컬 고정 양식이라
         재현성은 그쪽에서 확보됨 (remediation_service.render_prompt)
         """
-        text, finish = self._stream({
-            "model": self.model,
-            "messages": messages,
-            "max_completion_tokens": max_tokens,
-            "stream": True,
-        })
+        text, finish = self._stream(
+            {
+                "model": self.model,
+                "messages": messages,
+                "max_completion_tokens": max_tokens,
+                "stream": True,
+            }
+        )
         if text:
             return text
         # 추론 모델은 max_completion_tokens 를 추론 토큰과 함께 쓴다. 추론이 예산을
@@ -110,7 +115,7 @@ class MonoGptProvider:
                     try:
                         chunk = json.loads(data)
                     except ValueError:
-                        continue      # 주석·하트비트 줄. 스트림을 끊지 않음
+                        continue  # 주석·하트비트 줄. 스트림을 끊지 않음
                     for choice in chunk.get("choices") or []:
                         piece = (choice.get("delta") or {}).get("content")
                         if piece:

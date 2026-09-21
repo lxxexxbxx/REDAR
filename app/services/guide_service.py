@@ -4,6 +4,7 @@
 가이드 본문(guide_items)이 없어도 동작해야 한다 - 매핑 테이블은 번들이고
 finding_guide_refs.item_code 에 FK 가 없다 (절대규칙 3)
 """
+
 from __future__ import annotations
 
 import json
@@ -55,10 +56,15 @@ def map_scan(conn: sqlite3.Connection, scan_id: str) -> MappingResult:
         if refs:
             mapped += 1
         for ref in refs:
-            rows.append((
-                finding["finding_id"], ref["item_code"], ref["confidence"],
-                int(ref["is_primary"]), ref["matched_by"],
-            ))
+            rows.append(
+                (
+                    finding["finding_id"],
+                    ref["item_code"],
+                    ref["confidence"],
+                    int(ref["is_primary"]),
+                    ref["matched_by"],
+                )
+            )
 
     guide_repo.replace_refs(conn, scan_id, rows)
     return MappingResult(
@@ -82,7 +88,7 @@ def resolve(
                 continue
             seen.add(hit["item_code"])
             refs.append({**hit, "is_primary": True})
-        break                       # 상위 층에서 매칭되면 하위는 적용하지 않는다
+        break  # 상위 층에서 매칭되면 하위는 적용하지 않는다
 
     # 2트랙. CVE 가 있으면 패치 항목을 항상 추가 (is_primary=0)
     cves = _values(finding, "cve_ids")
@@ -91,11 +97,13 @@ def resolve(
             if hit["item_code"] in seen:
                 continue
             seen.add(hit["item_code"])
-            refs.append({
-                **hit,
-                "is_primary": False,
-                "matched_by": f"{MATCH_CVE_PRESENT}:{cves[0]}",
-            })
+            refs.append(
+                {
+                    **hit,
+                    "is_primary": False,
+                    "matched_by": f"{MATCH_CVE_PRESENT}:{cves[0]}",
+                }
+            )
     return refs
 
 
@@ -195,33 +203,43 @@ def verdicts(conn: sqlite3.Connection, scan_id: str) -> list[ItemVerdict]:
     for item_code in guide_repo.mapped_item_codes(conn):
         count = counts.get(item_code, 0)
         if count:
-            out.append(ItemVerdict(
-                item_code, GuideVerdict.VULNERABLE,
-                f"매핑된 탐지 {count}건", count,
-            ))
+            out.append(
+                ItemVerdict(
+                    item_code,
+                    GuideVerdict.VULNERABLE,
+                    f"매핑된 탐지 {count}건",
+                    count,
+                )
+            )
             continue
 
         keys = exposure_items.get(item_code) or []
         checked = [exposures[k] for k in keys if k in exposures]
         if checked:
             if any(e["value"] for e in checked):
-                out.append(ItemVerdict(
-                    item_code, GuideVerdict.VULNERABLE,
-                    "환경 조사 노출 확인: "
-                    + ", ".join(e["key"] for e in checked if e["value"]),
-                ))
+                out.append(
+                    ItemVerdict(
+                        item_code,
+                        GuideVerdict.VULNERABLE,
+                        "환경 조사 노출 확인: "
+                        + ", ".join(e["key"] for e in checked if e["value"]),
+                    )
+                )
             else:
-                out.append(ItemVerdict(
-                    item_code, GuideVerdict.SAFE, _EXPOSURE_SAFE_NOTE
-                ))
+                out.append(
+                    ItemVerdict(item_code, GuideVerdict.SAFE, _EXPOSURE_SAFE_NOTE)
+                )
             continue
 
         if keys:
             # 매핑은 노출 기준인데 그 노출을 수집하지 못함 -> 점검하지 않음
-            out.append(ItemVerdict(
-                item_code, GuideVerdict.NOT_APPLICABLE,
-                f"{_UNCHECKED_NOTE} (미수집: {', '.join(sorted(keys))})",
-            ))
+            out.append(
+                ItemVerdict(
+                    item_code,
+                    GuideVerdict.NOT_APPLICABLE,
+                    f"{_UNCHECKED_NOTE} (미수집: {', '.join(sorted(keys))})",
+                )
+            )
             continue
 
         out.append(

@@ -1,4 +1,5 @@
 """스캔·결과 라우터. HTTP 전용, 비즈니스 판단 없음 (docs/01 §2.1)."""
+
 from __future__ import annotations
 
 import json
@@ -172,10 +173,16 @@ def list_findings(
         if scan_repo.get_scan(conn, scan_id) is None:
             return not_found("스캔")
         items, total = scan_repo.list_findings(
-            conn, scan_id,
-            severity=_csv(severity), vuln_type=_csv(vuln_type),
-            host=host, status=status, sort=sort, order=order,
-            page=page, size=size,
+            conn,
+            scan_id,
+            severity=_csv(severity),
+            vuln_type=_csv(vuln_type),
+            host=host,
+            status=status,
+            sort=sort,
+            order=order,
+            page=page,
+            size=size,
         )
         # 필터와 무관하게 전체 기준 (docs/00 §4). GUI 요약 배지용
         aggregations = scan_repo.aggregate_findings(conn, scan_id)

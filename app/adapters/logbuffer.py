@@ -9,6 +9,7 @@
 
 파이썬 logging 과 nuclei 출력을 같은 버퍼에 모아 시간순으로 보여준다
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -56,10 +57,15 @@ def append(source: str, message: str, level: str = "INFO") -> None:
         return
     with _lock:
         _seq += 1
-        _entries.append(Entry(
-            seq=_seq, at=time.time(), level=level,
-            source=source, message=text[:2000],
-        ))
+        _entries.append(
+            Entry(
+                seq=_seq,
+                at=time.time(),
+                level=level,
+                source=source,
+                message=text[:2000],
+            )
+        )
 
 
 def entries(after: int = 0, limit: int = 500) -> list[dict[str, Any]]:

@@ -3,6 +3,7 @@
 환산표는 app/config/severity_map.yaml 로 분리.
 보고서 부록에 표를 그대로 첨부하므로 코드에 숫자 하드코딩 시 부록과 불일치 (docs/00 §6.1)
 """
+
 from __future__ import annotations
 
 from functools import lru_cache

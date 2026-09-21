@@ -3,6 +3,7 @@
 Report 골격(§1.3)을 타입으로 고정. 렌더러·LLM 은 소비만 하고 구조 변경 불가.
 "대상 무관 동일 보고서" 요구사항의 구현 수단. 세부 필드는 M7 에서 builder 와 함께 정리
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -34,10 +35,11 @@ EVIDENCE_TRUNCATED_MARKER = "\n...[REDAR] 응답 본문 32KB 초과로 절단됨
 # 강조 표시 대상. 보고서에서 이 문장만 굵게 렌더링 (renderer.emphasize)
 COVERAGE_CAUTION = "탐지되지 않음이 전체 시스템의 양호를 뜻하지는 않습니다."
 # 환경 기반 제외 고지. 제외 = 미탐지 제품 추정이며 점검 결과가 아님 (절대규칙 10)
-EXCLUSION_CAUTION = "제외는 해당 제품이 탐지되지 않았다는 뜻이며 양호를 의미하지 않습니다."
+EXCLUSION_CAUTION = (
+    "제외는 해당 제품이 탐지되지 않았다는 뜻이며 양호를 의미하지 않습니다."
+)
 COVERAGE_NOTICE_TEMPLATE = (
-    "본 점검은 웹 요청 기반입니다. {scope}만 자동 점검 대상입니다. "
-    + COVERAGE_CAUTION
+    "본 점검은 웹 요청 기반입니다. {scope}만 자동 점검 대상입니다. " + COVERAGE_CAUTION
 )
 _SCOPE_WITH_GUIDE = "가이드 전체 {items_total}개 점검항목 중 {items_covered}개"
 # 본문 미탑재 시 전체 항목 수를 알 수 없음. 0개로 표기하면 커버리지가 완전한 것처럼 읽힘
@@ -183,13 +185,13 @@ class SelectionBasis(Strict):
     """
 
     mode: str
-    universe: str                                    # all_templates | environment_filtered
+    universe: str  # all_templates | environment_filtered
     total_available: int = 0
-    total_run: int | None = None                     # filter 는 nuclei 가 골라 미확정
+    total_run: int | None = None  # filter 는 nuclei 가 골라 미확정
     excluded_enumerators: list[str] = Field(default_factory=list)
     wp_full_enumeration: bool = False
     excluded: list[ExcludedPlatform] = Field(default_factory=list)
-    fallback_reason: str | None = None               # no_application | no_index
+    fallback_reason: str | None = None  # no_application | no_index
     detected: list[str] = Field(default_factory=list)
     prepass_templates: int = 0
 

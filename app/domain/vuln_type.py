@@ -3,6 +3,7 @@
 규칙 원본은 data/vuln_type_rules.csv -> DB(vuln_type_rules).
 순수 함수. DB 직접 조회 없음 (SQL 은 repository 전용). 규칙은 호출자가 주입
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence

@@ -3,6 +3,7 @@
 exposure_key 8종의 정본은 docs/00 §1.2 (wordpress 담당분).
 주 진단 대상이 WordPress 이므로 이 수집기가 환경 기반 선별의 핵심 입력을 생성
 """
+
 from __future__ import annotations
 
 import json
@@ -29,18 +30,32 @@ _ASSET_RE = re.compile(
 _VER_PARAM_RE = re.compile(r"[?&]ver=([\w.\-]+)")
 
 # 로그인 시도 제한을 제공하는 플러그인. 탐지되면 제한 없음으로 단정하지 않음
-_LOGIN_LIMITERS = frozenset({
-    "limit-login-attempts-reloaded", "limit-login-attempts", "loginizer",
-    "wordfence", "better-wp-security", "ithemes-security-pro",
-    "all-in-one-wp-security-and-firewall", "wp-cerber", "wps-hide-login",
-    "wp-limit-login-attempts", "sucuri-scanner",
-})
+_LOGIN_LIMITERS = frozenset(
+    {
+        "limit-login-attempts-reloaded",
+        "limit-login-attempts",
+        "loginizer",
+        "wordfence",
+        "better-wp-security",
+        "ithemes-security-pro",
+        "all-in-one-wp-security-and-firewall",
+        "wp-cerber",
+        "wps-hide-login",
+        "wp-limit-login-attempts",
+        "sucuri-scanner",
+    }
+)
 
 # 백업·설정 파일 노출 후보. 응답 본문은 기록하지 않음 - 자격증명이 들어있음
 _BACKUP_PATHS = (
-    "/wp-config.php.bak", "/wp-config.php~", "/wp-config.php.save",
-    "/wp-config.php.orig", "/wp-config.php.txt", "/wp-config.bak",
-    "/.env", "/wp-config.php.old",
+    "/wp-config.php.bak",
+    "/wp-config.php~",
+    "/wp-config.php.save",
+    "/wp-config.php.orig",
+    "/wp-config.php.txt",
+    "/wp-config.bak",
+    "/.env",
+    "/wp-config.php.old",
 )
 
 _LOGIN_PROBE_COUNT = 3
@@ -91,7 +106,9 @@ class WordPressCollector:
             _rest_user_enum(ctx),
             _readme(readme),
             ExposureFinding(
-                key="wp_version_exposed", value=exposed, path="/",
+                key="wp_version_exposed",
+                value=exposed,
+                path="/",
                 evidence=version_evidence,
             ),
             *_login(ctx, slugs),
@@ -144,7 +161,8 @@ def _detect_components(body: str, wp_version: str | None) -> list[ComponentFindi
             ),
             evidence=(
                 f"{asset[:120]} (ver 이 본체 버전과 동일해 판단 보류)"
-                if ambiguous else asset[:120]
+                if ambiguous
+                else asset[:120]
             ),
         )
         previous = found.get(key)
@@ -159,7 +177,9 @@ def _xmlrpc(ctx: TargetContext) -> ExposureFinding:
     resp = ctx.get("/xmlrpc.php")
     enabled = resp.status == 405 or "xml-rpc server accepts post" in resp.text.lower()
     return ExposureFinding(
-        key="xmlrpc_enabled", value=enabled, path="/xmlrpc.php",
+        key="xmlrpc_enabled",
+        value=enabled,
+        path="/xmlrpc.php",
         evidence=f"GET /xmlrpc.php {resp.status or resp.error}",
     )
 
@@ -175,7 +195,9 @@ def _rest_user_enum(ctx: TargetContext) -> ExposureFinding:
         except (json.JSONDecodeError, TypeError):
             listed = 0
     return ExposureFinding(
-        key="rest_user_enum", value=listed > 0, path=path,
+        key="rest_user_enum",
+        value=listed > 0,
+        path=path,
         # 계정명 자체는 남기지 않음. 건수만 근거로 기록
         evidence=f"{resp.status or resp.error} · 계정 {listed}건 열거",
     )
@@ -197,23 +219,25 @@ def _login(ctx: TargetContext, slugs: set[str]) -> list[ExposureFinding]:
     accessible = first.ok and "user_login" in first.text.lower()
 
     limiter = sorted(slugs & _LOGIN_LIMITERS)
-    throttled = any(
-        r.status == 429 or r.header("retry-after") for r in responses
-    )
+    throttled = any(r.status == 429 or r.header("retry-after") for r in responses)
     # 인증 시도(POST)를 보내지 않으므로 '제한 없음' 은 단정이 아니라 관측 결과
     no_ratelimit = accessible and not throttled and not limiter
 
     return [
         ExposureFinding(
-            key="wp_login_accessible", value=accessible, path=path,
+            key="wp_login_accessible",
+            value=accessible,
+            path=path,
             evidence=f"GET {path} {first.status or first.error}",
         ),
         ExposureFinding(
-            key="wp_login_no_ratelimit", value=no_ratelimit, path=path,
+            key="wp_login_no_ratelimit",
+            value=no_ratelimit,
+            path=path,
             evidence=(
                 f"GET x{_LOGIN_PROBE_COUNT} 제한 응답 없음 · 제한 플러그인 미탐지"
-                if no_ratelimit else
-                f"제한 응답 {throttled} · 제한 플러그인 {limiter or '없음'}"
+                if no_ratelimit
+                else f"제한 응답 {throttled} · 제한 플러그인 {limiter or '없음'}"
             ),
         ),
     ]
@@ -226,9 +250,11 @@ def _admin_page(ctx: TargetContext) -> ExposureFinding:
     redirected_to_login = "wp-login.php" in resp.url
     public = resp.ok and not redirected_to_login
     return ExposureFinding(
-        key="admin_page_public", value=public, path=path,
+        key="admin_page_public",
+        value=public,
+        path=path,
         evidence=f"GET {path} {resp.status or resp.error}"
-                 + (" -> 로그인 리다이렉트" if redirected_to_login else ""),
+        + (" -> 로그인 리다이렉트" if redirected_to_login else ""),
     )
 
 
@@ -238,11 +264,15 @@ def _backup_files(ctx: TargetContext) -> ExposureFinding:
         resp = ctx.get(path)
         if resp.ok and resp.text.strip():
             return ExposureFinding(
-                key="dir_backup_files", value=True, path=path,
+                key="dir_backup_files",
+                value=True,
+                path=path,
                 evidence=f"{path} 접근 가능 ({resp.status}, {len(resp.text)}바이트)",
             )
     return ExposureFinding(
-        key="dir_backup_files", value=False, path=_BACKUP_PATHS[0],
+        key="dir_backup_files",
+        value=False,
+        path=_BACKUP_PATHS[0],
         evidence=f"백업 파일 후보 {len(_BACKUP_PATHS)}개 전부 접근 불가",
     )
 

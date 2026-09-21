@@ -7,6 +7,7 @@ nuclei 에는 포트 범위 옵션이 없어 REDAR 가 개별 대상으로 펼�
 TCP 연결 시도뿐이다. raw socket 도, 관리자 권한도 쓰지 않는다.
 브라우저가 접속할 때 하는 동작과 같으며 허용 목록 통제를 이미 통과한 대상에만 한다
 """
+
 from __future__ import annotations
 
 import logging

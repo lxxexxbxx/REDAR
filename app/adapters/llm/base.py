@@ -2,6 +2,7 @@
 
 LLM 은 조치 가이드 전용이다. 보고서에는 개입하지 않음 (절대규칙 2)
 """
+
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable

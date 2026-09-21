@@ -8,6 +8,7 @@
 '점검 및 조치 사례'(case_text)와 캡처 이미지는 스키마 미포함. 설계상 미채택.
 CSV 에 해당 열이 남아 있어도 replace_items 가 테이블 컬럼만 골라 넣으므로 무시됨
 """
+
 from __future__ import annotations
 
 import csv

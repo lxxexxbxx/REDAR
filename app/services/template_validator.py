@@ -5,6 +5,7 @@
 
 nuclei 미설치는 검증 실패가 아님. 문법 단계를 건너뛰었다고 알림 (절대규칙 8)
 """
+
 from __future__ import annotations
 
 import logging
@@ -60,9 +61,12 @@ def check_syntax(yaml_text: str) -> dict[str, Any]:
         try:
             proc = subprocess.run(
                 [binary, "-validate", "-t", str(path), "-duc", "-silent"],
-                capture_output=True, text=True, timeout=_SYNTAX_TIMEOUT_SEC,
-                check=False,    # 검증 실패도 결과다. 예외가 아니라 stderr 로 읽음
-                encoding="utf-8", errors="replace",
+                capture_output=True,
+                text=True,
+                timeout=_SYNTAX_TIMEOUT_SEC,
+                check=False,  # 검증 실패도 결과다. 예외가 아니라 stderr 로 읽음
+                encoding="utf-8",
+                errors="replace",
                 # 대상 인자가 없으면 nuclei 가 stdin 을 읽으려 대기함
                 # 파이프로 실행되면 무한 대기가 됨
                 stdin=subprocess.DEVNULL,
@@ -70,8 +74,10 @@ def check_syntax(yaml_text: str) -> dict[str, Any]:
         except (OSError, subprocess.TimeoutExpired) as exc:
             logger.warning("nuclei -validate 실행 실패: %s", exc)
             return {
-                "valid": None, "checker": "nuclei -validate",
-                "skipped": True, "reason": f"실행 실패: {exc}",
+                "valid": None,
+                "checker": "nuclei -validate",
+                "skipped": True,
+                "reason": f"실행 실패: {exc}",
             }
 
     message = (proc.stderr or proc.stdout or "").strip()
@@ -106,10 +112,12 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
     if not template_id:
         errors.append({"field": "id", "message": "템플릿 ID 를 입력하세요."})
     elif not builder.TEMPLATE_ID_RE.match(template_id):
-        errors.append({
-            "field": "id",
-            "message": "템플릿 ID 는 소문자·숫자·하이픈만 쓸 수 있습니다.",
-        })
+        errors.append(
+            {
+                "field": "id",
+                "message": "템플릿 ID 는 소문자·숫자·하이픈만 쓸 수 있습니다.",
+            }
+        )
 
     info = document.get("info") or {}
     if not isinstance(info, dict):
@@ -122,27 +130,33 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
     if not severity:
         errors.append({"field": "info.severity", "message": "severity 값을 고르세요."})
     elif severity not in {s.value for s in Severity}:
-        errors.append({
-            "field": "info.severity",
-            "message": f"severity 값이 올바르지 않습니다: {severity}",
-        })
+        errors.append(
+            {
+                "field": "info.severity",
+                "message": f"severity 값이 올바르지 않습니다: {severity}",
+            }
+        )
 
     classification = info.get("classification") or {}
     if isinstance(classification, dict):
         cve = classification.get("cve-id")
-        for value in ([cve] if isinstance(cve, str) else (cve or [])):
+        for value in [cve] if isinstance(cve, str) else (cve or []):
             if value and not builder.CVE_RE.match(str(value)):
-                errors.append({
-                    "field": "info.classification.cve-id",
-                    "message": f"CVE ID 형식이 아닙니다: {value}",
-                })
+                errors.append(
+                    {
+                        "field": "info.classification.cve-id",
+                        "message": f"CVE ID 형식이 아닙니다: {value}",
+                    }
+                )
         cwe = classification.get("cwe-id")
-        for value in ([cwe] if isinstance(cwe, str) else (cwe or [])):
+        for value in [cwe] if isinstance(cwe, str) else (cwe or []):
             if value and not builder.CWE_RE.match(str(value)):
-                errors.append({
-                    "field": "info.classification.cwe-id",
-                    "message": f"CWE ID 형식이 아닙니다: {value}",
-                })
+                errors.append(
+                    {
+                        "field": "info.classification.cwe-id",
+                        "message": f"CWE ID 형식이 아닙니다: {value}",
+                    }
+                )
 
     requests = document.get("http") or document.get("requests") or []
     if not isinstance(requests, list) or not requests:
@@ -155,7 +169,9 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
             errors.append({"field": f"http[{index}]", "message": "매핑이 아닙니다."})
             continue
         if not entry.get("path"):
-            errors.append({"field": f"http[{index}].path", "message": "경로를 입력하세요."})
+            errors.append(
+                {"field": f"http[{index}].path", "message": "경로를 입력하세요."}
+            )
         matchers = entry.get("matchers") or []
         if not isinstance(matchers, list):
             matchers = []
@@ -164,15 +180,14 @@ def check_policy(yaml_text: str) -> dict[str, Any]:
             warnings.append({**LOOSE_MATCHER, "field": f"http[{index}].matchers"})
 
     if matcher_total == 0:
-        errors.append({"field": "matchers", "message": "탐지 조건이 최소 1개 필요합니다."})
+        errors.append(
+            {"field": "matchers", "message": "탐지 조건이 최소 1개 필요합니다."}
+        )
 
     return {"valid": not errors, "errors": errors, "warnings": warnings}
 
 
 def _is_loose(matchers: list[Any]) -> bool:
     """status 만으로 판정하는 matcher 구성. 정상 페이지도 매칭됨"""
-    kinds = {
-        str(m.get("type") or "").strip()
-        for m in matchers if isinstance(m, dict)
-    }
+    kinds = {str(m.get("type") or "").strip() for m in matchers if isinstance(m, dict)}
     return bool(kinds) and kinds <= {"status"}

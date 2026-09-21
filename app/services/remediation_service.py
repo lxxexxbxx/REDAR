@@ -16,6 +16,7 @@
 [2] 통제 4겹 (docs/01 §7.1)
   기능 토글 -> 오프라인 검사 -> LLM 통신 지점 검사 -> 요청마다 명시 동의
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -67,11 +68,14 @@ def _provider(raw: dict[str, str]):
     Provider 선택은 화면에 두지 않는다 - 실제 구현이 하나뿐이라 고를 이유가 없고,
     비워두면 조용히 NullProvider 로 떨어져 '키를 넣었는데 안 된다' 가 됨
     """
-    provider = get_provider(provider_name(raw), {
-        "endpoint": raw.get("llm_endpoint"),
-        "api_key": raw.get("llm_api_key"),
-        "model": raw.get("llm_model"),
-    })
+    provider = get_provider(
+        provider_name(raw),
+        {
+            "endpoint": raw.get("llm_endpoint"),
+            "api_key": raw.get("llm_api_key"),
+            "model": raw.get("llm_model"),
+        },
+    )
     if provider.name == "null":
         raise ScanError(
             "LLM_UNAVAILABLE",
@@ -103,9 +107,7 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         ),
         "blocked_reason": _blocked_reason(raw),
         "model": raw.get("llm_model"),
-        "masked": settings_repo.as_bool(
-            raw.get("llm_mask_identifiers"), default=True
-        ),
+        "masked": settings_repo.as_bool(raw.get("llm_mask_identifiers"), default=True),
     }
 
 
@@ -151,7 +153,8 @@ def report_context(report: dict[str, Any]) -> dict[str, Any]:
         # 노출 항목. 조치 대상이 곧 이 경로들이라 path 를 함께 넘김
         "exposures": [
             {"key": e.get("key"), "path": e.get("path")}
-            for e in (environment.get("exposures") or []) if e.get("value")
+            for e in (environment.get("exposures") or [])
+            if e.get("value")
         ],
         # 수집 실패는 '없음' 과 다르다. 가이드가 단정하지 않도록 함께 넘김
         "collectors_run": environment.get("collectors_run") or [],
@@ -229,11 +232,15 @@ def render_prompt(context: dict[str, Any]) -> str:
         "",
         "## 출력 형식",
         "- Markdown. 위에서부터 순서대로 따라가면 조치가 끝나도록 작성",
-        ("- **복사해서 그대로 실행 가능한 명령**만 적을 것."
-        " `<여기에 경로>` 같은 자리표시자를 남기지 말고, 아래 환경 정보의 실제 값을 넣을 것"),
+        (
+            "- **복사해서 그대로 실행 가능한 명령**만 적을 것."
+            " `<여기에 경로>` 같은 자리표시자를 남기지 말고, 아래 환경 정보의 실제 값을 넣을 것"
+        ),
         "- 설정 파일을 바꿔야 하면 **파일 경로**와 **변경 전/후 줄**을 그대로 보여줄 것",
-        ("- 새 도구 설치를 요구하지 말 것. 해당 제품·OS 에 이미 있는 명령으로 해결할 것."
-        " 불가피하면 그 단계에 `[추가 설치 필요]` 를 붙여 따로 구분"),
+        (
+            "- 새 도구 설치를 요구하지 말 것. 해당 제품·OS 에 이미 있는 명령으로 해결할 것."
+            " 불가피하면 그 단계에 `[추가 설치 필요]` 를 붙여 따로 구분"
+        ),
         "- 각 단계마다 (1) 실행 명령 (2) 조치 확인 명령과 기대 출력 (3) 되돌리는 방법",
         "- 서비스 재시작·중단이 필요한 단계는 그 사실을 먼저 밝힐 것",
         "- 심각도가 높은 항목부터. 여러 항목이 같은 파일을 고치면 한 단계로 묶을 것",
@@ -251,8 +258,11 @@ def render_prompt(context: dict[str, Any]) -> str:
     if stack:
         for key, value in stack.items():
             version = value.get("version") or "버전 미확인"
-            note = "" if value.get("confidence") == "high" else \
-                f" (확신도 {value.get('confidence') or 'low'})"
+            note = (
+                ""
+                if value.get("confidence") == "high"
+                else f" (확신도 {value.get('confidence') or 'low'})"
+            )
             lines.append(
                 f"- {_STACK_LABEL.get(key, key)}: {value['product']} {version}{note}"
             )
@@ -263,8 +273,10 @@ def render_prompt(context: dict[str, Any]) -> str:
     if components:
         lines += ["", f"### 구성요소 {len(components)}건"]
         for c in components:
-            state = "" if c.get("active") is None else (
-                " · 활성" if c["active"] else " · 비활성"
+            state = (
+                ""
+                if c.get("active") is None
+                else (" · 활성" if c["active"] else " · 비활성")
             )
             lines.append(
                 f"- {c.get('type') or 'component'} `{c.get('slug')}`"
@@ -282,15 +294,19 @@ def render_prompt(context: dict[str, Any]) -> str:
     if failed:
         lines += [
             "",
-            (f"> 수집 실패: {', '.join(failed)}."
-            " 이 영역은 확인되지 않았으므로 '양호' 로 단정하지 말 것"),
+            (
+                f"> 수집 실패: {', '.join(failed)}."
+                " 이 영역은 확인되지 않았으므로 '양호' 로 단정하지 말 것"
+            ),
         ]
 
     lines += [
         "",
         "## 탐지 결과",
-        (f"총 {context.get('total_findings') or 0}건"
-        f" · {_severity_line(context.get('by_severity') or {})}"),
+        (
+            f"총 {context.get('total_findings') or 0}건"
+            f" · {_severity_line(context.get('by_severity') or {})}"
+        ),
         "",
         "| 항목 | 심각도 | 유형 | CVE | CWE |",
         "|---|---|---|---|---|",
@@ -304,7 +320,8 @@ def render_prompt(context: dict[str, Any]) -> str:
         )
 
     remediation = [
-        item for item in (context.get("remediation") or [])
+        item
+        for item in (context.get("remediation") or [])
         if item.get("guide_remediation_original")
     ]
     if remediation:
@@ -331,11 +348,15 @@ def render_prompt(context: dict[str, Any]) -> str:
 
     lines += [
         "## 주의",
-        ("- 탐지되지 않은 항목을 '양호' 로 단정하지 말 것. 웹 요청으로는 계정 관리·"
-        "파일 권한·서비스 데몬 설정을 볼 수 없음"),
+        (
+            "- 탐지되지 않은 항목을 '양호' 로 단정하지 말 것. 웹 요청으로는 계정 관리·"
+            "파일 권한·서비스 데몬 설정을 볼 수 없음"
+        ),
         "- 조치 전 대상 파일 백업 명령을 각 단계 첫 줄에 넣을 것",
-        ("- 위 환경 정보에 없는 경로·버전을 임의로 가정하지 말 것."
-        " 정보가 부족하면 그 단계에 `확인 필요` 로 적고 확인 명령을 제시"),
+        (
+            "- 위 환경 정보에 없는 경로·버전을 임의로 가정하지 말 것."
+            " 정보가 부족하면 그 단계에 `확인 필요` 로 적고 확인 명령을 제시"
+        ),
     ]
     return "\n".join(lines)
 
@@ -372,11 +393,16 @@ def ask(
 
     # 프롬프트에는 실제 호스트·경로가 들어 있다. 나가는 길에만 치환하고
     # 돌아온 가이드는 되돌려 실제 값으로 보여줌 (docs/01 §7.4)
-    masker = Masker() if settings_repo.as_bool(
-        raw.get("llm_mask_identifiers"), default=True
-    ) else None
+    masker = (
+        Masker()
+        if settings_repo.as_bool(raw.get("llm_mask_identifiers"), default=True)
+        else None
+    )
     outbound = [
-        {"role": m["role"], "content": masker.mask(m["content"]) if masker else m["content"]}
+        {
+            "role": m["role"],
+            "content": masker.mask(m["content"]) if masker else m["content"],
+        }
         for m in cleaned
     ]
 

@@ -1,4 +1,5 @@
 """FastAPI 앱. 루프백 전용 (docs/00 §0.1)."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -26,6 +27,7 @@ from app.repository.db import session
 
 API_PREFIX = "/api/v1"
 
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """설정에 지정·반입된 도구 경로를 읽어 둠. 실패해도 기동은 계속"""
@@ -40,7 +42,9 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="REDAR", version=__version__, docs_url=f"{API_PREFIX}/docs",
+    title="REDAR",
+    version=__version__,
+    docs_url=f"{API_PREFIX}/docs",
     lifespan=lifespan,
 )
 

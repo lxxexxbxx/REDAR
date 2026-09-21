@@ -2,6 +2,7 @@
 
 코드·SQL 에 값을 두면 DB 의 값이 어디서 왔는지 추적할 수 없고 재적재 경로가 갈라짐
 """
+
 from __future__ import annotations
 
 import csv
@@ -29,6 +30,7 @@ def _notice_tail() -> str:
     """고지 문구의 고정부. 표현이 바뀌어도 존재 여부는 계속 검증"""
     return models.COVERAGE_NOTICE_TEMPLATE.split("{scope}")[-1].strip()
 
+
 def _load_tool():
     spec = importlib.util.spec_from_file_location(
         "build_data_csv", ROOT / "tools" / "build_data_csv.py"
@@ -53,7 +55,9 @@ def _fresh_db(tmp_path, load_guide=False):
 def test_schema_sql_has_no_seed_data():
     """스키마 파일에 초기 데이터를 두면 CSV 와 값이 갈라짐"""
     sql = settings.SCHEMA_PATH.read_text(encoding="utf-8")
-    tables = set(re.findall(r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+(\w+)", sql, re.IGNORECASE))
+    tables = set(
+        re.findall(r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+(\w+)", sql, re.IGNORECASE)
+    )
     assert tables <= _ALLOWED_SEED_TABLES, f"SQL 하드코딩 초기 데이터: {tables}"
 
 
@@ -91,7 +95,9 @@ def test_reload_is_idempotent(tmp_path):
         }
     assert before["guide_mappings.csv"] == 135
     assert totals == {
-        "vuln_type_rules": 129, "guide_mappings": 454, "component_advisories": 951,
+        "vuln_type_rules": 129,
+        "guide_mappings": 454,
+        "component_advisories": 951,
     }
 
 
@@ -144,7 +150,10 @@ def test_vuln_type_values_are_enum_members():
 def test_external_endpoint_keys_are_code_controlled():
     """통신 지점 목록은 코드가 통제. CSV 로 4번째 지점을 추가할 수 없어야 함 (절대규칙 5)"""
     assert settings_repo.EXTERNAL_ENDPOINT_KEYS == (
-        "template_sync", "llm_api", "cve_lookup", "dependency_install",
+        "template_sync",
+        "llm_api",
+        "cve_lookup",
+        "dependency_install",
     )
     csv_keys = {r["key"] for r in _read("settings_defaults.csv")}
     extra = {k for k in csv_keys if k.startswith("ext_") and k.endswith("_url")}
@@ -166,8 +175,12 @@ def test_in_memory_schema_load_matches_file_db(tmp_path):
     load_data(memory)
 
     with session(_fresh_db(tmp_path)) as conn:
-        for table in ("settings", "vuln_type_rules", "guide_mappings",
-                      "component_advisories"):
+        for table in (
+            "settings",
+            "vuln_type_rules",
+            "guide_mappings",
+            "component_advisories",
+        ):
             assert (
                 memory.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 == conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
@@ -210,9 +223,7 @@ def test_import_guide_fills_items_and_fts(tmp_path):
     assert result["item_count"] == 2
     assert result["errors"] == []
     with session(db) as conn:
-        status = __import__(
-            "app.repository.guide", fromlist=["status"]
-        ).status(conn)
+        status = __import__("app.repository.guide", fromlist=["status"]).status(conn)
         assert status["imported"] is True
         assert status["item_count"] == 2
         assert status["version"] == "2026"
@@ -264,7 +275,7 @@ def test_migration_applies_to_existing_db(tmp_path, monkeypatch):
     """
     _probe_migrations(tmp_path, monkeypatch)
     db = _fresh_db(tmp_path)
-    with session(db) as conn:                       # 002 이전 DB 로 되돌림
+    with session(db) as conn:  # 002 이전 DB 로 되돌림
         conn.execute("DELETE FROM schema_version WHERE version = 2")
         conn.commit()
 
@@ -342,7 +353,7 @@ def test_part_a_works_without_guide(tmp_path):
     with session(_fresh_db(tmp_path)) as conn:
         status = guide_repo.status(conn)
     assert status["imported"] is False
-    assert status["mapping_count"] == 454      # 매핑은 번들이라 항상 존재
+    assert status["mapping_count"] == 454  # 매핑은 번들이라 항상 존재
     # 본문 없이도 커버리지 고지는 나옴. 단 "382개 중" 대신 미탑재를 명시 (절대규칙 10)
     notice = status["coverage_notice"]
     assert "36개" in notice and "미탑재" in notice
@@ -354,7 +365,10 @@ def test_guide_body_is_bundled():
     import subprocess
 
     tracked = subprocess.run(
-        ["git", "ls-files", "data/"], capture_output=True, text=True, cwd=ROOT,
+        ["git", "ls-files", "data/"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
         check=False,
     ).stdout.split()
     assert [f for f in tracked if "guide_items" in f]

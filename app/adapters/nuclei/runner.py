@@ -3,6 +3,7 @@
 stdout(JSONL) 은 라인 단위 스트림 처리. 파일 완성 후 읽기 방식은 진행 중 결과 표시 불가,
 중단 시 전체 소실 (docs/01 §3.1)
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,17 +43,20 @@ def build_command(opts: RunOptions, exe: str | None = None) -> list[str]:
     """실행 인자 조립. nuclei 미설치 시 RuntimeError."""
     binary = exe or settings.nuclei_bin()
     if not binary:
-        raise RuntimeError("nuclei 실행 파일을 찾을 수 없습니다. PATH 또는 REDAR_NUCLEI 를 확인하세요.")
+        raise RuntimeError(
+            "nuclei 실행 파일을 찾을 수 없습니다. PATH 또는 REDAR_NUCLEI 를 확인하세요."
+        )
     if not opts.targets:
         raise ValueError("스캔 대상이 없습니다.")
 
     cmd = [
         binary,
-        "-jsonl",                                  # stdout 을 JSONL 로
-        "-silent",                                 # 배너·진행 로그 억제
-        "-nc",                                     # 색상 코드 제거. stats 파싱 방해 요소
+        "-jsonl",  # stdout 을 JSONL 로
+        "-silent",  # 배너·진행 로그 억제
+        "-nc",  # 색상 코드 제거. stats 파싱 방해 요소
         "-stats",
-        "-si", str(opts.stats_interval_sec),
+        "-si",
+        str(opts.stats_interval_sec),
         # 기동 시 템플릿 갱신 확인을 위한 아웃바운드 통신 차단.
         # 허용된 외부 통신 3곳에 '스캔 시 자동 갱신'은 없음 (절대규칙 5)
         "-duc",
@@ -78,9 +82,12 @@ def build_command(opts: RunOptions, exe: str | None = None) -> list[str]:
     if opts.severities:
         cmd += ["-severity", ",".join(opts.severities)]
     cmd += [
-        "-c", str(opts.threads),
-        "-timeout", str(opts.timeout_sec),
-        "-retries", str(opts.retries),
+        "-c",
+        str(opts.threads),
+        "-timeout",
+        str(opts.timeout_sec),
+        "-retries",
+        str(opts.retries),
     ]
     if opts.rate_limit:
         cmd += ["-rl", str(opts.rate_limit)]

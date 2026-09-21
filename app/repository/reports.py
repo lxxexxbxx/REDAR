@@ -3,6 +3,7 @@
 집계·정렬을 SQL 로 고정하는 이유: 같은 스캔이면 몇 번을 생성해도 같은 순서가
 나와야 근거 대조가 성립. LLM 은 이 순서에 개입하지 않음 (db/schema.sql §7)
 """
+
 from __future__ import annotations
 
 import json
@@ -113,7 +114,7 @@ def guide_items_for_scan(
     conn: sqlite3.Connection, scan_id: str
 ) -> dict[str, dict[str, Any]]:
     """매핑 대상 점검항목 본문. 미탑재면 빈 dict (절대규칙 3)."""
-    del scan_id                       # 본문은 스캔과 무관. 시그니처 일관성 유지용
+    del scan_id  # 본문은 스캔과 무관. 시그니처 일관성 유지용
     return {
         row["item_code"]: dict(row)
         for row in conn.execute("SELECT * FROM guide_items ORDER BY item_code")
@@ -141,6 +142,7 @@ def templates_used(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any
 
 # ────────────────────────────────────────────── reports 테이블
 
+
 def insert(
     conn: sqlite3.Connection,
     *,
@@ -157,12 +159,17 @@ def insert(
         " guide_items_covered)"
         " VALUES (?, ?, 'generating', ?, ?, ?, ?, ?, ?, ?, ?)",
         (
-            report_id, scan_id,
+            report_id,
+            scan_id,
             # 보고서는 LLM 을 쓰지 않음. 컬럼은 스키마 동결로 남아 항상 0
-            0, int(options["include_guide_mapping"]),
-            int(options["include_evidence"]), int(options["exclude_false_positives"]),
-            int(guide_status["imported"]), guide_status["version"],
-            guide_status["item_count"], guide_status["items_covered"],
+            0,
+            int(options["include_guide_mapping"]),
+            int(options["include_evidence"]),
+            int(options["exclude_false_positives"]),
+            int(guide_status["imported"]),
+            guide_status["version"],
+            guide_status["item_count"],
+            guide_status["items_covered"],
         ),
     )
     conn.commit()
@@ -183,8 +190,15 @@ def finish(
         "UPDATE reports SET status = 'completed', report_json = ?, llm_used = ?,"
         " llm_provider = ?, llm_model = ?, llm_prompt_version = ?,"
         " llm_fallback_count = ? WHERE report_id = ?",
-        (report_json, int(llm_used), llm_provider, llm_model, llm_prompt_version,
-         llm_fallback_count, report_id),
+        (
+            report_json,
+            int(llm_used),
+            llm_provider,
+            llm_model,
+            llm_prompt_version,
+            llm_fallback_count,
+            report_id,
+        ),
     )
     conn.commit()
 
@@ -212,8 +226,7 @@ def set_llm_guide(
 
 def fail(conn: sqlite3.Connection, report_id: str, message: str) -> None:
     conn.execute(
-        "UPDATE reports SET status = 'failed', error_message = ?"
-        " WHERE report_id = ?",
+        "UPDATE reports SET status = 'failed', error_message = ? WHERE report_id = ?",
         (message[:500], report_id),
     )
     conn.commit()
@@ -232,14 +245,15 @@ def get(conn: sqlite3.Connection, report_id: str) -> dict[str, Any] | None:
 
 
 def listing(
-    conn: sqlite3.Connection, *, scan_id: str | None = None,
-    page: int = 1, size: int = 50,
+    conn: sqlite3.Connection,
+    *,
+    scan_id: str | None = None,
+    page: int = 1,
+    size: int = 50,
 ) -> tuple[list[dict[str, Any]], int]:
     clause = " WHERE scan_id = ?" if scan_id else ""
     params: list[Any] = [scan_id] if scan_id else []
-    total = conn.execute(
-        f"SELECT COUNT(*) FROM reports{clause}", params
-    ).fetchone()[0]
+    total = conn.execute(f"SELECT COUNT(*) FROM reports{clause}", params).fetchone()[0]
     rows = conn.execute(
         f"SELECT report_id, scan_id, status, generated_at, guide_db_available,"
         f" llm_used FROM reports{clause}"

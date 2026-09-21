@@ -3,6 +3,7 @@
 파일로 남기지 않는다. 용량이 계속 늘고 사용자 데이터 경로를 관리해야 하므로
 메모리 링 버퍼만 두고, 개수와 시간 두 겹으로 제한한다
 """
+
 from __future__ import annotations
 
 import logging

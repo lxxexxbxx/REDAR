@@ -12,6 +12,7 @@
 제목 단계는 h3 부터 시작한다. 보고서는 h1 이 파트, h2 가 절이므로 가이드가 h1 을
 쓰면 파트로 보인다
 """
+
 from __future__ import annotations
 
 import re
@@ -93,8 +94,7 @@ def to_html(text: str | None) -> Markup:
         if _FENCE_RE.match(raw):
             builder.close_blocks()
             builder.out.append(
-                "</code></pre>" if builder.in_code
-                else '<pre class="codeblock"><code>'
+                "</code></pre>" if builder.in_code else '<pre class="codeblock"><code>'
             )
             builder.in_code = not builder.in_code
             continue
@@ -104,7 +104,7 @@ def to_html(text: str | None) -> Markup:
             continue
 
         if _DIVIDER_RE.match(raw):
-            continue                          # 표 구분줄. 출력하지 않음
+            continue  # 표 구분줄. 출력하지 않음
         row = _ROW_RE.match(raw)
         if row:
             builder.close_list()
@@ -116,9 +116,7 @@ def to_html(text: str | None) -> Markup:
         if heading:
             builder.close_list()
             level = min(len(heading.group(1)) + _HEADING_OFFSET, _MAX_HEADING)
-            builder.out.append(
-                f"<h{level}>{_inline(heading.group(2))}</h{level}>"
-            )
+            builder.out.append(f"<h{level}>{_inline(heading.group(2))}</h{level}>")
             continue
 
         item = _ITEM_RE.match(raw)

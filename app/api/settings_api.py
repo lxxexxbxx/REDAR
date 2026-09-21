@@ -2,6 +2,7 @@
 
 allowlist 기본값이 비어 있음 = 전부 차단이라, 이 API 없이는 GUI 에서 스캔을 시작할 수 없음
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -66,14 +67,16 @@ def _view(raw: dict[str, str]) -> dict[str, Any]:
     endpoints = []
     for key in settings_repo.EXTERNAL_ENDPOINT_KEYS:
         enabled = settings_repo.as_bool(raw.get(f"ext_{key}_enabled"))
-        endpoints.append({
-            "key": key,
-            # 오프라인 모드가 켜져 있으면 개별 설정과 무관하게 강제 비활성 (docs/00 §7)
-            "enabled": enabled and not offline,
-            "configured": enabled,
-            # 기본 URL 은 settings_defaults.csv 가 넣어준 ext_<key>_url
-            "url": raw.get(f"ext_{key}_url") or "",
-        })
+        endpoints.append(
+            {
+                "key": key,
+                # 오프라인 모드가 켜져 있으면 개별 설정과 무관하게 강제 비활성 (docs/00 §7)
+                "enabled": enabled and not offline,
+                "configured": enabled,
+                # 기본 URL 은 settings_defaults.csv 가 넣어준 ext_<key>_url
+                "url": raw.get(f"ext_{key}_url") or "",
+            }
+        )
     return {
         "offline_mode": offline,
         "target_allowlist": settings_repo.as_list(raw.get("target_allowlist")),

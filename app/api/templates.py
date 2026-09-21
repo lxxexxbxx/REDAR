@@ -1,4 +1,5 @@
 """템플릿 라우터 (docs/00 §3). HTTP 전용, 비즈니스 판단 없음 (docs/01 §2.1)."""
+
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -59,8 +60,13 @@ def list_templates(
 ) -> dict[str, Any]:
     with session() as conn:
         items, total = template_repo.search(
-            conn, source=source, severity=_csv(severity), tags=_csv(tags),
-            query=q, page=page, size=size,
+            conn,
+            source=source,
+            severity=_csv(severity),
+            tags=_csv(tags),
+            query=q,
+            page=page,
+            size=size,
         )
     return {"items": items, "page": page, "size": size, "total": total}
 
@@ -86,7 +92,9 @@ def validate_template(body: ValidateRequest) -> dict[str, Any]:
     text = body.yaml
     if text is None:
         if body.form is None:
-            raise service.ScanError("INVALID_REQUEST", "yaml 또는 form 중 하나가 필요합니다.")
+            raise service.ScanError(
+                "INVALID_REQUEST", "yaml 또는 form 중 하나가 필요합니다."
+            )
         text = builder.build(body.form)
     # 검증한 YAML 을 함께 돌려줌. 프론트가 YAML 을 조립하면 조립 규칙이 두 곳에 생김
     return {**validator.validate(text), "yaml": text}

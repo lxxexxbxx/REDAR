@@ -8,6 +8,7 @@ nuclei 에는 포트 범위 옵션이 없다. HTTP 템플릿은 대상 URL 에 �
   - 개별 탐지 결과·조치 대상: 실제 발견된 포트
 범위로 뭉쳐 표기하면 어느 포트를 막아야 할지 알 수 없고 재현도 불가
 """
+
 from __future__ import annotations
 
 import re

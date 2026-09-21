@@ -6,6 +6,7 @@
   3. 확신할 수 없으면 version=None + confidence=low. 추정값의 확정 표기 금지
   4. 타임아웃 필수
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -37,10 +38,10 @@ ORDER_MIDDLEWARE = 30
 @dataclass(frozen=True)
 class Response:
     status: int
-    headers: Mapping[str, str]          # 키는 소문자로 정규화
+    headers: Mapping[str, str]  # 키는 소문자로 정규화
     text: str
     url: str
-    error: str | None = None            # 요청 자체 실패. 수집기는 이걸 보고 판단 보류
+    error: str | None = None  # 요청 자체 실패. 수집기는 이걸 보고 판단 보류
 
     @property
     def ok(self) -> bool:

@@ -3,6 +3,7 @@
 고정 포트는 점유 시 기동 실패하거나 타 프로세스에 접속 (M10 [3]).
 Tauri 셸이 이 stdout 한 줄을 읽어 WebView 를 띄움
 """
+
 from __future__ import annotations
 
 import json
@@ -34,6 +35,7 @@ def watch_parent() -> None:
     셸이 SIGTERM 등으로 죽으면 창 이벤트가 돌지 않아 Rust 쪽 정리가 못 돎
     부모가 사라지면 stdin 의 쓰기 끝이 닫혀 EOF 가 되므로 그것을 대기
     """
+
     def wait() -> None:
         try:
             while sys.stdin.readline():
@@ -67,7 +69,10 @@ def main() -> None:
     from app.main import app as asgi_app
 
     uvicorn.run(
-        asgi_app, host="127.0.0.1", port=port, log_level="warning",
+        asgi_app,
+        host="127.0.0.1",
+        port=port,
+        log_level="warning",
         access_log=False,
     )
 

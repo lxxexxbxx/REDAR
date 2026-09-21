@@ -4,6 +4,7 @@
 어휘 통일 - 탐지 집합과 관측 가능 집합이 모두 템플릿 표지(platform)에서 나오므로
 'apache' 와 'http_server' 같은 표시명 불일치로 오제외되지 않음
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -19,10 +20,34 @@ _PREPASS_DIRS = ("/http/technologies/", "/http/exposed-panels/")
 
 # 리버스 프록시·CDN 뒤에서 앞단만 보이는 계층. 미탐지여도 존재 가능
 _SERVER_LAYER = (
-    "http_server", "apache", "tomcat", "iis", "internet_information", "jetty",
-    "weblogic", "jboss", "wildfly", "websphere", "glassfish", "nginx", "openresty",
-    "lighttpd", "caddy", "tengine", "litespeed", "resin", "undertow", "php",
-    "node.js", "express", "openssl", "traefik", "haproxy", "envoy", "varnish", "squid",
+    "http_server",
+    "apache",
+    "tomcat",
+    "iis",
+    "internet_information",
+    "jetty",
+    "weblogic",
+    "jboss",
+    "wildfly",
+    "websphere",
+    "glassfish",
+    "nginx",
+    "openresty",
+    "lighttpd",
+    "caddy",
+    "tengine",
+    "litespeed",
+    "resin",
+    "undertow",
+    "php",
+    "node.js",
+    "express",
+    "openssl",
+    "traefik",
+    "haproxy",
+    "envoy",
+    "varnish",
+    "squid",
 )
 
 # 템플릿 트리 중 템플릿이 아닌 곳. 워드리스트·스캔 프로필
@@ -82,7 +107,8 @@ def decide(metas: Sequence[TemplateMeta], envs: Sequence[TargetEnv]) -> Exclusio
         return ExclusionPlan((), "no_application")
     observable = {m.platform for m in metas if is_prepass(m) and m.platform}
     excluded = tuple(
-        m for m in metas
+        m
+        for m in metas
         if m.source == "official"
         and m.platform
         and not is_prepass(m)
@@ -103,9 +129,7 @@ def main_pass_files(official_dir: Path, skip: set[str]) -> list[str]:
     if not official_dir.is_dir():
         return []
     files = []
-    for path in sorted(
-        [*official_dir.rglob("*.yaml"), *official_dir.rglob("*.yml")]
-    ):
+    for path in sorted([*official_dir.rglob("*.yaml"), *official_dir.rglob("*.yml")]):
         rel = path.relative_to(official_dir).parts
         if rel[0] in _NON_TEMPLATE_TOP or any(part.startswith(".") for part in rel):
             continue

@@ -2,6 +2,7 @@
 
 이 Provider 로도 보고서가 완성품이어야 한다. LLM 은 품질 향상 수단임
 """
+
 from __future__ import annotations
 
 

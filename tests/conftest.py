@@ -3,6 +3,7 @@
 DB 경로를 임시 디렉터리로 전환. settings 가 임포트 시점에 환경변수를 읽으므로
 app 임포트보다 먼저 설정 필요
 """
+
 from __future__ import annotations
 
 import os

@@ -1,4 +1,5 @@
 """scans · scan_targets · findings 조회. SQL 은 이 계층 전용."""
+
 from __future__ import annotations
 
 import json
@@ -133,9 +134,7 @@ def mark_reachable(
     conn: sqlite3.Connection, scan_id: str, reachable: list[str]
 ) -> None:
     """응답한 대상만 1, 나머지 0. 확인하지 않으면 NULL 그대로 둔다"""
-    conn.execute(
-        "UPDATE scan_targets SET reachable = 0 WHERE scan_id = ?", (scan_id,)
-    )
+    conn.execute("UPDATE scan_targets SET reachable = 0 WHERE scan_id = ?", (scan_id,))
     if reachable:
         marks = ", ".join("?" * len(reachable))
         conn.execute(
@@ -407,7 +406,9 @@ def aggregate_findings(conn: sqlite3.Connection, scan_id: str) -> dict[str, Any]
         (scan_id,),
     ):
         by_severity[row["severity"]] = by_severity.get(row["severity"], 0) + row["n"]
-        by_vuln_type[row["vuln_type"]] = by_vuln_type.get(row["vuln_type"], 0) + row["n"]
+        by_vuln_type[row["vuln_type"]] = (
+            by_vuln_type.get(row["vuln_type"], 0) + row["n"]
+        )
         label = row["target_host"]
         if row["target_port"]:
             label = f"{label}:{row['target_port']}"
