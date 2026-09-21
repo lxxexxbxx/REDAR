@@ -5,7 +5,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_shell::process::{CommandEvent, CommandChild};
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 const READY_PREFIX: &str = "REDAR_READY ";
@@ -18,7 +18,11 @@ fn main() {
             // sidecar 대신 리소스 경로로 실행한다. externalBin 은 파일 하나만 복사하므로
             // PyInstaller --onedir 의 _internal 이 빠진다. onedir 을 유지하는 이유는
             // onefile 이 실행마다 압축을 풀어 9~18초가 걸리기 때문 (실측)
-            let exe = if cfg!(windows) { "redar-backend.exe" } else { "redar-backend" };
+            let exe = if cfg!(windows) {
+                "redar-backend.exe"
+            } else {
+                "redar-backend"
+            };
             let backend = app
                 .path()
                 .resource_dir()?
