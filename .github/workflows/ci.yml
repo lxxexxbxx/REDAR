@@ -61,6 +61,17 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # tauri-build 의 빌드 스크립트가 tauri.conf.json 의 resources 글롭을 해석한다.
+      # backend/**/* 는 PyInstaller 산출물이라 저장소에 없고, 매치가 0건이면
+      # 빌드 스크립트가 실패해 린트가 시작도 못 한다 (실측: glob pattern ... didn't match).
+      # 83줄짜리 셸을 린트하자고 백엔드를 통째로 번들할 이유는 없으므로 자리표시자만 둔다.
+      # 실제 번들에서는 build.py 의 스테이징이 이 디렉터리를 통째로 갈아끼운다
+      - name: Stub backend resource
+        shell: bash
+        run: |
+          mkdir -p src-tauri/backend
+          echo "lint 전용 자리표시자" > src-tauri/backend/PLACEHOLDER
+
       - name: Cargo fmt
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
 
