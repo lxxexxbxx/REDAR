@@ -3,6 +3,7 @@
 docs/00 · db/schema.sql 이 'scn_' + ULID 형식을 지정.
 외부 의존성 대신 26자 Crockford base32 로 직접 생성. 시간순 정렬 가능
 """
+
 from __future__ import annotations
 
 import secrets

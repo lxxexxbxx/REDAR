@@ -6,16 +6,17 @@
 응답 본문·추출값은 애초에 컨텍스트에 넣지 않음. 마스킹은 2차 방어이며
 1차 방어는 화이트리스트 (remediation_service.report_context)
 """
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
-_URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.I)
+_URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _HOSTNAME_RE = re.compile(
-    r"\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\b", re.I
+    r"\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\b", re.IGNORECASE
 )
 _PATH_RE = re.compile(r"(?<![\w:])/[A-Za-z0-9._\-/]{2,}")
 
@@ -24,7 +25,7 @@ _PATH_RE = re.compile(r"(?<![\w:])/[A-Za-z0-9._\-/]{2,}")
 _FILE_SUFFIX = re.compile(
     r"\.(?:html?|php\d?|txt|xml|json|ya?ml|js|css|md|ini|conf|cfg|log|sql|"
     r"png|jpe?g|gif|svg|ico|zip|gz|tar|bak|old|sh|py|rb|pl|asp|aspx|jsp)$",
-    re.I,
+    re.IGNORECASE,
 )
 # 토큰이 다시 토큰 안에 들어가는 것을 막음. PATH_1 -> '/TARGET_1' 같은 중첩이 생기면
 # 역치환 한 번으로 원문이 돌아오지 않아 응답에 TARGET_1 이 그대로 남음 (실측)
@@ -65,8 +66,11 @@ class Masker:
     def _path(self, match: re.Match[str]) -> str:
         value = match.group(0)
         # 이미 치환된 토큰만 남은 경로는 다시 감싸지 않음 (중첩 방지)
-        return value if _TOKEN_RE.fullmatch(value.lstrip("/")) \
+        return (
+            value
+            if _TOKEN_RE.fullmatch(value.lstrip("/"))
             else self._token("path", value)
+        )
 
     def mask_context(self, context: dict[str, Any]) -> dict[str, Any]:
         return {key: self._mask_value(value) for key, value in context.items()}

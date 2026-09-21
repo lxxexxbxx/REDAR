@@ -9,8 +9,10 @@
 
 파이썬 logging 과 nuclei 출력을 같은 버퍼에 모아 시간순으로 보여준다
 """
+
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
@@ -55,10 +57,15 @@ def append(source: str, message: str, level: str = "INFO") -> None:
         return
     with _lock:
         _seq += 1
-        _entries.append(Entry(
-            seq=_seq, at=time.time(), level=level,
-            source=source, message=text[:2000],
-        ))
+        _entries.append(
+            Entry(
+                seq=_seq,
+                at=time.time(),
+                level=level,
+                source=source,
+                message=text[:2000],
+            )
+        )
 
 
 def entries(after: int = 0, limit: int = 500) -> list[dict[str, Any]]:
@@ -85,10 +92,8 @@ class RingHandler(logging.Handler):
     """logging -> 버퍼. 파일·표준출력으로는 보내지 않음"""
 
     def emit(self, record: logging.LogRecord) -> None:
-        try:
+        with contextlib.suppress(Exception):
             append(record.name, self.format(record), record.levelname)
-        except Exception:  # noqa: BLE001 - 로깅이 앱을 죽이면 안 됨
-            pass
 
 
 def install(level: int = logging.INFO) -> None:

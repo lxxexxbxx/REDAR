@@ -3,16 +3,15 @@
 목 데이터도 실제 항목 코드를 사용 (WA-02, WEB-25 등). 가짜 코드로 테스트하면
 매핑 테이블의 실제 코드와 어긋나는 것을 못 잡음
 """
+
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
 from app.domain.enums import GuideVerdict
 from app.repository import guide as guide_repo
-from app.repository.db import session
 from app.services import guide_importer, guide_service
 
 MOCK_CSV = Path(__file__).parent / "fixtures" / "guide_items_mock.csv"
@@ -37,11 +36,37 @@ def scan(conn):
     rows = [
         # (id, fingerprint, template_id, vuln_type, severity, cve, cwe, slug)
         ("fnd_xss", "fp1", "wordpress-xss-x", "xss", "high", None, '["CWE-79"]', None),
-        ("fnd_cve", "fp2", "CVE-2026-63030", "rce", "critical",
-         '["CVE-2026-63030"]', '["CWE-94"]', "contact-form-7"),
-        ("fnd_only_type", "fp3", "unknown-template", "misconfig", "low", None, None, None),
+        (
+            "fnd_cve",
+            "fp2",
+            "CVE-2026-63030",
+            "rce",
+            "critical",
+            '["CVE-2026-63030"]',
+            '["CWE-94"]',
+            "contact-form-7",
+        ),
+        (
+            "fnd_only_type",
+            "fp3",
+            "unknown-template",
+            "misconfig",
+            "low",
+            None,
+            None,
+            None,
+        ),
         # template_id 계층에 실제 매핑이 있는 템플릿. CWE-79 도 함께 두어 우선순위를 봄
-        ("fnd_tpl", "fp4", "CVE-2016-10033", "other", "medium", None, '["CWE-79"]', None),
+        (
+            "fnd_tpl",
+            "fp4",
+            "CVE-2016-10033",
+            "other",
+            "medium",
+            None,
+            '["CWE-79"]',
+            None,
+        ),
         ("fnd_detect", "fp5", "wp-plugin-detect", "other", "info", None, None, None),
     ]
     for finding_id, fingerprint, template_id, vuln, severity, cve, cwe, slug in rows:
@@ -51,8 +76,17 @@ def scan(conn):
             " severity_guide, cve_ids, cwe_ids, component_slug)"
             " VALUES (?, 'scn_map', ?, ?, 'http://wp.local', 'wp.local', ?, ?, ?,"
             " '상', ?, ?, ?)",
-            (finding_id, fingerprint, template_id, f"탐지 {finding_id}", vuln,
-             severity, cve, cwe, slug),
+            (
+                finding_id,
+                fingerprint,
+                template_id,
+                f"탐지 {finding_id}",
+                vuln,
+                severity,
+                cve,
+                cwe,
+                slug,
+            ),
         )
     conn.commit()
     yield "scn_map"
@@ -73,6 +107,7 @@ def _refs(conn, finding_id):
 
 
 # ─────────────────────────────────────── 우선순위 (완료 조건 1)
+
 
 def test_template_id_wins_over_cwe(conn, scan, rules):
     """상위 층에서 매칭되면 하위는 적용하지 않음"""
@@ -102,12 +137,17 @@ def test_vuln_type_is_fallback_only(conn, scan):
 
 def test_priority_order_matches_doc():
     assert guide_service.PRIORITY == (
-        "template_id", "cve_id", "cwe_id", "exposure_key",
-        "component_slug", "vuln_type",
+        "template_id",
+        "cve_id",
+        "cwe_id",
+        "exposure_key",
+        "component_slug",
+        "vuln_type",
     )
 
 
 # ─────────────────────────────────────── 2트랙 (완료 조건 6·7)
+
 
 def test_cve_finding_gets_web25_as_secondary(conn, scan):
     guide_service.map_scan(conn, scan)
@@ -130,6 +170,7 @@ def test_non_cve_finding_has_no_web25(conn, scan):
 
 # ─────────────────────────────────────── 자산 식별 제외 (완료 조건 8)
 
+
 def test_detection_template_excluded(conn, scan):
     result = guide_service.map_scan(conn, scan)
     assert _refs(conn, "fnd_detect") == {}
@@ -146,6 +187,7 @@ def test_false_positive_excluded(conn, scan):
 
 
 # ─────────────────────────────────────── 본문 미탑재 동작 (완료 조건 2·3)
+
 
 def test_refs_written_without_guide_body(conn, scan):
     """본문이 없어도 매핑은 저장됨. item_code 에 FK 가 없는 이유 (절대규칙 3)"""
@@ -167,12 +209,14 @@ def test_map_scan_is_idempotent(conn, scan):
     assert first.refs_written == second.refs_written
     total = conn.execute(
         "SELECT COUNT(*) FROM finding_guide_refs r JOIN findings f"
-        " ON f.finding_id = r.finding_id WHERE f.scan_id = ?", (scan,)
+        " ON f.finding_id = r.finding_id WHERE f.scan_id = ?",
+        (scan,),
     ).fetchone()[0]
     assert total == second.refs_written
 
 
 # ─────────────────────────────────────── safe / not_applicable (완료 조건 4)
+
 
 def _add_environment(conn, scan_id, exposures, product="WordPress"):
     conn.execute(
@@ -185,7 +229,8 @@ def _add_environment(conn, scan_id, exposures, product="WordPress"):
     for key, value in exposures.items():
         conn.execute(
             "INSERT INTO env_exposures (profile_id, key, value, path)"
-            " VALUES ('env_t', ?, ?, '/')", (key, int(value))
+            " VALUES ('env_t', ?, ?, '/')",
+            (key, int(value)),
         )
     conn.commit()
 
@@ -252,7 +297,8 @@ def test_verdict_matches_report_sections(conn, scan):
     conn.commit()
 
     vulnerable = {
-        v.item_code for v in guide_service.verdicts(conn, scan)
+        v.item_code
+        for v in guide_service.verdicts(conn, scan)
         if v.verdict is GuideVerdict.VULNERABLE
     }
     sections = {
@@ -292,6 +338,7 @@ def test_all_mapped_items_get_a_verdict(conn, scan):
 
 # ─────────────────────────────────────── 임포트 (완료 조건 5·9)
 
+
 def test_import_keeps_existing_refs(conn, scan):
     """임포트 후 기존 매핑이 보존되어야 한다. 별도 층이다"""
     guide_service.map_scan(conn, scan)
@@ -309,11 +356,10 @@ def test_import_loads_all_21_columns(conn):
     result = guide_importer.import_text(conn, MOCK_CSV.read_text(encoding="utf-8"))
     assert result["item_count"] == 10
 
-    row = conn.execute(
-        "SELECT * FROM guide_items WHERE item_code = 'WA-02'"
-    ).fetchone()
+    row = conn.execute("SELECT * FROM guide_items WHERE item_code = 'WA-02'").fetchone()
     # case_text 는 스키마에 없음. CSV 열이 남아도 적재되면 안 됨
-    assert "case_text" not in row.keys()
+    # sqlite3.Row 는 순회하면 값이 나온다. 키를 보려면 keys() 가 필요
+    assert "case_text" not in row.keys()  # noqa: SIM118
     # page_start 가 비면 보고서 A-6 의 근거 페이지 표기가 사라짐
     assert row["page_start"] == 684
     assert row["page_end"] == 686
@@ -322,8 +368,8 @@ def test_import_loads_all_21_columns(conn):
     assert row["guide_version"] == "2026"
     assert row["category"] == "Web Application(웹)"
 
-    filled = [k for k in row.keys() if row[k] not in (None, "")]
-    assert len(filled) >= 18            # imported_at 포함, reference_note·detail 은 빈 값
+    filled = [k for k in row.keys() if row[k] not in (None, "")]  # noqa: SIM118
+    assert len(filled) >= 18  # imported_at 포함, reference_note·detail 은 빈 값
     conn.execute("DELETE FROM guide_items")
     conn.commit()
 
@@ -361,7 +407,7 @@ def test_item_severity_comes_from_guide_not_finding(conn, scan):
         " WHERE finding_id = 'fnd_only_type' LIMIT 1"
     ).fetchone()
     if row and row["item_severity"] is not None:
-        assert row["severity"] == "low"          # 탐지 심각도
+        assert row["severity"] == "low"  # 탐지 심각도
         assert row["item_severity"] in ("상", "중", "하")
     conn.execute("DELETE FROM guide_items")
     conn.commit()

@@ -5,6 +5,7 @@
 같은 스캔 안에서 nuclei 가 중복 보고한 탐지를 하나로 접는 키.
 오류 시 같은 지점이 여러 건으로 집계됨. 최빈 원인은 쿼리스트링 잔존 (docs/05 §7)
 """
+
 from __future__ import annotations
 
 import hashlib

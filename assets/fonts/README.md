@@ -126,6 +126,7 @@ python3 assets/fonts/build_fonts.py --src <원본_ttf_디렉터리>
 
 ```python
 from fontTools.ttLib import TTFont
+
 for f in ["NanumGothic.woff2", "NanumGothicBold.woff2", "D2Coding.woff2"]:
     cmap = TTFont(f"assets/fonts/{f}").getBestCmap()
     hangul = sum(1 for c in cmap if 0xAC00 <= c <= 0xD7A3)

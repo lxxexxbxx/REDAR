@@ -2,6 +2,7 @@
 
 주요 스택은 컬럼, 구성요소·노출은 행. 개수가 가변인 것만 테이블로 분리
 """
+
 from __future__ import annotations
 
 import json
@@ -74,9 +75,14 @@ def save_profile(
         " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (
-                stored_id, c["type"], c["slug"], c.get("name"), c.get("version"),
+                stored_id,
+                c["type"],
+                c["slug"],
+                c.get("name"),
+                c.get("version"),
                 None if c.get("active") is None else int(c["active"]),
-                c.get("confidence", "medium"), c.get("evidence"),
+                c.get("confidence", "medium"),
+                c.get("evidence"),
             )
             for c in components
         ],
@@ -119,20 +125,25 @@ def _view(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
         },
         "components": [
             {
-                "type": c["type"], "slug": c["slug"], "name": c["name"],
+                "type": c["type"],
+                "slug": c["slug"],
+                "name": c["name"],
                 "version": c["version"],
                 "active": None if c["active"] is None else bool(c["active"]),
-                "confidence": c["confidence"], "evidence": c["evidence"],
+                "confidence": c["confidence"],
+                "evidence": c["evidence"],
             }
             for c in conn.execute(
-                "SELECT * FROM env_components WHERE profile_id = ?"
-                " ORDER BY type, slug", (profile_id,)
+                "SELECT * FROM env_components WHERE profile_id = ? ORDER BY type, slug",
+                (profile_id,),
             )
         ],
         "exposures": [
             {
-                "key": e["key"], "value": bool(e["value"]),
-                "path": e["path"], "evidence": e["evidence"],
+                "key": e["key"],
+                "value": bool(e["value"]),
+                "path": e["path"],
+                "evidence": e["evidence"],
             }
             for e in conn.execute(
                 "SELECT * FROM env_exposures WHERE profile_id = ? ORDER BY key",
@@ -152,7 +163,8 @@ def local_template_count(conn: sqlite3.Connection) -> int:
 def detection_rows(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:
     """스캔 finding 중 색인에 있는 템플릿 결과. 사전 패스 집합 판정은 서비스가 함"""
     return [
-        dict(r) | {
+        dict(r)
+        | {
             "tags": json.loads(r["tags"] or "[]"),
             "ev_extracted": json.loads(r["ev_extracted"] or "[]"),
         }

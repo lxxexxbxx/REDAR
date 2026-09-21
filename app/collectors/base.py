@@ -6,12 +6,13 @@
   3. 확신할 수 없으면 version=None + confidence=low. 추정값의 확정 표기 금지
   4. 타임아웃 필수
 """
+
 from __future__ import annotations
 
+import contextlib
 import importlib
 import logging
 import pkgutil
-import socket
 import ssl
 import urllib.error
 import urllib.request
@@ -37,10 +38,10 @@ ORDER_MIDDLEWARE = 30
 @dataclass(frozen=True)
 class Response:
     status: int
-    headers: Mapping[str, str]          # 키는 소문자로 정규화
+    headers: Mapping[str, str]  # 키는 소문자로 정규화
     text: str
     url: str
-    error: str | None = None            # 요청 자체 실패. 수집기는 이걸 보고 판단 보류
+    error: str | None = None  # 요청 자체 실패. 수집기는 이걸 보고 판단 보류
 
     @property
     def ok(self) -> bool:
@@ -163,11 +164,13 @@ def fetch_url(url: str, *, method: str = "GET", timeout: int = 5) -> Response:
     if method not in _ALLOWED_METHODS:
         raise ValueError(f"읽기 전용 수집기에서 허용되지 않는 메서드: {method}")
 
-    request = urllib.request.Request(
+    # 진단 대상으로 나가는 요청. 절대규칙 5 가 말하는 아웃바운드가 아니다 - 진단 자체다
+    # 메서드는 위에서 GET/HEAD 로 제한됨
+    request = urllib.request.Request(  # noqa: S310
         url, method=method, headers={"User-Agent": f"REDAR/{__version__}"}
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as resp:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:  # noqa: S310
             body = resp.read(_MAX_BODY_BYTES) if method == "GET" else b""
             return Response(
                 status=resp.status,
@@ -178,17 +181,15 @@ def fetch_url(url: str, *, method: str = "GET", timeout: int = 5) -> Response:
     except urllib.error.HTTPError as exc:
         # 404·403 도 판단 근거. 오류가 아니라 응답으로 취급
         body = b""
-        try:
+        with contextlib.suppress(Exception):
             body = exc.read(_MAX_BODY_BYTES)
-        except Exception:  # noqa: BLE001 - 본문 없는 오류 응답
-            pass
         return Response(
             status=exc.code,
             headers={k.lower(): v for k, v in (exc.headers or {}).items()},
             text=body.decode("utf-8", errors="replace"),
             url=url,
         )
-    except (urllib.error.URLError, socket.timeout, ssl.SSLError, OSError) as exc:
+    except (TimeoutError, urllib.error.URLError, ssl.SSLError, OSError) as exc:
         return Response(status=0, headers={}, text="", url=url, error=str(exc))
 
 

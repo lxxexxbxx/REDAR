@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 이 파이프라인은 저장소에 아무것도 쓰지 않는다. 토큰 권한을 읽기로 제한
+permissions:
+  contents: read
+
+# 같은 브랜치에 새 푸시가 오면 이전 실행을 취소.
+# PR 에 연속 커밋을 올릴 때 러너를 낭비하지 않기 위함
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CLAUDE.md 기술 스택의 최소 버전. 하한을 CI 가 지킨다.
+  # 제품은 파이썬을 번들로 싸서 나가므로 상한보다 하한이 중요
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  lint:
+    name: Lint (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install ruff
+        run: pip install -r requirements-dev.txt
+
+      # 규칙과 완화 사유는 ruff.toml 에 있다. 워크플로에서 규칙을 덮지 않는다
+      - name: Ruff check
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+  lint-rust:
+    name: Lint (Rust)
+    # Linux 에서 tauri 크레이트를 컴파일하려면 libwebkit2gtk 계열 시스템 패키지가
+    # 필요하다. 번들 타깃이 msi/nsis 라 어차피 Windows 에서 빌드하므로,
+    # 린트도 같은 플랫폼에 두어 CI 가 관리할 환경을 하나로 줄인다
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri-build 의 빌드 스크립트가 tauri.conf.json 의 resources 글롭을 해석한다.
+      # backend/**/* 는 PyInstaller 산출물이라 저장소에 없고, 매치가 0건이면
+      # 빌드 스크립트가 실패해 린트가 시작도 못 한다 (실측: glob pattern ... didn't match).
+      # 83줄짜리 셸을 린트하자고 백엔드를 통째로 번들할 이유는 없으므로 자리표시자만 둔다.
+      # 실제 번들에서는 build.py 의 스테이징이 이 디렉터리를 통째로 갈아끼운다
+      - name: Stub backend resource
+        shell: bash
+        run: |
+          mkdir -p src-tauri/backend
+          echo "lint 전용 자리표시자" > src-tauri/backend/PLACEHOLDER
+
+      - name: Cargo fmt
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      # 경고를 오류로 올린다. 경고로 남겨두면 쌓이기만 하고 아무도 보지 않음
+      - name: Cargo clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 제품이 오프라인 우선 설계라 CI 도 네트워크 없이 돈다.
+      # nuclei 실행 대신 tests/fixtures 의 고정 JSONL 을 입력으로 쓴다
+      - name: Run tests
+        run: pytest tests/ -q
+
+  build:
+    name: Build (Tauri)
+    needs: [lint, lint-rust, test]
+    # PR 마다 돌리면 느리고 비싸다. main 에 들어간 것만 번들한다
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # tauri.conf.json 의 bundle.targets 가 app/dmg/msi/nsis 다. Linux 타깃이 없어
+    # ubuntu 에서는 산출물이 나오지 않는다. 제품 설계를 CI 편의로 바꾸지 않고
+    # 러너를 제품에 맞춘다
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # package.json 이 없다. 프런트는 바닐라 JS 를 그대로 서빙해 설치할 의존성이
+      # 없고, Node 는 @tauri-apps/cli 를 npx 로 띄우는 용도로만 쓴다.
+      # 따라서 cache: npm 도 걸 수 없다 (락파일이 없어 키를 만들지 못함)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # build.py 가 [venv -> PyInstaller -> 스테이징 -> Tauri] 를 순서대로 돈다.
+      # Tauri 번들은 resources 로 PyInstaller 산출물(src-tauri/backend)을 요구하므로
+      # tauri build 단독 호출은 성립하지 않는다. 개발자가 쓰는 경로를 CI 도 그대로 탄다
+      #
+      # --no-auto-install: 툴체인을 스스로 내려받지 못하게 막는다. 위 액션이 이미
+      #                    제공하며, nuclei 설치도 건너뛰어 불필요한 통신이 없다
+      # --no-launch:       러너에 디스플레이가 없다
+      - name: Build desktop bundle
+        run: python packaging/build.py --no-launch --no-auto-install
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: redar-windows
+          path: src-tauri/target/release/bundle/
+          retention-days: 14

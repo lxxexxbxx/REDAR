@@ -2,6 +2,7 @@
 
 nuclei 는 실행하지 않고 JSONL 픽스처를 흘리는 러너를 주입
 """
+
 from __future__ import annotations
 
 import json
@@ -14,8 +15,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.domain.allowlist import host_allowed, normalize_entry, target_allowed
-from app.repository import settings_repo
 from app.main import app
+from app.repository import settings_repo
 from app.repository.db import session
 from app.services import scan_service
 from app.services.scan_service import ScanService
@@ -30,8 +31,9 @@ def _service(db_path, prober=None, **kwargs) -> ScanService:
         db_path,
         command_builder=lambda opts: ["fake-nuclei"],
         command_runner=_fixture_runner(**kwargs),
-        prober=prober or (lambda targets: list(targets)),
+        prober=prober or (list),
     )
+
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nuclei_sample.jsonl"
 API = "/api/v1"
@@ -89,9 +91,7 @@ def scannable(db_path):
 
 @pytest.fixture
 def client(db_path, scannable, monkeypatch):
-    monkeypatch.setattr(
-        "app.repository.db.settings.DB_PATH", db_path, raising=False
-    )
+    monkeypatch.setattr("app.repository.db.settings.DB_PATH", db_path, raising=False)
     scan_service.set_service(_service(db_path))
     with TestClient(app) as test_client:
         yield test_client
@@ -107,9 +107,7 @@ def allowlisted(conn):
     )
     conn.commit()
     yield
-    conn.execute(
-        "UPDATE settings SET value = '[]' WHERE key = 'target_allowlist'"
-    )
+    conn.execute("UPDATE settings SET value = '[]' WHERE key = 'target_allowlist'")
     conn.commit()
 
 
@@ -150,10 +148,10 @@ def test_allowlist_empty_blocks_everything():
         ("http://localhost:7860/x", True),
         ("localhost", True),
         ("LOCALHOST", True),
-        ("http://192.168.1.50", True),      # CIDR 포함
-        ("192.168.2.50", False),            # CIDR 밖
+        ("http://192.168.1.50", True),  # CIDR 포함
+        ("192.168.2.50", False),  # CIDR 밖
         ("http://evil.example.com", False),
-        ("http://h:abc/", False),           # 해석 불가 대상은 차단
+        ("http://h:abc/", False),  # 해석 불가 대상은 차단
     ],
 )
 def test_allowlist_matching(target, allowed):
@@ -295,8 +293,8 @@ def test_scan_runs_and_stores_findings(client, allowlisted):
     assert view["targets"] == ["http://localhost:7860"]
 
     findings = client.get(f"{API}/scans/{scan_id}/findings").json()
-    assert findings["total"] == 4                 # 중복 1건 제외
-    assert findings["items"][0]["severity"] == "critical"   # 심각도 정렬
+    assert findings["total"] == 4  # 중복 1건 제외
+    assert findings["items"][0]["severity"] == "critical"  # 심각도 정렬
     assert findings["aggregations"]["by_severity"]["critical"] == 1
     # 심각도 5종·유형 14종 축 고정
     assert len(findings["aggregations"]["by_severity"]) == 5
@@ -324,9 +322,7 @@ def test_findings_filter_does_not_change_aggregations(client, allowlisted):
     scan_id = _create(client, ["http://localhost:7860"]).json()["scan_id"]
     _wait_done(client, scan_id)
 
-    filtered = client.get(
-        f"{API}/scans/{scan_id}/findings?severity=critical"
-    ).json()
+    filtered = client.get(f"{API}/scans/{scan_id}/findings?severity=critical").json()
     assert filtered["total"] == 1
     # aggregations 는 필터 적용 전 전체 기준 (docs/00 §4)
     assert sum(filtered["aggregations"]["by_severity"].values()) == 4
@@ -351,7 +347,9 @@ def test_false_positive_excluded_from_aggregations(client, allowlisted):
     assert sum(after["aggregations"]["by_severity"].values()) == 3
     # 목록에서는 사라지지 않음. 필터로 조회 가능
     assert after["total"] == 4
-    assert client.get(f"{API}/scans/{scan_id}").json()["finding_counts"]["critical"] == 0
+    assert (
+        client.get(f"{API}/scans/{scan_id}").json()["finding_counts"]["critical"] == 0
+    )
 
 
 def test_finding_detail_maps_without_guide_body(client, allowlisted):
@@ -362,8 +360,8 @@ def test_finding_detail_maps_without_guide_body(client, allowlisted):
         "finding_id"
     ]
     detail = client.get(f"{API}/findings/{finding_id}").json()
-    assert detail["guide_items"] == []          # 본문 없음
-    assert detail["guide_refs"]                 # 매핑은 저장됨 (M6)
+    assert detail["guide_items"] == []  # 본문 없음
+    assert detail["guide_refs"]  # 매핑은 저장됨 (M6)
     assert detail["evidence"]["curl_command"].startswith("curl ")
 
 
@@ -377,9 +375,12 @@ def test_scan_list_and_delete(client, allowlisted):
     assert client.delete(f"{API}/scans/{scan_id}").status_code == 204
     assert client.get(f"{API}/scans/{scan_id}").status_code == 404
     with session() as conn:
-        assert conn.execute(
-            "SELECT COUNT(*) FROM findings WHERE scan_id = ?", (scan_id,)
-        ).fetchone()[0] == 0
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM findings WHERE scan_id = ?", (scan_id,)
+            ).fetchone()[0]
+            == 0
+        )
 
 
 def test_concurrent_scan_rejected(db_path, client, allowlisted):
@@ -446,7 +447,7 @@ def test_sse_emits_progress_finding_done(db_path, allowlisted, scannable):
         with client.stream("GET", f"{API}/scans/{scan_id}/stream") as stream:
             for line in stream.iter_lines():
                 if line.startswith("event: "):
-                    events.append(line[len("event: "):].strip())
+                    events.append(line[len("event: ") :].strip())
                 if events and events[-1] == "done":
                     break
 
@@ -475,7 +476,7 @@ def test_sse_on_finished_scan_returns_done(db_path, client, allowlisted):
 
     with client.stream("GET", f"{API}/scans/{scan_id}/stream") as stream:
         events = [
-            line[len("event: "):].strip()
+            line[len("event: ") :].strip()
             for line in stream.iter_lines()
             if line.startswith("event: ")
         ]
@@ -516,7 +517,7 @@ def test_settings_roundtrip(client):
     ).json()
     assert updated["target_allowlist"] == ["localhost", "10.0.0.0/8"]
     assert updated["scan_defaults"]["threads"] == 40
-    assert updated["scan_defaults"]["timeout_sec"] == 10   # 미전송 항목 유지
+    assert updated["scan_defaults"]["timeout_sec"] == 10  # 미전송 항목 유지
 
     client.put(f"{API}/settings", json={"target_allowlist": []})
 
@@ -531,8 +532,8 @@ def test_offline_mode_forces_external_endpoints_off(client):
     )
     body = client.get(f"{API}/settings").json()
     sync = next(e for e in body["external_endpoints"] if e["key"] == "template_sync")
-    assert sync["enabled"] is False       # 오프라인 모드가 강제 차단
-    assert sync["configured"] is True     # 사용자 설정값은 보존
+    assert sync["enabled"] is False  # 오프라인 모드가 강제 차단
+    assert sync["configured"] is True  # 사용자 설정값은 보존
 
     body = client.put(f"{API}/settings", json={"offline_mode": False}).json()
     sync = next(e for e in body["external_endpoints"] if e["key"] == "template_sync")
@@ -581,6 +582,7 @@ def test_thread_safety_of_service_singleton():
 
 # ------------------------------------------------------------- 사전 점검
 
+
 def test_preflight_blocks_when_no_templates(conn, allowlisted, monkeypatch):
     """템플릿 0개면 nuclei 가 아무것도 실행하지 않고 성공으로 끝나
     '탐지 0건' 이 '양호' 로 오독됨 (절대규칙 10)"""
@@ -598,7 +600,8 @@ def test_preflight_accepts_nuclei_own_store(conn, allowlisted, monkeypatch):
     """REDAR 색인이 비어도 사용자가 nuclei 로 직접 받아뒀으면 스캔 성립"""
     monkeypatch.setattr(scan_service.settings, "nuclei_bin", lambda: "/tmp/nuclei")
     monkeypatch.setattr(
-        scan_service.settings, "nuclei_template_store",
+        scan_service.settings,
+        "nuclei_template_store",
         lambda: "/home/u/nuclei-templates",
     )
     result = scan_service.preflight(conn)
@@ -628,6 +631,7 @@ def test_scan_rejected_without_templates(client, conn, allowlisted, monkeypatch)
 
 # ------------------------------------------------------------- 포트 범위
 
+
 def test_port_range_expands_and_keeps_input(client, allowlisted):
     """실행은 개별 포트, 표기는 입력 원문. 두 층이 함께 남아야 함"""
     scan_id = _create(client, ["localhost:7860-7862"]).json()["scan_id"]
@@ -645,7 +649,7 @@ def test_large_range_needs_confirmation(client, allowlisted):
     assert response.status_code == 400
     body = response.json()["error"]
     assert body["code"] == "LARGE_TARGET_EXPANSION"
-    assert str(ports + 1) in body["message"]        # 몇 건인지 알려줘야 함
+    assert str(ports + 1) in body["message"]  # 몇 건인지 알려줘야 함
 
 
 def test_large_range_proceeds_once_confirmed(client, allowlisted):
@@ -688,6 +692,7 @@ def test_already_allowed_range_not_reregistered(client, conn, allowlisted):
 
 
 # ------------------------------------------------------------- 처리 로그
+
 
 def test_findings_appear_in_log(db_path, allowlisted, scannable):
     """탐지 결과는 stdout 으로 온다. 로그에 넣지 않으면 진행률만 찍혀
@@ -737,6 +742,7 @@ def test_stats_line_is_readable():
 
 # ------------------------------------------------------------- 템플릿 선별 범위
 
+
 def test_id_and_tags_never_sent_together():
     """nuclei 는 서로 다른 필터를 AND 로 묶는다. 둘 다 주면 교집합만 남아
     의도한 것보다 훨씬 적게 실행됨. 조립 단계에서 막아야 함"""
@@ -745,13 +751,16 @@ def test_id_and_tags_never_sent_together():
     with pytest.raises(ValueError):
         runner.build_command(
             runner.RunOptions(
-                targets=["localhost"], template_ids=["a"], tags=["wordpress"],
+                targets=["localhost"],
+                template_ids=["a"],
+                tags=["wordpress"],
             ),
             exe="/tmp/nuclei",
         )
 
 
 # ------------------------------------------------------------- 대상 응답 확인
+
 
 def test_unreachable_targets_excluded_and_recorded(db_path, allowlisted, scannable):
     """닫힌 포트는 스캔하지 않되, 건너뛴 사실은 남아야 함 (절대규칙 10)"""
@@ -785,6 +794,7 @@ def test_all_unreachable_fails_loudly(db_path, allowlisted, scannable):
 
 def test_probe_failure_does_not_block_scan(db_path, allowlisted, scannable):
     """사전 확인이 깨져도 스캔 자체는 진행. 보조 단계가 본 기능을 막으면 안 됨"""
+
     def broken(targets):
         raise OSError("probe down")
 
@@ -806,6 +816,7 @@ def test_preflight_route_not_shadowed(client):
 
 # ─────────────────────────── 보고서 조치 가이드 첨부 (Part D)
 
+
 def _report_id(client: TestClient, conn) -> str:
     conn.execute(
         "INSERT OR REPLACE INTO scans (scan_id, status, selection_mode,"
@@ -813,9 +824,7 @@ def _report_id(client: TestClient, conn) -> str:
         " ('scn_attach', 'completed', 'filter', 0, '0.3.0')"
     )
     conn.commit()
-    created = client.post(
-        f"{API}/reports", json={"scan_id": "scn_attach"}
-    )
+    created = client.post(f"{API}/reports", json={"scan_id": "scn_attach"})
     assert created.status_code == 201
     return created.json()["report_id"]
 
@@ -824,8 +833,11 @@ def test_attach_remediation_guide_endpoint(client, conn):
     report_id = _report_id(client, conn)
     response = client.post(
         f"{API}/reports/{report_id}/remediation-guide",
-        json={"content": "## 조치\n\n- 백업 후 진행", "model": "gpt-5.5",
-              "provider": "monogpt"},
+        json={
+            "content": "## 조치\n\n- 백업 후 진행",
+            "model": "gpt-5.5",
+            "provider": "monogpt",
+        },
     )
     assert response.status_code == 200
     assert response.json()["llm_used"] is True

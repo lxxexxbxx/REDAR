@@ -1,4 +1,5 @@
 """M1 완료 조건 검증 (IMPLEMENTATION_BRIEF.md M1)."""
+
 from __future__ import annotations
 
 import csv
@@ -37,18 +38,32 @@ def _notice_tail() -> str:
     """고지 문구의 고정부. 표현이 바뀌어도 존재 여부는 계속 검증"""
     return models.COVERAGE_NOTICE_TEMPLATE.split("{scope}")[-1].strip()
 
+
 def test_enum_values_match_api_spec():
     """docs/00_API_SPEC.md §0.4 와 정확히 일치"""
     assert [s.value for s in Severity] == ["critical", "high", "medium", "low", "info"]
     assert [s.value for s in SeverityGuide] == ["상", "중", "하"]
     assert [v.value for v in VulnType] == [
-        "rce", "sqli", "xss", "csrf", "ssrf", "auth_bypass", "deserialization",
-        "path_traversal", "file_upload", "open_redirect", "info_disclosure",
-        "access_control", "misconfig", "other",
+        "rce",
+        "sqli",
+        "xss",
+        "csrf",
+        "ssrf",
+        "auth_bypass",
+        "deserialization",
+        "path_traversal",
+        "file_upload",
+        "open_redirect",
+        "info_disclosure",
+        "access_control",
+        "misconfig",
+        "other",
     ]
     assert len(list(VulnType)) == 14
     assert [f.value for f in FindingStatus] == [
-        "open", "false_positive", "accepted_risk"
+        "open",
+        "false_positive",
+        "accepted_risk",
     ]
     assert [t.value for t in TemplateSource] == ["official", "custom"]
     assert [g.value for g in GuideVerdict] == ["safe", "vulnerable", "not_applicable"]
@@ -80,8 +95,9 @@ def test_query_string_does_not_affect_fingerprint():
 
 
 def test_full_url_and_path_are_equivalent():
-    assert fp.make_fingerprint("t", "h", 80, "http://h:80/a/b?q=1") == \
-        fp.make_fingerprint("t", "h", 80, "/a/b")
+    assert fp.make_fingerprint(
+        "t", "h", 80, "http://h:80/a/b?q=1"
+    ) == fp.make_fingerprint("t", "h", 80, "/a/b")
 
 
 def test_trailing_slash_normalized():
@@ -93,8 +109,9 @@ def test_trailing_slash_normalized():
 def test_path_case_is_preserved():
     """경로는 대소문자 구분"""
     assert fp.normalize_path("/Admin") == "/Admin"
-    assert fp.make_fingerprint("t", "h", 80, "/Admin") != \
-        fp.make_fingerprint("t", "h", 80, "/admin")
+    assert fp.make_fingerprint("t", "h", 80, "/Admin") != fp.make_fingerprint(
+        "t", "h", 80, "/admin"
+    )
 
 
 def test_distinct_inputs_differ():
@@ -126,7 +143,7 @@ def test_distinct_inputs_differ():
         (3.9, Severity.LOW, SeverityGuide.HA),
         (0.1, Severity.LOW, SeverityGuide.HA),
         (0.0, Severity.INFO, SeverityGuide.HA),
-        (None, Severity.INFO, SeverityGuide.HA),   # 미산정
+        (None, Severity.INFO, SeverityGuide.HA),  # 미산정
     ],
 )
 def test_cvss_conversion(score, severity, guide):
@@ -150,10 +167,15 @@ def test_rules_loaded(rules):
 
 
 def test_unmatched_falls_back_to_other(rules):
-    assert normalize(
-        tags=["nonexistent-tag"], cwe_ids=["CWE-99999"],
-        template_id="no-such-template", rules=rules,
-    ) is VulnType.OTHER
+    assert (
+        normalize(
+            tags=["nonexistent-tag"],
+            cwe_ids=["CWE-99999"],
+            template_id="no-such-template",
+            rules=rules,
+        )
+        is VulnType.OTHER
+    )
     assert normalize(rules=rules) is VulnType.OTHER
 
 
@@ -172,8 +194,8 @@ def test_cwe_matching_is_case_insensitive(rules):
         ("CWE-94", VulnType.RCE),
         ("CWE-89", VulnType.SQLI),
         ("CWE-79", VulnType.XSS),
-        ("CWE-352", VulnType.CSRF),           # v0.2 추가
-        ("CWE-434", VulnType.FILE_UPLOAD),    # v0.2 추가
+        ("CWE-352", VulnType.CSRF),  # v0.2 추가
+        ("CWE-434", VulnType.FILE_UPLOAD),  # v0.2 추가
         ("CWE-601", VulnType.OPEN_REDIRECT),  # v0.2 추가
     ],
 )
@@ -197,9 +219,10 @@ def test_template_prefix_is_last_resort():
         TypeRule("cwe_id", "CWE-79", VulnType.XSS, 10),
     ]
     assert normalize(template_id="wordpress-foo", rules=rules_) is VulnType.MISCONFIG
-    assert normalize(
-        template_id="wordpress-foo", cwe_ids=["CWE-79"], rules=rules_
-    ) is VulnType.XSS
+    assert (
+        normalize(template_id="wordpress-foo", cwe_ids=["CWE-79"], rules=rules_)
+        is VulnType.XSS
+    )
 
 
 # ---------------------------------------------------------------- version
@@ -208,7 +231,7 @@ def test_template_prefix_is_last_resort():
 def test_tc_v01_version_compare():
     """TC-V01. 문자열 비교는 '4.10.1' < '4.9.0' 으로 오판"""
     assert ver.compare("4.10.1", "4.9.0") == 1
-    assert "4.10.1" < "4.9.0"          # 문자열 비교가 실제로 오판함을 명시
+    assert "4.10.1" < "4.9.0"  # 문자열 비교가 실제로 오판함을 명시
     assert ver.sort_key("4.10.1") > ver.sort_key("4.9.0")
     assert ver.max_version(["4.9.0", "4.10.1", "4.2.7.1"]) == "4.10.1"
 
@@ -249,18 +272,22 @@ def test_sort_key_matches_bundled_advisory_keys():
 
 def test_finding_model_defaults_and_strictness():
     f = Finding(
-        finding_id="fnd_1", scan_id="scn_1", fingerprint="a" * 64,
-        template_id="t", name="n", severity=Severity.HIGH,
+        finding_id="fnd_1",
+        scan_id="scn_1",
+        fingerprint="a" * 64,
+        template_id="t",
+        name="n",
+        severity=Severity.HIGH,
         severity_guide=SeverityGuide.SANG,
         target=Target(raw="http://h/", host="h"),
         detected_at=datetime(2026, 8, 27, 12, 0, 0),
     )
     assert f.vuln_type is VulnType.OTHER
     assert f.status is FindingStatus.OPEN
-    assert f.guide_refs == []          # 가이드 미탑재 상태 = 정상
+    assert f.guide_refs == []  # 가이드 미탑재 상태 = 정상
     assert f.evidence.extracted_values == []
 
-    with pytest.raises(Exception):     # extra="forbid"
+    with pytest.raises(Exception):  # extra="forbid"
         Finding(**{**f.model_dump(), "typo_field": 1})
 
 
@@ -268,10 +295,21 @@ def test_finding_model_defaults_and_strictness():
 
 # docs/00_API_SPEC.md §1.3 최상위 키 전부. "위 최상위 키가 보고서 골격의 전부"
 TOP_LEVEL_KEYS = {
-    "report_id", "scan_id", "generated_at", "meta", "executive_summary",
-    "environment_profile", "findings_by_severity", "findings_by_vuln_type",
-    "findings_detail", "remediation", "patch_plan", "guide_mapping",
-    "unmapped_findings", "false_positives", "appendix",
+    "report_id",
+    "scan_id",
+    "generated_at",
+    "meta",
+    "executive_summary",
+    "environment_profile",
+    "findings_by_severity",
+    "findings_by_vuln_type",
+    "findings_detail",
+    "remediation",
+    "patch_plan",
+    "guide_mapping",
+    "unmapped_findings",
+    "false_positives",
+    "appendix",
     # 미첨부여도 키는 존재. 첨부 여부로 JSON 구조가 달라지면 비교가 깨짐
     "llm_remediation_guide",
 }
@@ -305,6 +343,7 @@ def test_empty_report_keeps_full_skeleton():
 
 def test_tc_r07_skeleton_is_target_independent():
     """대상이 달라도 골격 구조 완전 동일 (TC-R07 의 모델 단계)"""
+
     def shape(obj):
         if isinstance(obj, dict):
             return {k: shape(v) for k, v in obj.items()}

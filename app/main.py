@@ -1,4 +1,5 @@
 """FastAPI 앱. 루프백 전용 (docs/00 §0.1)."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -8,16 +9,24 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.adapters.nuclei import version as nuclei_version
 from app.adapters import logbuffer
+from app.adapters.nuclei import version as nuclei_version
 from app.api import (
-    dependencies, errors, guide, logs, remediation, reports, scans,
-    settings_api, templates,
+    dependencies,
+    errors,
+    guide,
+    logs,
+    remediation,
+    reports,
+    scans,
+    settings_api,
+    templates,
 )
 from app.config import settings
 from app.repository.db import session
 
 API_PREFIX = "/api/v1"
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -33,7 +42,9 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="REDAR", version=__version__, docs_url=f"{API_PREFIX}/docs",
+    title="REDAR",
+    version=__version__,
+    docs_url=f"{API_PREFIX}/docs",
     lifespan=lifespan,
 )
 

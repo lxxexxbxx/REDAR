@@ -1,4 +1,5 @@
 """템플릿 실행 범위 결정·기록. SQL 은 repository, 판단은 domain (docs/01 §2.1)"""
+
 from __future__ import annotations
 
 import sqlite3
@@ -22,7 +23,11 @@ def enumerator_exclusions(conn: sqlite3.Connection, mode: str) -> list[str]:
 def load_metas(conn: sqlite3.Connection) -> list[te.TemplateMeta]:
     return [
         te.TemplateMeta(
-            r["template_id"], r["file_path"], r["source"], tuple(r["tags"]), r["platform"]
+            r["template_id"],
+            r["file_path"],
+            r["source"],
+            tuple(r["tags"]),
+            r["platform"],
         )
         for r in template_repo.all_meta(conn)
     ]
@@ -60,7 +65,9 @@ def basis(
         total_run = max(available - present, 0)
     return {
         "mode": mode,
-        "universe": "environment_filtered" if plan and plan.excluded else "all_templates",
+        "universe": "environment_filtered"
+        if plan and plan.excluded
+        else "all_templates",
         "total_available": available,
         "total_run": total_run,
         "excluded_enumerators": list(excluded_ids),

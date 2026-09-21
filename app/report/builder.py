@@ -6,6 +6,7 @@
 골격은 findings 유무와 무관하게 고정. 0건이면 count: 0 · 빈 배열이며
 섹션이 사라지지 않음 (절대규칙 4)
 """
+
 from __future__ import annotations
 
 import json
@@ -69,7 +70,7 @@ def build(
     return {
         "report_id": report_id,
         "scan_id": scan_id,
-        "generated_at": None,          # 저장 시점에 채운다
+        "generated_at": None,  # 저장 시점에 채운다
         "meta": _meta(scan, profiles, guide_status),
         "executive_summary": {
             "total_findings": len(findings),
@@ -87,7 +88,9 @@ def build(
                 "severity": s.value,
                 "label": SEVERITY_LABELS[s],
                 "count": by_severity[s.value],
-                "findings": [f["finding_id"] for f in findings if f["severity"] == s.value],
+                "findings": [
+                    f["finding_id"] for f in findings if f["severity"] == s.value
+                ],
             }
             for s in Severity
         ],
@@ -109,8 +112,10 @@ def build(
         "unmapped_findings": _unmapped(conn, scan_id, findings),
         "false_positives": [
             {
-                "finding_id": f["finding_id"], "name": f["name"],
-                "severity": f["severity"], "note": f["status_note"],
+                "finding_id": f["finding_id"],
+                "name": f["name"],
+                "severity": f["severity"],
+                "note": f["status_note"],
             }
             for f in false_positives
         ],
@@ -124,9 +129,10 @@ def build(
 
 # ────────────────────────────────────────────── 구성 요소
 
+
 def _count(rows: list[dict[str, Any]], column: str, keys: list[str]) -> dict[str, int]:
     """축을 고정한 집계. 0건 키가 사라지면 보고서 목차가 대상마다 달라짐"""
-    counts = {key: 0 for key in keys}
+    counts = dict.fromkeys(keys, 0)
     for row in rows:
         value = row.get(column)
         if value in counts:
@@ -184,8 +190,11 @@ def _meta(
         # 보고서에는 LLM 을 쓰지 않는다. 키는 유지 - 목차·meta 구조가 고정이며
         # 과거 보고서와 형태가 갈리면 비교가 깨짐 (절대규칙 4)
         "llm": {
-            "used": False, "provider": "null",
-            "model": None, "prompt_version": None, "requested": False,
+            "used": False,
+            "provider": "null",
+            "model": None,
+            "prompt_version": None,
+            "requested": False,
         },
     }
 
@@ -198,8 +207,11 @@ def _target_summary(requested: list[str], scanned: int) -> str:
     """
     if not requested:
         return "대상 없음"
-    head = requested[0] if len(requested) == 1 else \
-        f"{requested[0]} 외 {len(requested) - 1}건"
+    head = (
+        requested[0]
+        if len(requested) == 1
+        else f"{requested[0]} 외 {len(requested) - 1}건"
+    )
     return f"{head} (포트 {scanned}개)" if scanned > len(requested) else head
 
 
@@ -211,8 +223,10 @@ def _top_risks(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
     return [
         {
-            "finding_id": f["finding_id"], "name": f["name"],
-            "severity": f["severity"], "reason": fallback.top_risk_reason(f),
+            "finding_id": f["finding_id"],
+            "name": f["name"],
+            "severity": f["severity"],
+            "reason": fallback.top_risk_reason(f),
         }
         for f in ranked[:TOP_RISK_LIMIT]
     ]
@@ -259,7 +273,9 @@ def _finding_block(
         }
     else:
         block["evidence"] = {
-            "request": None, "response": None, "curl_command": None,
+            "request": None,
+            "response": None,
+            "curl_command": None,
             "included": False,
         }
     return block
@@ -282,26 +298,27 @@ def _remediation(
     for section in sections:
         item = guide_items.get(section["item_code"]) or {}
         original = item.get("remediation")
-        out.append({
-            "item_code": section["item_code"],
-            "title": item.get("item_name") or section["item_code"],
-            "finding_ids": by_item.get(section["item_code"], []),
-            "priority_score": section["priority_score"],
-            "source": "guide" if original else "template",
-            "root_fix": {
-                # 원문을 다듬지 않음. 없을 때만 대체 문구
-                "summary": original or fallback.remediation_summary(
-                    {"name": item.get("item_name")}
-                ),
-                "is_original": bool(original),
-            },
-            "temporary_fix": {"summary": fallback.temporary_fix()},
-            "guide_item_code": section["item_code"] if original else None,
-            "guide_citation": _citation(item),
-            "guide_remediation_original": original,
-            "narrative": None,
-            "narrative_generated_by": fallback.GENERATED_BY_TEMPLATE,
-        })
+        out.append(
+            {
+                "item_code": section["item_code"],
+                "title": item.get("item_name") or section["item_code"],
+                "finding_ids": by_item.get(section["item_code"], []),
+                "priority_score": section["priority_score"],
+                "source": "guide" if original else "template",
+                "root_fix": {
+                    # 원문을 다듬지 않음. 없을 때만 대체 문구
+                    "summary": original
+                    or fallback.remediation_summary({"name": item.get("item_name")}),
+                    "is_original": bool(original),
+                },
+                "temporary_fix": {"summary": fallback.temporary_fix()},
+                "guide_item_code": section["item_code"] if original else None,
+                "guide_citation": _citation(item),
+                "guide_remediation_original": original,
+                "narrative": None,
+                "narrative_generated_by": fallback.GENERATED_BY_TEMPLATE,
+            }
+        )
     return out
 
 
@@ -319,18 +336,20 @@ def _patch_plan(conn: sqlite3.Connection, scan_id: str) -> list[dict[str, Any]]:
     out = []
     for row in report_repo.patch_plan(conn, scan_id):
         target = row["upgrade_to_at_least"] or None
-        out.append({
-            "component_type": row["component_type"],
-            "slug": row["slug"],
-            "installed_version": row["installed_version"],
-            "upgrade_to_at_least": target,
-            # 951행 중 332행이 결측이며 데이터 누락이 아님. 빈칸으로 두지 않음
-            "upgrade_note": None if target else fallback.NO_UPGRADE_TARGET,
-            "cve_ids": [c for c in (row["cve_ids"] or "").split(",") if c],
-            "cve_count": row["cve_count"],
-            "max_cvss": row["max_cvss"],
-            "hosts": [row["target_host"]],
-        })
+        out.append(
+            {
+                "component_type": row["component_type"],
+                "slug": row["slug"],
+                "installed_version": row["installed_version"],
+                "upgrade_to_at_least": target,
+                # 951행 중 332행이 결측이며 데이터 누락이 아님. 빈칸으로 두지 않음
+                "upgrade_note": None if target else fallback.NO_UPGRADE_TARGET,
+                "cve_ids": [c for c in (row["cve_ids"] or "").split(",") if c],
+                "cve_count": row["cve_count"],
+                "max_cvss": row["max_cvss"],
+                "hosts": [row["target_host"]],
+            }
+        )
     return out
 
 
@@ -342,21 +361,23 @@ def _guide_mapping(
     items = []
     for verdict in verdicts:
         item = guide_items.get(verdict.item_code) or {}
-        items.append({
-            "item_code": verdict.item_code,
-            "item_code_raw": item.get("item_code_raw"),
-            "item_name": item.get("item_name"),
-            "category": item.get("category"),
-            # 점검항목 고유 중요도. 가이드 원문 값이며 탐지 환산값으로 덮지 않음
-            "item_severity": item.get("severity_guide"),
-            "verdict": verdict.verdict.value,
-            "basis": verdict.basis,
-            "finding_count": verdict.finding_count,
-            "criteria_safe": item.get("criteria_safe"),
-            "criteria_vuln": item.get("criteria_vuln"),
-            "remediation": item.get("remediation"),
-            "citation": _citation(item),
-        })
+        items.append(
+            {
+                "item_code": verdict.item_code,
+                "item_code_raw": item.get("item_code_raw"),
+                "item_name": item.get("item_name"),
+                "category": item.get("category"),
+                # 점검항목 고유 중요도. 가이드 원문 값이며 탐지 환산값으로 덮지 않음
+                "item_severity": item.get("severity_guide"),
+                "verdict": verdict.verdict.value,
+                "basis": verdict.basis,
+                "finding_count": verdict.finding_count,
+                "criteria_safe": item.get("criteria_safe"),
+                "criteria_vuln": item.get("criteria_vuln"),
+                "remediation": item.get("remediation"),
+                "citation": _citation(item),
+            }
+        )
     # 취약 -> 해당 없음 -> 양호 순. 조치 대상이 목록 앞에 와야 읽힘
     order = {"vulnerable": 0, "not_applicable": 1, "safe": 2}
     items.sort(key=lambda i: (order.get(i["verdict"], 9), i["item_code"]))
@@ -367,7 +388,8 @@ def _guide_mapping(
         # 고지 문장은 서버가 만든 하나만 사용. 사본을 두면 화면과 보고서가 갈라짐
         "coverage_notice": guide_status["coverage_notice"],
         "coverage_caution": models.COVERAGE_CAUTION,
-        "unavailable_note": None if guide_status["imported"]
+        "unavailable_note": None
+        if guide_status["imported"]
         else fallback.GUIDE_UNAVAILABLE,
     }
 
@@ -379,8 +401,10 @@ def _unmapped(
     mapped = report_repo.mapped_finding_ids(conn, scan_id)
     return [
         {
-            "finding_id": f["finding_id"], "name": f["name"],
-            "severity": f["severity"], "template_id": f["template_id"],
+            "finding_id": f["finding_id"],
+            "name": f["name"],
+            "severity": f["severity"],
+            "template_id": f["template_id"],
             "reason": "no_mapping",
         }
         for f in findings

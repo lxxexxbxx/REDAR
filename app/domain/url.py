@@ -4,6 +4,7 @@ nuclei 출력의 matched-at 은 'http://localhost:7860/api/v1/version' 형태이
 host 필드는 'localhost' 로 포트가 빠져 있어 한쪽만 믿을 수 없음
 fingerprint 가 host·port 를 분리해 받으므로 분해 실패를 조용히 넘기면 안 됨
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -22,7 +23,7 @@ _HOSTNAME_RE = re.compile(
 
 
 def _valid_host(host: str) -> bool:
-    if ":" in host:                       # IPv6. urlsplit 이 대괄호를 벗겨서 전달
+    if ":" in host:  # IPv6. urlsplit 이 대괄호를 벗겨서 전달
         try:
             ipaddress.ip_address(host)
         except ValueError:
@@ -60,7 +61,7 @@ def parse(raw: str | None) -> UrlParts:
     host = split.hostname  # 소문자화됨. 호스트는 대소문자 구분 없음
     if not host:
         raise ValueError(f"호스트 없음: {raw!r}")
-    host = host.rstrip(".")                # 'example.com.' 정규화
+    host = host.rstrip(".")  # 'example.com.' 정규화
     if not _valid_host(host):
         raise ValueError(f"호스트 형식 오류: {raw!r}")
 

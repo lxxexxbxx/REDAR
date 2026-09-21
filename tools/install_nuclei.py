@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """nuclei 설치 도우미 (Windows / macOS / Linux).
 
     python3 tools/install_nuclei.py             # 확인 후 없으면 설치
@@ -14,6 +13,7 @@ Go 툴체인을 확인하고 없으면 공식 배포본을 사용자 경로에 �
 4개가 되어 절대규칙 5(외부 통신은 3곳뿐)를 깬다. 손으로 실행하는 설치 스크립트
 tools/ 는 런타임 코드가 아니며 app/ 에서 import 하지 않음
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,17 +40,21 @@ EXE = ".exe" if WINDOWS else ""
 
 # 설치 위치. 사용자 홈 아래라 관리자 권한이 필요 없음
 # app/config/settings.py 의 nuclei_bin() 이 REDAR_HOME/bin 을 탐색함
-HOME = Path(os.environ.get("REDAR_HOME") or (
-    Path(os.environ.get("LOCALAPPDATA", Path.home())) / "REDAR" if WINDOWS
-    else Path.home() / ".redar"
-))
+HOME = Path(
+    os.environ.get("REDAR_HOME")
+    or (
+        Path(os.environ.get("LOCALAPPDATA", Path.home())) / "REDAR"
+        if WINDOWS
+        else Path.home() / ".redar"
+    )
+)
 TOOLCHAIN = HOME / "toolchain"
 GO_ROOT = TOOLCHAIN / "go"
 GO_PATH = TOOLCHAIN / "gopath"
 BIN_DIR = HOME / "bin"
 
 _TIMEOUT = 60
-_BUILD_TIMEOUT = 900          # nuclei 빌드는 의존성이 많아 수 분 걸린다
+_BUILD_TIMEOUT = 900  # nuclei 빌드는 의존성이 많아 수 분 걸린다
 
 
 def log(message: str) -> None:
@@ -58,6 +62,7 @@ def log(message: str) -> None:
 
 
 # ────────────────────────────────────────────── 탐색
+
 
 def find_nuclei() -> Path | None:
     candidates = [
@@ -90,8 +95,11 @@ def version_of(binary: Path, *args: str) -> str:
     """
     try:
         out = subprocess.run(
-            [str(binary), *args], capture_output=True, text=True,
-            timeout=_TIMEOUT, check=False,
+            [str(binary), *args],
+            capture_output=True,
+            text=True,
+            timeout=_TIMEOUT,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return f"확인 실패 ({type(exc).__name__})"
@@ -111,12 +119,15 @@ def version_of(binary: Path, *args: str) -> str:
 
 # ────────────────────────────────────────────── Go 설치
 
+
 def go_asset() -> tuple[str, str]:
     """(파일명, sha256). 현재 OS·아키텍처에 맞는 안정판 최신"""
     machine = platform.machine().lower()
     arch = {
-        "x86_64": "amd64", "amd64": "amd64",
-        "arm64": "arm64", "aarch64": "arm64",
+        "x86_64": "amd64",
+        "amd64": "amd64",
+        "arm64": "arm64",
+        "aarch64": "arm64",
     }.get(machine)
     if arch is None:
         sys.exit(f"지원하지 않는 아키텍처: {machine}")
@@ -133,9 +144,12 @@ def go_asset() -> tuple[str, str]:
         if not release.get("stable"):
             continue
         for entry in release.get("files", []):
-            if (entry.get("os") == goos and entry.get("arch") == arch
-                    and entry.get("kind") == "archive"
-                    and entry.get("filename", "").endswith(kind)):
+            if (
+                entry.get("os") == goos
+                and entry.get("arch") == arch
+                and entry.get("kind") == "archive"
+                and entry.get("filename", "").endswith(kind)
+            ):
                 return entry["filename"], entry.get("sha256", "")
     sys.exit(f"설치 가능한 Go 배포본을 찾지 못했습니다: {goos}/{arch}")
 
@@ -143,8 +157,10 @@ def go_asset() -> tuple[str, str]:
 def download(url: str, target: Path, expected_sha256: str) -> None:
     log(f"  내려받는 중: {url}")
     digest = hashlib.sha256()
-    with urllib.request.urlopen(url, timeout=_TIMEOUT) as response, \
-            target.open("wb") as out:
+    with (
+        urllib.request.urlopen(url, timeout=_TIMEOUT) as response,
+        target.open("wb") as out,
+    ):
         while chunk := response.read(1 << 20):
             digest.update(chunk)
             out.write(chunk)
@@ -188,6 +204,7 @@ def install_go() -> Path:
 
 # ────────────────────────────────────────────── nuclei 설치
 
+
 def install_nuclei(go_binary: Path) -> Path:
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     GO_PATH.mkdir(parents=True, exist_ok=True)
@@ -203,7 +220,9 @@ def install_nuclei(go_binary: Path) -> Path:
     log("  (의존성이 많아 수 분 걸린다)")
     result = subprocess.run(
         [str(go_binary), "install", "-v", NUCLEI_PKG],
-        env=env, timeout=_BUILD_TIMEOUT, check=False,
+        env=env,
+        timeout=_BUILD_TIMEOUT,
+        check=False,
     )
     if result.returncode != 0:
         sys.exit(f"nuclei 설치 실패 (exit {result.returncode})")
@@ -215,6 +234,7 @@ def install_nuclei(go_binary: Path) -> Path:
 
 
 # ────────────────────────────────────────────── 진입점
+
 
 def report(nuclei: Path | None, go_binary: Path | None) -> None:
     log("")
@@ -229,7 +249,9 @@ def report(nuclei: Path | None, go_binary: Path | None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="nuclei 설치 (Go 툴체인 포함)")
-    parser.add_argument("--check", action="store_true", help="확인만 하고 설치하지 않음")
+    parser.add_argument(
+        "--check", action="store_true", help="확인만 하고 설치하지 않음"
+    )
     parser.add_argument("--force", action="store_true", help="이미 있어도 재설치")
     args = parser.parse_args()
 
@@ -261,7 +283,7 @@ def main() -> None:
     report(nuclei, go_binary)
     log("")
     log("REDAR 은 이 경로를 자동으로 찾는다. 환경변수 설정은 필요 없다.")
-    log(f"다른 경로의 nuclei 를 쓰려면 REDAR_NUCLEI 를 지정한다.")
+    log("다른 경로의 nuclei 를 쓰려면 REDAR_NUCLEI 를 지정한다.")
 
 
 if __name__ == "__main__":

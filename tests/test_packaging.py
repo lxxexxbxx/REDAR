@@ -3,6 +3,7 @@
 번들 실행은 CI 에서 돌리지 않음. 여기서는 경로 분리 규칙과 스펙 내용을 검증 -
 번들 디렉터리에 쓰면 재시작 시 데이터가 소실됨
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -32,6 +33,7 @@ def _load_build():
 
 # ─────────────────────────────── Python 버전 (CLAUDE.md 3.11+)
 
+
 def test_build_rejects_python_below_311(monkeypatch):
     """3.10 으로 번들하면 StrEnum ImportError 로 기동 즉시 종료 (실측)"""
     build = _load_build()
@@ -47,10 +49,13 @@ def test_build_accepts_python_312(monkeypatch):
     build.require_python()
 
 
-@pytest.mark.parametrize("line, expected", [
-    ("version = 3.10.9", (3, 10)),          # python -m venv
-    ("version_info = 3.12.13", (3, 12)),    # uv venv
-])
+@pytest.mark.parametrize(
+    "line, expected",
+    [
+        ("version = 3.10.9", (3, 10)),  # python -m venv
+        ("version_info = 3.12.13", (3, 12)),  # uv venv
+    ],
+)
 def test_venv_version_read_from_pyvenv_cfg(tmp_path, line, expected):
     """기존 가상환경을 그대로 쓰면 실행 파이썬이 3.12 여도 번들은 3.10"""
     build = _load_build()
@@ -64,11 +69,15 @@ def test_venv_version_missing_cfg(tmp_path):
 
 # ─────────────────────────────── 경로 분리 (완료 조건 3)
 
+
 def test_read_only_and_writable_paths_are_separate():
     """번들 리소스와 사용자 데이터가 같은 트리에 있으면 재시작 시 소실됨"""
     read_only = {
-        settings.SCHEMA_PATH, settings.DATA_DIR, settings.FONTS_DIR,
-        settings.FRONTEND_DIR, settings.MIGRATIONS_DIR,
+        settings.SCHEMA_PATH,
+        settings.DATA_DIR,
+        settings.FONTS_DIR,
+        settings.FRONTEND_DIR,
+        settings.MIGRATIONS_DIR,
     }
     writable = {settings.DB_PATH, settings.REPORTS_DIR, settings.TEMPLATES_DIR}
     assert read_only & writable == set()
@@ -122,6 +131,7 @@ def test_nuclei_env_override_wins(monkeypatch):
 
 # ─────────────────────────────── PyInstaller 스펙
 
+
 def test_spec_uses_onedir_not_onefile():
     """onefile 은 매 실행 압축 해제로 5~15초 지연이 생김"""
     text = SPEC.read_text(encoding="utf-8")
@@ -133,30 +143,44 @@ def test_spec_bundles_data_csv_without_captures():
     """번들 대상은 data/*.csv 개별 지정. guide_images/ 는 미채택이라 제외"""
     # 주석은 근거이므로 본문 전체가 아니라 실제 항목만 봄
     entries = [
-        line.strip() for line in SPEC.read_text(encoding="utf-8").splitlines()
+        line.strip()
+        for line in SPEC.read_text(encoding="utf-8").splitlines()
         if line.strip().startswith(("(str(ROOT", '"'))
     ]
     joined = " ".join(entries)
-    assert 'ROOT / "data"), "data"' not in joined     # 통째 포함 금지
+    assert 'ROOT / "data"), "data"' not in joined  # 통째 포함 금지
     assert "guide_images" not in joined
-    for bundled in ("vuln_type_rules.csv", "guide_mappings.csv",
-                    "component_advisories.csv", "settings_defaults.csv",
-                    "guide_items_2026.csv"):
+    for bundled in (
+        "vuln_type_rules.csv",
+        "guide_mappings.csv",
+        "component_advisories.csv",
+        "settings_defaults.csv",
+        "guide_items_2026.csv",
+    ):
         assert bundled in joined, bundled
 
 
 def test_spec_bundles_read_only_resources():
     text = SPEC.read_text(encoding="utf-8")
-    for needed in ("schema.sql", '"data"', "assets", "frontend",
-                   "app/report/templates", "severity_map.yaml"):
+    for needed in (
+        "schema.sql",
+        '"data"',
+        "assets",
+        "frontend",
+        "app/report/templates",
+        "severity_map.yaml",
+    ):
         assert needed in text, needed
 
 
 def test_spec_lists_dynamic_imports():
     """수집기·LLM Provider 는 동적 import 라 정적 분석이 놓침"""
     text = SPEC.read_text(encoding="utf-8")
-    for module in ("app.collectors.wordpress", "app.collectors.generic_http",
-                   "app.adapters.llm.monogpt"):
+    for module in (
+        "app.collectors.wordpress",
+        "app.collectors.generic_http",
+        "app.adapters.llm.monogpt",
+    ):
         assert module in text, module
 
 
@@ -177,6 +201,7 @@ def test_collectors_registry_matches_spec_hidden_imports():
 
 # ─────────────────────────────── 진입점 (완료 조건 5)
 
+
 def test_entrypoint_uses_dynamic_port():
     """고정 포트는 점유 시 기동 실패하거나 타 프로세스에 접속"""
     text = ENTRYPOINT.read_text(encoding="utf-8")
@@ -187,7 +212,7 @@ def test_entrypoint_uses_dynamic_port():
 def test_entrypoint_passes_app_object_not_import_string():
     """번들에서는 uvicorn 이 'app.main:app' 을 다시 import 하지 못"""
     text = ENTRYPOINT.read_text(encoding="utf-8")
-    assert 'uvicorn.run(\n        asgi_app' in text
+    assert "uvicorn.run(\n        asgi_app" in text
     assert '"app.main:app"' not in text
 
 
@@ -214,7 +239,7 @@ def test_free_port_returns_bindable_port():
     port = entry.free_port()
     assert 1024 < port < 65536
     with socket.socket() as sock:
-        sock.bind(("127.0.0.1", port))       # 실제로 바인딩 가능해야 한다
+        sock.bind(("127.0.0.1", port))  # 실제로 바인딩 가능해야 한다
 
 
 def test_two_runs_get_different_ports():
@@ -233,10 +258,11 @@ def test_two_runs_get_different_ports():
 
 # ─────────────────────────────── Tauri 셸 (완료 조건 4)
 
+
 def test_tauri_kills_sidecar_on_exit():
     """앱 종료 후 redar-backend 프로세스가 남으면 포트와 DB 락이 유지됨"""
     text = TAURI_MAIN.read_text(encoding="utf-8")
-    assert text.count("child.kill()") == 2       # 창 파괴 + 앱 종료 양쪽
+    assert text.count("child.kill()") == 2  # 창 파괴 + 앱 종료 양쪽
     assert "WindowEvent::Destroyed" in text
     assert "RunEvent::Exit" in text
 
@@ -269,8 +295,8 @@ def test_backend_bundled_as_directory_resource():
 def test_tauri_resolves_backend_from_resource_dir():
     text = TAURI_MAIN.read_text(encoding="utf-8")
     assert "resource_dir()" in text
-    assert '.join("backend")' in text           # resources 배열이 보존하는 경로
-    assert "redar-backend.exe" in text          # Windows 확장자 분기
+    assert '.join("backend")' in text  # resources 배열이 보존하는 경로
+    assert "redar-backend.exe" in text  # Windows 확장자 분기
     assert ".sidecar(" not in text
 
 
@@ -315,7 +341,8 @@ def test_hidden_imports_all_exist():
     text = SPEC.read_text(encoding="utf-8")
     block = text.split("hiddenimports = [")[1].split("]")[0]
     missing = [
-        name for name in re.findall(r'"([\w.]+)"', block)
+        name
+        for name in re.findall(r'"([\w.]+)"', block)
         if name.startswith("app.") and importlib.util.find_spec(name) is None
     ]
     assert not missing, f"존재하지 않는 hiddenimports: {missing}"
@@ -326,7 +353,8 @@ def test_collectors_all_in_hidden_imports():
     수집기를 추가하고 spec 을 빠뜨리면 번들에서만 사라짐"""
     text = SPEC.read_text(encoding="utf-8")
     modules = {
-        f.stem for f in (ROOT / "app" / "collectors").glob("*.py")
+        f.stem
+        for f in (ROOT / "app" / "collectors").glob("*.py")
         if f.stem not in ("__init__", "base")
     }
     missing = [m for m in modules if f'"app.collectors.{m}"' not in text]
@@ -341,6 +369,7 @@ def test_spec_has_no_onefile_branch():
 
 
 # ─────────────────────────────── 앱 아이콘
+
 
 def test_bundle_icons_cover_platform_formats():
     """PNG 만 등록하면 macOS 번들이 'No matching IconType' 로 실패.
@@ -366,6 +395,7 @@ def test_ico_holds_small_sizes():
 
 
 # ─────────────────────────────── 빌드 스크립트 (완료 조건 1)
+
 
 def test_build_script_runs_three_stages_in_order():
     text = BUILD.read_text(encoding="utf-8")
@@ -400,8 +430,8 @@ def test_msvc_checked_before_compiling(monkeypatch):
         build.build_tauri(True)
     message = str(exc.value)
     assert "link.exe" in message
-    assert "VCTools" in message              # 정확한 설치 명령을 알려줌
-    assert called == []                      # 빌드 단계로 넘어가지 않음
+    assert "VCTools" in message  # 정확한 설치 명령을 알려줌
+    assert called == []  # 빌드 단계로 넘어가지 않음
 
 
 def test_msvc_check_skipped_off_windows(monkeypatch):
@@ -425,7 +455,9 @@ def test_artifact_paths_reported_per_platform(monkeypatch, tmp_path, capsys):
     release = tmp_path / "src-tauri" / "target" / "release"
     (release / "bundle" / "msi").mkdir(parents=True)
     (release / "redar.exe").write_text("x", encoding="utf-8")
-    (release / "bundle" / "msi" / "REDAR_0.3.0_x64.msi").write_text("x", encoding="utf-8")
+    (release / "bundle" / "msi" / "REDAR_0.3.0_x64.msi").write_text(
+        "x", encoding="utf-8"
+    )
 
     build.report_artifacts()
     out = capsys.readouterr().out
@@ -499,7 +531,7 @@ def test_installer_install_path_matches_app_lookup():
     """설치 경로와 앱 탐색 경로가 어긋나면 설치해도 찾지 못"""
     installer = _load_installer()
     expected = settings.platform_home() / "bin"
-    assert installer.BIN_DIR == expected
+    assert expected == installer.BIN_DIR
 
 
 def test_version_of_skips_warning_lines():
@@ -511,10 +543,12 @@ def test_version_of_skips_warning_lines():
     )
     lines = [
         installer._ANSI.sub("", line).strip()
-        for line in sample.splitlines() if line.strip()
+        for line in sample.splitlines()
+        if line.strip()
     ]
     picked = next(
-        line for line in lines
+        line
+        for line in lines
         if not line.upper().startswith("WARNING")
         and installer._VERSION_LINE.search(line)
     )
@@ -550,12 +584,13 @@ def test_builder_requires_author_field():
 
 # ─────────────────────────────── 원클릭 빌드
 
+
 def test_build_bootstraps_venv_and_reexecutes():
     """시스템 파이썬으로 PyInstaller 를 돌리면 의존성이 번들에서 빠짐"""
     text = BUILD.read_text(encoding="utf-8")
     assert "def ensure_venv()" in text
     assert '"-m", "venv"' in text
-    assert 'str(REQUIREMENTS)' in text
+    assert "str(REQUIREMENTS)" in text
     assert "in_target_venv()" in text
 
 
@@ -563,12 +598,15 @@ def test_build_reexec_does_not_recurse(monkeypatch):
     """재실행된 자식이 다시 재실행하면 무한 루프"""
     build = _load_build()
     calls: list[list[str]] = []
-    monkeypatch.setattr(build.subprocess, "run",
-                        lambda cmd, **kw: calls.append(cmd))
+    monkeypatch.setattr(build.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
     monkeypatch.setattr(build, "ensure_deps", lambda python: None)
-    assert build.in_target_venv() is True        # 테스트는 venv 안에서 돔
+    # 가상환경 안에서 도는 상황을 만든다. pytest 를 어느 파이썬으로 띄웠는지에
+    # 따라 결과가 달라지면 안 됨 - CI 는 저장소 .venv 가 아닌 곳에서 돈다.
+    # 가정하지 않고 두면 진짜 ensure_venv 가 저장소 .venv 를 갈아엎는다
+    monkeypatch.setattr(build.sys, "prefix", str(build.VENV_DIR))
+    assert build.in_target_venv() is True
     build.ensure_venv()
-    assert calls == []                           # 재실행하지 않음
+    assert calls == []  # 재실행하지 않음
 
 
 def test_venv_detection_true_only_inside(monkeypatch, tmp_path):
@@ -595,8 +633,9 @@ def test_build_installs_deps_even_inside_venv(monkeypatch):
     'PyInstaller 가 없습니다' 로 끝났음"""
     build = _load_build()
     installed: list[str] = []
-    monkeypatch.setattr(build, "ensure_deps",
-                        lambda python: installed.append(python))
+    monkeypatch.setattr(build, "ensure_deps", installed.append)
+    # 위와 같은 이유로 가상환경 안을 가정한다
+    monkeypatch.setattr(build.sys, "prefix", str(build.VENV_DIR))
     build.ensure_venv()
     assert installed == [sys.executable]
 
@@ -618,7 +657,7 @@ def test_node_archive_checksum_verified_before_extract():
     body = text.split("def install_node()")[1].split("def ensure_node")[0]
     assert body.index("SHASUMS256.txt") < body.index("extractall")
     assert body.index("체크섬 불일치") < body.index("extractall")
-    assert 'filter="data"' in body            # tar 경로 탈출 차단
+    assert 'filter="data"' in body  # tar 경로 탈출 차단
 
 
 def test_nuclei_bundled_into_same_run(monkeypatch):
@@ -639,7 +678,7 @@ def test_nuclei_bundled_into_same_run(monkeypatch):
 
     monkeypatch.setattr(build.subprocess, "run", fake_run)
     build.ensure_nuclei(True)
-    assert len(calls) == 2                    # --check 후 설치
+    assert len(calls) == 2  # --check 후 설치
     assert "--check" in calls[0]
     assert "--check" not in calls[1]
 
@@ -659,8 +698,13 @@ def test_build_runs_full_pipeline_by_default():
     """clone 후 명령 하나로 GUI 까지 떠야 함"""
     text = BUILD.read_text(encoding="utf-8")
     main = text.split("def main()")[1]
-    for stage in ("ensure_venv()", "build_backend(", "stage_backend(",
-                  "build_tauri(", "launch()"):
+    for stage in (
+        "ensure_venv()",
+        "build_backend(",
+        "stage_backend(",
+        "build_tauri(",
+        "launch()",
+    ):
         assert stage in main, stage
     # 전체 실행이 기본. 축소가 옵션
     assert "--backend-only" in main

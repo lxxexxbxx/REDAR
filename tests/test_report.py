@@ -2,6 +2,7 @@
 
 TC-R05 와 TC-R07 이 "대상과 무관하게 동일한 형식" 요구사항의 유일한 검증 수단임
 """
+
 from __future__ import annotations
 
 import json
@@ -11,10 +12,8 @@ from pathlib import Path
 import pytest
 
 from app.domain import models
-
 from app.domain.enums import Severity, VulnType
 from app.report import builder, fallback, renderer
-from app.repository.db import session
 from app.services import guide_importer, report_service
 from app.services.scan_service import ScanError
 
@@ -42,18 +41,16 @@ EXPECTED_SECTIONS = [
     "4. 조치 상세 가이드 (참고)",
 ]
 
-_HEADINGS = re.compile(r"<h[12][^>]*>(.*?)</h[12]>", re.S)
+_HEADINGS = re.compile(r"<h[12][^>]*>(.*?)</h[12]>", re.DOTALL)
 
 
 def _notice_tail() -> str:
     """고지 문구의 고정부. 표현이 바뀌어도 존재 여부는 계속 검증"""
     return models.COVERAGE_NOTICE_TEMPLATE.split("{scope}")[-1].strip()
 
+
 def _sections(html: str) -> list[str]:
-    return [
-        re.sub(r"<[^>]+>", "", raw).strip()
-        for raw in _HEADINGS.findall(html)
-    ]
+    return [re.sub(r"<[^>]+>", "", raw).strip() for raw in _HEADINGS.findall(html)]
 
 
 def _make_scan(conn, scan_id: str, host: str, findings: list[dict]) -> str:
@@ -77,13 +74,21 @@ def _make_scan(conn, scan_id: str, host: str, findings: list[dict]) -> str:
             " ev_request, ev_response, ev_curl, component_slug)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                f["finding_id"], scan_id, f"fp-{scan_id}-{index}",
-                f.get("template_id", "tpl-x"), f"http://{host}/x", host,
-                f["name"], f.get("vuln_type", "xss"), f["severity"],
+                f["finding_id"],
+                scan_id,
+                f"fp-{scan_id}-{index}",
+                f.get("template_id", "tpl-x"),
+                f"http://{host}/x",
+                host,
+                f["name"],
+                f.get("vuln_type", "xss"),
+                f["severity"],
                 f.get("severity_guide", "상"),
                 json.dumps(f.get("cve_ids", [])) if f.get("cve_ids") else None,
                 json.dumps(f.get("cwe_ids", [])) if f.get("cwe_ids") else None,
-                f.get("cvss_score"), f.get("status", "open"), f.get("status_note"),
+                f.get("cvss_score"),
+                f.get("status", "open"),
+                f.get("status_note"),
                 f.get("ev_request", "GET /x HTTP/1.1"),
                 f.get("ev_response", "HTTP/1.1 200 OK"),
                 f.get("ev_curl", "curl -i http://host/x"),
@@ -108,16 +113,38 @@ def guide_loaded(conn):
 
 @pytest.fixture
 def scan_with_findings(conn):
-    scan_id = _make_scan(conn, "scn_rpt", "wp.local", [
-        {"finding_id": "fnd_r1", "name": "XSS 취약점", "severity": "critical",
-         "vuln_type": "xss", "cwe_ids": ["CWE-79"], "cvss_score": 9.1},
-        {"finding_id": "fnd_r2", "name": "정보 노출", "severity": "medium",
-         "vuln_type": "info_disclosure", "cve_ids": ["CVE-2026-63030"],
-         "cwe_ids": ["CWE-200"], "component_slug": "contact-form-7"},
-        {"finding_id": "fnd_r3", "name": "오탐 항목", "severity": "high",
-         "vuln_type": "misconfig", "status": "false_positive",
-         "status_note": "인증 미들웨어로 보호됨"},
-    ])
+    scan_id = _make_scan(
+        conn,
+        "scn_rpt",
+        "wp.local",
+        [
+            {
+                "finding_id": "fnd_r1",
+                "name": "XSS 취약점",
+                "severity": "critical",
+                "vuln_type": "xss",
+                "cwe_ids": ["CWE-79"],
+                "cvss_score": 9.1,
+            },
+            {
+                "finding_id": "fnd_r2",
+                "name": "정보 노출",
+                "severity": "medium",
+                "vuln_type": "info_disclosure",
+                "cve_ids": ["CVE-2026-63030"],
+                "cwe_ids": ["CWE-200"],
+                "component_slug": "contact-form-7",
+            },
+            {
+                "finding_id": "fnd_r3",
+                "name": "오탐 항목",
+                "severity": "high",
+                "vuln_type": "misconfig",
+                "status": "false_positive",
+                "status_note": "인증 미들웨어로 보호됨",
+            },
+        ],
+    )
     yield scan_id
     conn.execute("DELETE FROM findings WHERE scan_id = 'scn_rpt'")
     conn.execute("DELETE FROM scans WHERE scan_id = 'scn_rpt'")
@@ -139,6 +166,7 @@ def _report(conn, scan_id, **options):
 
 
 # ─────────────────────────────── TC-R01 ~ R04 (가이드 · LLM 조합)
+
 
 def test_tc_r02_guide_yes_llm_no(conn, guide_loaded, scan_with_findings):
     """가이드 O / LLM X -> 산문이 템플릿 문장"""
@@ -171,7 +199,7 @@ def test_target_response_is_not_rendered_as_html(conn, scan_with_findings):
     """
     report = _report(conn, scan_with_findings)
     payload = (
-        '<script>window.__redar_probe=1</script>'
+        "<script>window.__redar_probe=1</script>"
         '<div id="swagger-ui">Failed to load API definition.</div>'
     )
     assert report["findings_detail"], "근거를 넣을 탐지 항목이 있어야 함"
@@ -224,6 +252,7 @@ def test_tc_r03_no_guide_part_a_intact(conn, scan_with_findings):
 
 # ─────────────────────────────── TC-R05 (0건)
 
+
 def test_tc_r05_zero_findings_keeps_all_sections(conn, empty_scan):
     """탐지 0건 -> 모든 섹션 '해당 없음', 목차 동일"""
     report = _report(conn, empty_scan)
@@ -246,18 +275,43 @@ def test_tc_r05_zero_findings_keeps_all_sections(conn, empty_scan):
 
 # ─────────────────────────────── TC-R07 (두 대상 목차 일치)
 
+
 def test_tc_r07_two_different_targets_same_toc(conn, guide_loaded):
     """서로 다른 두 대상 -> 목차 구조 완전 일치"""
-    first = _make_scan(conn, "scn_a", "a.local", [
-        {"finding_id": "fnd_a1", "name": "RCE", "severity": "critical",
-         "vuln_type": "rce", "cwe_ids": ["CWE-94"], "cve_ids": ["CVE-2026-1"]},
-    ])
-    second = _make_scan(conn, "scn_b", "b.local", [
-        {"finding_id": "fnd_b1", "name": "정보 노출", "severity": "low",
-         "vuln_type": "info_disclosure"},
-        {"finding_id": "fnd_b2", "name": "설정 오류", "severity": "info",
-         "vuln_type": "misconfig"},
-    ])
+    first = _make_scan(
+        conn,
+        "scn_a",
+        "a.local",
+        [
+            {
+                "finding_id": "fnd_a1",
+                "name": "RCE",
+                "severity": "critical",
+                "vuln_type": "rce",
+                "cwe_ids": ["CWE-94"],
+                "cve_ids": ["CVE-2026-1"],
+            },
+        ],
+    )
+    second = _make_scan(
+        conn,
+        "scn_b",
+        "b.local",
+        [
+            {
+                "finding_id": "fnd_b1",
+                "name": "정보 노출",
+                "severity": "low",
+                "vuln_type": "info_disclosure",
+            },
+            {
+                "finding_id": "fnd_b2",
+                "name": "설정 오류",
+                "severity": "info",
+                "vuln_type": "misconfig",
+            },
+        ],
+    )
     try:
         html_a = renderer.render_html(_report(conn, first))
         html_b = renderer.render_html(_report(conn, second))
@@ -278,7 +332,10 @@ def test_zero_and_nonzero_scans_share_toc(conn, empty_scan, scan_with_findings):
 
 # ─────────────────────────────── TC-R08 · R09 (가이드 원문)
 
-def test_tc_r08_part_b_severity_is_guide_original(conn, guide_loaded, scan_with_findings):
+
+def test_tc_r08_part_b_severity_is_guide_original(
+    conn, guide_loaded, scan_with_findings
+):
     """Part B 중요도는 guide_items 원문 값. 탐지 심각도 환산값이 아님"""
     report = _report(conn, scan_with_findings)
     items = {i["item_code"]: i for i in report["guide_mapping"]["items"]}
@@ -292,7 +349,9 @@ def test_tc_r08_part_b_severity_is_guide_original(conn, guide_loaded, scan_with_
             assert items[code]["item_severity"] == original
 
 
-def test_tc_r09_remediation_is_verbatim_substring(conn, guide_loaded, scan_with_findings):
+def test_tc_r09_remediation_is_verbatim_substring(
+    conn, guide_loaded, scan_with_findings
+):
     """보고서 조치 문구가 원문에 부분문자열로 존재해야 한다 (재작성 방지)"""
     report = _report(conn, scan_with_findings)
     originals = {
@@ -331,6 +390,7 @@ def test_report_carries_no_guide_case_text(conn, guide_loaded, scan_with_finding
 
 # ─────────────────────────────── TC-R10 (커버리지 고지)
 
+
 def test_tc_r10_coverage_notice_in_part_b(conn, guide_loaded, scan_with_findings):
     report = _report(conn, scan_with_findings)
     notice = report["guide_mapping"]["coverage_notice"]
@@ -341,7 +401,6 @@ def test_tc_r10_coverage_notice_in_part_b(conn, guide_loaded, scan_with_findings
     caution = report["guide_mapping"]["coverage_caution"]
     assert notice.replace(caution, "").strip() in html
     assert f"<strong>{caution}</strong>" in html
-
 
 
 def _section(html: str, start: str, end: str) -> str:
@@ -368,7 +427,9 @@ def test_b2_hides_safe_verdicts(conn, guide_loaded, scan_with_findings):
     )
 
 
-def test_b2_lists_vulnerable_before_not_applicable(conn, guide_loaded, scan_with_findings):
+def test_b2_lists_vulnerable_before_not_applicable(
+    conn, guide_loaded, scan_with_findings
+):
     """조치 대상이 목록 앞에 와야 읽힘"""
     items = _report(conn, scan_with_findings)["guide_mapping"]["items"]
     rank = {"vulnerable": 0, "not_applicable": 1, "safe": 2}
@@ -394,13 +455,14 @@ def test_guide_remediation_appears_once(conn, guide_loaded, scan_with_findings):
             assert original not in a6
 
 
-
 # 심각도 한글 표기. 되살아나면 화면·보고서 문자열이 갈림 (docs/04 §2).
 # '정보' 는 유형명 '정보 노출' 과 겹쳐 태그 경계로만 확인
 _KOREAN_SEVERITY = ("치명적", "높음", "중간", "낮음")
 
 
-def test_severity_notation_is_english_everywhere(conn, guide_loaded, scan_with_findings):
+def test_severity_notation_is_english_everywhere(
+    conn, guide_loaded, scan_with_findings
+):
     """같은 심각도가 자리마다 critical / 치명적 / 높음 으로 갈리면 대조가 안 됨"""
     from app.domain.enums import SEVERITY_LABELS
 
@@ -431,6 +493,7 @@ def test_scope_notes_avoid_remote_framing(conn, guide_loaded, scan_with_findings
 
 # ─────────────────────────────── TC-R11 (fixed_version 결측)
 
+
 def test_tc_r11_missing_fixed_version_has_replacement_text(conn, scan_with_findings):
     """빈칸은 검토자에게 데이터 누락으로 읽힘. 대체 문구를 넣음"""
     conn.execute(
@@ -458,6 +521,7 @@ def test_tc_r11_missing_fixed_version_has_replacement_text(conn, scan_with_findi
 
 
 # ─────────────────────────────── TC-R12 (자체 완결형)
+
 
 def test_tc_r12_html_is_self_contained(conn, guide_loaded, scan_with_findings):
     """외부 URL 참조 0건. CDN·외부 폰트 참조 금지 (절대규칙 4-1)"""
@@ -488,9 +552,9 @@ def test_disposition_survives_non_ascii_filename():
     from app.api.reports import _disposition
 
     header = _disposition("report_대상없음_외3건_20260831.html")
-    header.encode("latin-1")                     # 인코딩되지 않으면 여기서 실패
+    header.encode("latin-1")  # 인코딩되지 않으면 여기서 실패
     assert "filename*=UTF-8''" in header
-    assert 'filename="' in header                # 구형 클라이언트용 ASCII 이름
+    assert 'filename="' in header  # 구형 클라이언트용 ASCII 이름
 
 
 def test_download_filename_from_summary(conn, guide_loaded, scan_with_findings):
@@ -558,6 +622,7 @@ def test_font_base64_is_cached():
 
 # ─────────────────────────────── PDF · 파일명 · 옵션
 
+
 def test_pdf_download_is_rejected_with_guidance(conn, scan_with_findings):
     """PDF 는 WebView 인쇄로 파생. 서버가 만들지 않음 (절대규칙 4-1)"""
     view = report_service.create(conn, scan_with_findings, {})
@@ -569,7 +634,7 @@ def test_pdf_download_is_rejected_with_guidance(conn, scan_with_findings):
 
 def test_download_formats(conn, scan_with_findings):
     view = report_service.create(conn, scan_with_findings, {})
-    html, media, name = report_service.download(conn, view["report_id"], "html")
+    _html, media, name = report_service.download(conn, view["report_id"], "html")
     assert media.startswith("text/html")
     assert name.endswith(".html")
 
@@ -608,7 +673,7 @@ def test_evidence_truncated_at_limit(conn, scan_with_findings):
 
 def test_false_positive_excluded_from_counts_but_listed(conn, scan_with_findings):
     report = _report(conn, scan_with_findings)
-    assert report["executive_summary"]["total_findings"] == 2      # 오탐 1건 제외
+    assert report["executive_summary"]["total_findings"] == 2  # 오탐 1건 제외
     assert len(report["false_positives"]) == 1
     assert report["false_positives"][0]["note"] == "인증 미들웨어로 보호됨"
 
@@ -620,7 +685,7 @@ def test_report_json_is_self_sufficient(conn, guide_loaded, scan_with_findings):
     """렌더러가 JSON 밖 DB 를 조회하면 GUI 미리보기와 파일이 갈라짐"""
     report = _report(conn, scan_with_findings)
     saved = json.loads(builder.dumps(report))
-    html = renderer.render_html(saved)         # DB 접근 없이 렌더
+    html = renderer.render_html(saved)  # DB 접근 없이 렌더
     assert _sections(html) == EXPECTED_SECTIONS
 
 
@@ -642,9 +707,10 @@ def test_coverage_values_recorded_on_report_row(conn, guide_loaded, scan_with_fi
     view = report_service.create(conn, scan_with_findings, {})
     row = conn.execute(
         "SELECT guide_items_total, guide_items_covered, guide_db_available"
-        " FROM reports WHERE report_id = ?", (view["report_id"],)
+        " FROM reports WHERE report_id = ?",
+        (view["report_id"],),
     ).fetchone()
-    assert row["guide_items_total"] == 10          # 목 데이터 10행
+    assert row["guide_items_total"] == 10  # 목 데이터 10행
     assert row["guide_items_covered"] == 36
     assert row["guide_db_available"] == 1
 
@@ -707,7 +773,9 @@ def test_attach_guide_renders_with_both_notices(conn, scan_with_findings):
     assert "LLM(생성형 AI)이 작성" in html
 
 
-def test_attach_guide_does_not_touch_report_body(conn, guide_loaded, scan_with_findings):
+def test_attach_guide_does_not_touch_report_body(
+    conn, guide_loaded, scan_with_findings
+):
     """본문(1~3)은 첨부 전후가 같아야 함. 첨부가 근거를 바꾸면 안 됨"""
     view = report_service.create(conn, scan_with_findings, {})
     before = report_service.get(conn, view["report_id"])["report"]
@@ -772,6 +840,7 @@ def test_guide_markdown_formatting(conn, scan_with_findings):
 
 # ─────────────────────────────── A-2 템플릿 실행 범위
 
+
 def _with_basis(conn, scan_id, basis):
     conn.execute(
         "UPDATE scans SET selection_basis = ?, selection_mode = ? WHERE scan_id = ?",
@@ -781,13 +850,21 @@ def _with_basis(conn, scan_id, basis):
 
 
 def test_a2_shows_exclusions_and_caution(conn, empty_scan):
-    _with_basis(conn, empty_scan, {
-        "mode": "environment_driven", "universe": "environment_filtered",
-        "total_available": 11727, "total_run": 9800,
-        "excluded_enumerators": ["wordpress-plugins-detect"],
-        "excluded": [{"platform": "joomla", "templates": 12}],
-        "fallback_reason": None, "detected": ["wordpress"], "prepass_templates": 2486,
-    })
+    _with_basis(
+        conn,
+        empty_scan,
+        {
+            "mode": "environment_driven",
+            "universe": "environment_filtered",
+            "total_available": 11727,
+            "total_run": 9800,
+            "excluded_enumerators": ["wordpress-plugins-detect"],
+            "excluded": [{"platform": "joomla", "templates": 12}],
+            "fallback_reason": None,
+            "detected": ["wordpress"],
+            "prepass_templates": 2486,
+        },
+    )
     html = renderer.render_html(_report(conn, empty_scan))
     assert "joomla" in html and "9800" in html
     assert "wordpress-plugins-detect" in html

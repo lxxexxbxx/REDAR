@@ -3,6 +3,7 @@
 규칙 원본은 data/vuln_type_rules.csv -> DB(vuln_type_rules).
 순수 함수. DB 직접 조회 없음 (SQL 은 repository 전용). 규칙은 호출자가 주입
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
@@ -45,7 +46,7 @@ def normalize(
         elif rule.match_type == MATCH_TAG:
             if rule.match_value.lower() in tag_set:
                 return rule.vuln_type
-        elif rule.match_type == MATCH_TEMPLATE_PREFIX:
+        elif rule.match_type == MATCH_TEMPLATE_PREFIX:  # noqa: SIM102
             if template_id and template_id.startswith(rule.match_value):
                 return rule.vuln_type
     return VulnType.OTHER

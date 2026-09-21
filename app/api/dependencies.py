@@ -6,6 +6,7 @@
   PUT    /dependencies/{key}/path    경로 지정 (통신 없음)
   POST   /dependencies/{key}/install 자동 설치 (외부 통신 4번. 명시 동의 필요)
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any

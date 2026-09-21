@@ -3,6 +3,7 @@
 Fallback 문장만으로도 보고서가 성립해야 한다. LLM 은 품질 향상 수단이지
 필수 구성요소가 아님 (절대규칙 2). 기본 Provider 가 NullProvider 인 이유
 """
+
 from __future__ import annotations
 
 from typing import Any

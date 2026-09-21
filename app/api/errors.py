@@ -1,4 +1,5 @@
 """공통 오류 응답. 모든 4xx/5xx 를 docs/00 §0.2 형식으로 통일."""
+
 from __future__ import annotations
 
 import logging
@@ -55,7 +56,9 @@ def register(app: FastAPI) -> None:
         detail = exc.detail
         if isinstance(detail, dict) and "code" in detail:
             return error_response(
-                exc.status_code, detail["code"], detail.get("message", ""),
+                exc.status_code,
+                detail["code"],
+                detail.get("message", ""),
                 detail.get("details"),
             )
         code = _DEFAULT_CODES.get(exc.status_code, "INTERNAL_ERROR")
@@ -72,9 +75,7 @@ def register(app: FastAPI) -> None:
             }
             for err in exc.errors()
         ]
-        return error_response(
-            400, "INVALID_REQUEST", "요청 본문 형식 오류", details
-        )
+        return error_response(400, "INVALID_REQUEST", "요청 본문 형식 오류", details)
 
     @app.exception_handler(Exception)
     async def _unhandled(_: Request, exc: Exception) -> JSONResponse:

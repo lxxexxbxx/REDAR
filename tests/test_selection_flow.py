@@ -1,4 +1,5 @@
 """스캔 흐름 두 모드. nuclei 대신 명령을 기록하는 러너를 주입"""
+
 from __future__ import annotations
 
 import threading
@@ -20,8 +21,12 @@ API = "/api/v1"
 
 def test_build_command_excludes_ids_and_accepts_list():
     cmd = runner.build_command(
-        runner.RunOptions(targets=["http://a"], template_list="/tmp/l.txt",
-                          template_paths=["/c"], exclude_ids=list(ENUMERATOR_IDS)),
+        runner.RunOptions(
+            targets=["http://a"],
+            template_list="/tmp/l.txt",
+            template_paths=["/c"],
+            exclude_ids=list(ENUMERATOR_IDS),
+        ),
         exe="/usr/bin/nuclei",
     )
     assert cmd[cmd.index("-eid") + 1] == ",".join(ENUMERATOR_IDS)
@@ -30,7 +35,9 @@ def test_build_command_excludes_ids_and_accepts_list():
 
 
 def test_build_command_without_exclusions_has_no_eid():
-    cmd = runner.build_command(runner.RunOptions(targets=["http://a"]), exe="/usr/bin/nuclei")
+    cmd = runner.build_command(
+        runner.RunOptions(targets=["http://a"]), exe="/usr/bin/nuclei"
+    )
     assert "-eid" not in cmd
 
 
@@ -51,8 +58,10 @@ class _Recorder:
 class _ThreadedStats(_Recorder):
     """실제 runner 처럼 stderr 콜백을 별도 리더 스레드에서 호출"""
 
-    LINE = ('{"duration":"0:00:05","errors":"0","hosts":"1","matched":"0","percent":"49",'
-            '"requests":"615","templates":"1","total":"1234"}')
+    LINE = (
+        '{"duration":"0:00:05","errors":"0","hosts":"1","matched":"0","percent":"49",'
+        '"requests":"615","templates":"1","total":"1234"}'
+    )
 
     def run(self, command, *, on_stdout_line, on_stderr_line=None, cancel=None):
         errors: list[BaseException] = []
@@ -60,7 +69,7 @@ class _ThreadedStats(_Recorder):
         def reader() -> None:
             try:
                 on_stderr_line(self.LINE)
-            except BaseException as exc:  # noqa: BLE001 - 호출 스레드로 전달해 실패시킴
+            except BaseException as exc:
                 errors.append(exc)
 
         worker = threading.Thread(target=reader)
@@ -73,16 +82,22 @@ class _ThreadedStats(_Recorder):
 
 def _run_scan(db_path, mode, rec=None, options=None):
     rec = rec or _Recorder()
-    scan_service.set_service(ScanService(
-        db_path, command_builder=rec.build, command_runner=rec.run,
-        prober=lambda t: list(t),
-    ))
+    scan_service.set_service(
+        ScanService(
+            db_path,
+            command_builder=rec.build,
+            command_runner=rec.run,
+            prober=list,
+        )
+    )
     try:
         with TestClient(app) as client:
             # 환경 조사는 환경 기반 모드에서만 필수. 나머지는 꺼서 실제 요청을 막음
-            body = {"targets": ["http://localhost:7860"],
-                    "template_selection": {"mode": mode},
-                    "collect_environment": mode == "environment_driven"}
+            body = {
+                "targets": ["http://localhost:7860"],
+                "template_selection": {"mode": mode},
+                "collect_environment": mode == "environment_driven",
+            }
             if options is not None:
                 body["options"] = options
             created = client.post(f"{API}/scans", json=body)
@@ -103,8 +118,10 @@ def _run_scan(db_path, mode, rec=None, options=None):
 def seeded(db_path):
     """사전 점검 통과용 템플릿 1건. 세션 DB 오염 방지를 위해 반드시 제거"""
     with session(db_path) as conn:
-        conn.execute("INSERT OR IGNORE INTO templates (template_id, source, file_path, name)"
-                     " VALUES ('redar-seed', 'custom', '/tmp/seed.yaml', 'seed')")
+        conn.execute(
+            "INSERT OR IGNORE INTO templates (template_id, source, file_path, name)"
+            " VALUES ('redar-seed', 'custom', '/tmp/seed.yaml', 'seed')"
+        )
         conn.commit()
     yield
     with session(db_path) as conn:
@@ -126,7 +143,7 @@ def test_full_scan_runs_once_and_excludes_enumerators(db_path, seeded):
 def test_progress_from_reader_thread_is_recorded(db_path, seeded):
     """stderr 는 리더 스레드에서 옴. 스캔 스레드의 DB 연결을 쓰면 ProgrammingError 로
     리더가 죽고, 비워지지 않은 stderr 파이프에 nuclei 가 막혀 스캔이 멈춤 (실측)"""
-    rec, view = _run_scan(db_path, "full_scan", _ThreadedStats())
+    _rec, view = _run_scan(db_path, "full_scan", _ThreadedStats())
     assert view["status"] == "completed", view.get("error")
     assert (view["templates_done"], view["templates_total"]) == (615, 1234)
 
@@ -152,15 +169,17 @@ def test_explicit_mode_keeps_user_choice(db_path, seeded):
 def test_options_default_to_settings(db_path, seeded):
     """스캔 화면에 옵션 입력이 없음. 요청에 없으면 설정값을 씀 (설정 한 곳)"""
     with session(db_path) as conn:
-        settings_repo.put_many(conn, {"scan_default_threads": 7,
-                                      "scan_default_rate_limit": 30})
+        settings_repo.put_many(
+            conn, {"scan_default_threads": 7, "scan_default_rate_limit": 30}
+        )
     try:
         rec, _ = _run_scan(db_path, "full_scan")
         assert (rec.options[0].threads, rec.options[0].rate_limit) == (7, 30)
     finally:
         with session(db_path) as conn:
-            settings_repo.put_many(conn, {"scan_default_threads": 20,
-                                          "scan_default_rate_limit": 0})
+            settings_repo.put_many(
+                conn, {"scan_default_threads": 20, "scan_default_rate_limit": 0}
+            )
 
 
 def test_explicit_options_override_settings(db_path, seeded):
@@ -172,8 +191,14 @@ def test_explicit_options_override_settings(db_path, seeded):
 
 def test_zero_rate_limit_means_unlimited():
     """0 = 제한 없음. None 은 '지정 안 함' 과 구분되지 않아 저장값으로 쓰지 않음"""
-    assert settings_repo.scan_defaults({"scan_default_rate_limit": "0"})["rate_limit"] is None
-    assert settings_repo.scan_defaults({"scan_default_rate_limit": "25"})["rate_limit"] == 25
+    assert (
+        settings_repo.scan_defaults({"scan_default_rate_limit": "0"})["rate_limit"]
+        is None
+    )
+    assert (
+        settings_repo.scan_defaults({"scan_default_rate_limit": "25"})["rate_limit"]
+        == 25
+    )
 
 
 def test_filter_mode_excludes_enumerators(db_path, seeded):
@@ -181,7 +206,9 @@ def test_filter_mode_excludes_enumerators(db_path, seeded):
     assert list(rec.options[0].exclude_ids) == list(ENUMERATOR_IDS)
 
 
-def test_environment_driven_without_prepass_falls_back_to_all(db_path, seeded, monkeypatch):
+def test_environment_driven_without_prepass_falls_back_to_all(
+    db_path, seeded, monkeypatch
+):
     """사전 패스 템플릿이 없으면 제외 없이 전체 (애매하면 전체)"""
     # 노출 수집기는 실제 요청을 보냄. Windows 는 닫힌 포트 연결에 2초씩 걸려 대기 초과
     monkeypatch.setattr(

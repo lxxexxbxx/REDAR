@@ -1,9 +1,10 @@
 """REDAR CLI.
 
-    python -m app.cli init-db
-    python -m app.cli load-data          # data/*.csv 재적재
-    python -m app.cli import-guide <csv>  # 가이드 본문 교체
+python -m app.cli init-db
+python -m app.cli load-data          # data/*.csv 재적재
+python -m app.cli import-guide <csv>  # 가이드 본문 교체
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,9 +26,9 @@ class CsvLoad:
 
     filename: str
     table: str
-    conflict: str | None          # ON CONFLICT 대상. 식 인덱스는 식 그대로. None = 단순 INSERT
-    keys: tuple[str, ...] = ()    # 충돌 키. UPDATE 대상에서 제외
-    replace: bool = True          # False = 기존 행 유지. 사용자 변경값 보호
+    conflict: str | None  # ON CONFLICT 대상. 식 인덱스는 식 그대로. None = 단순 INSERT
+    keys: tuple[str, ...] = ()  # 충돌 키. UPDATE 대상에서 제외
+    replace: bool = True  # False = 기존 행 유지. 사용자 변경값 보호
 
 
 # SQLite 초기 데이터는 전부 이 목록의 CSV 에서만 들어옴. 코드·SQL 하드코딩 금지
@@ -42,22 +43,27 @@ class CsvLoad:
 _CSV_LOADS: tuple[CsvLoad, ...] = (
     CsvLoad("settings_defaults.csv", "settings", "key", ("key",), replace=False),
     CsvLoad(
-        "vuln_type_rules.csv", "vuln_type_rules",
-        "match_type, match_value", ("match_type", "match_value"),
+        "vuln_type_rules.csv",
+        "vuln_type_rules",
+        "match_type, match_value",
+        ("match_type", "match_value"),
     ),
     CsvLoad(
-        "guide_mappings.csv", "guide_mappings",
+        "guide_mappings.csv",
+        "guide_mappings",
         "match_type, match_value, item_code",
         ("match_type", "match_value", "item_code"),
     ),
     CsvLoad(
-        "guide_mappings.templates.csv", "guide_mappings",
+        "guide_mappings.templates.csv",
+        "guide_mappings",
         "match_type, match_value, item_code",
         ("match_type", "match_value", "item_code"),
     ),
     CsvLoad(
-        "component_advisories.csv", "component_advisories",
-        "component_type, slug, COALESCE(cve_id,\'\'), COALESCE(template_id,\'\')",
+        "component_advisories.csv",
+        "component_advisories",
+        "component_type, slug, COALESCE(cve_id,''), COALESCE(template_id,'')",
         ("component_type", "slug", "cve_id", "template_id"),
     ),
 )
@@ -79,9 +85,7 @@ def _upsert_csv(conn: sqlite3.Connection, path: Path, load: CsvLoad) -> int:
     if not rows:
         return 0
 
-    table_cols = {
-        r["name"] for r in conn.execute(f"PRAGMA table_info({load.table})")
-    }
+    table_cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({load.table})")}
     unknown = set(rows[0]) - table_cols - _NOTE_COLUMNS
     if unknown:
         # 오타 컬럼을 조용히 버리면 값이 통째로 누락된 채 적재가 성공함
@@ -119,7 +123,7 @@ def _load_guide_body(conn: sqlite3.Connection, source: Path) -> int:
     files = sorted(source.glob(_GUIDE_ITEMS_GLOB))
     if not files:
         return 0
-    latest = files[-1]                        # 파일명에 판 연도. 최신 판 우선
+    latest = files[-1]  # 파일명에 판 연도. 최신 판 우선
     result = guide_importer.import_files(conn, latest)
     print(f"  {latest.name} -> guide_items: {result['item_count']} rows")
     for message in result["errors"]:
@@ -152,9 +156,11 @@ def _ledger(conn: sqlite3.Connection) -> set[int] | None:
     기록하므로 뒤에 읽으면 미적용 마이그레이션을 통째로 건너뜀
     """
     try:
-        return {r["version"] for r in conn.execute("SELECT version FROM schema_version")}
+        return {
+            r["version"] for r in conn.execute("SELECT version FROM schema_version")
+        }
     except sqlite3.OperationalError:
-        return None                      # schema_version 부재 = 최초 생성
+        return None  # schema_version 부재 = 최초 생성
 
 
 def _apply_migrations(conn: sqlite3.Connection, applied: set[int]) -> list[int]:
@@ -211,8 +217,13 @@ def reload_data(
 
 
 def _print_totals(conn: sqlite3.Connection) -> None:
-    for table in ("settings", "vuln_type_rules", "guide_mappings",
-                  "component_advisories", "guide_items"):
+    for table in (
+        "settings",
+        "vuln_type_rules",
+        "guide_mappings",
+        "component_advisories",
+        "guide_items",
+    ):
         total = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         print(f"  {table}: {total} rows total")
 
@@ -286,7 +297,9 @@ def import_scan(
         from app.services import guide_service
 
         mapping = guide_service.map_scan(conn, scan_id)
-        print(f"  가이드 매핑 {mapping.refs_written}건 / 탐지 {mapping.findings_mapped}건")
+        print(
+            f"  가이드 매핑 {mapping.refs_written}건 / 탐지 {mapping.findings_mapped}건"
+        )
     print(f"import-scan done: {scan_id}")
     return scan_id
 

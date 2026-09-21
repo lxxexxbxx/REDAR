@@ -3,6 +3,7 @@
 포트 범위는 대부분이 닫힌 포트다. 전부에 템플릿을 돌리면 시간만 쓴다.
 다만 건너뛴 것을 감추면 점검 범위가 과장되므로 기록이 함께 남아야 한다 (절대규칙 10)
 """
+
 from __future__ import annotations
 
 import socket

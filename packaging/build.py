@@ -19,6 +19,7 @@ Python 을 실행 파일로 묶는 과정에서 리소스 경로·동적 import 
 [4] Tauri 번들
 [5] 앱 실행
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,17 +50,21 @@ def run(command: list[str], **kwargs) -> None:
 def build_backend(clean: bool) -> Path:
     """[1] PyInstaller. --onedir 고정 - onefile 은 매 실행 압축 해제로 5~15초 지연"""
     if shutil.which("pyinstaller") is None and not _module_exists("PyInstaller"):
-        sys.exit(
-            "PyInstaller 가 없습니다. pip install pyinstaller 를 먼저 실행하세요."
-        )
+        sys.exit("PyInstaller 가 없습니다. pip install pyinstaller 를 먼저 실행하세요.")
     if clean:
         for path in (DIST / BACKEND_NAME, BUILD / BACKEND_NAME):
             shutil.rmtree(path, ignore_errors=True)
 
-    run([
-        sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
-        str(ROOT / "packaging" / "backend.spec"),
-    ])
+    run(
+        [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            "--noconfirm",
+            "--clean",
+            str(ROOT / "packaging" / "backend.spec"),
+        ]
+    )
     out = DIST / BACKEND_NAME
     if not out.is_dir():
         sys.exit(f"빌드 산출물이 없습니다: {out}")
@@ -144,18 +149,28 @@ def msvc_linker() -> str | None:
     if found:
         return found
 
-    base = os.environ.get("ProgramFiles(x86)") or os.environ.get("ProgramFiles")
+    base = os.environ.get("PROGRAMFILES(X86)") or os.environ.get("PROGRAMFILES")
     if not base:
         return None
     vswhere = Path(base) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
     if not vswhere.is_file():
-        return None                     # VS 설치 관리자 자체가 없음
+        return None  # VS 설치 관리자 자체가 없음
 
     completed = subprocess.run(
-        [str(vswhere), "-products", "*", "-latest",
-         "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-         "-property", "installationPath"],
-        capture_output=True, text=True, stdin=subprocess.DEVNULL,
+        [
+            str(vswhere),
+            "-products",
+            "*",
+            "-latest",
+            "-requires",
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+            "-property",
+            "installationPath",
+        ],
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        check=False,
     )
     path = completed.stdout.strip()
     return path or None
@@ -193,7 +208,9 @@ def install_rust() -> str:
 
     found = cargo_path()
     if not found:
-        sys.exit("Rust 설치 후에도 cargo 를 찾지 못했습니다. 새 터미널에서 재시도하세요.")
+        sys.exit(
+            "Rust 설치 후에도 cargo 를 찾지 못했습니다. 새 터미널에서 재시도하세요."
+        )
     print(f"  설치 완료: {found}")
     return found
 
@@ -314,7 +331,7 @@ def ensure_venv() -> None:
 
     print("  가상환경 파이썬으로 재실행")
     # 재귀 방지. 자식은 in_target_venv() 가 참이라 생성·재실행 분기를 건너뜀
-    completed = subprocess.run([python, __file__, *sys.argv[1:]], cwd=ROOT)
+    completed = subprocess.run([python, __file__, *sys.argv[1:]], cwd=ROOT, check=False)
     sys.exit(completed.returncode)
 
 
@@ -374,8 +391,10 @@ def install_node() -> str:
     with tempfile.TemporaryDirectory(prefix="redar-node-") as tmp:
         archive = Path(tmp) / f"{name}.{suffix}"
         digest = hashlib.sha256()
-        with urllib.request.urlopen(url, timeout=120) as response, \
-                archive.open("wb") as out:
+        with (
+            urllib.request.urlopen(url, timeout=120) as response,
+            archive.open("wb") as out,
+        ):
             while chunk := response.read(1 << 20):
                 digest.update(chunk)
                 out.write(chunk)
@@ -386,12 +405,17 @@ def install_node() -> str:
         ) as response:
             sums = response.read().decode("utf-8", errors="replace")
         expected = next(
-            (line.split()[0] for line in sums.splitlines()
-             if line.strip().endswith(f"{name}.{suffix}")),
+            (
+                line.split()[0]
+                for line in sums.splitlines()
+                if line.strip().endswith(f"{name}.{suffix}")
+            ),
             None,
         )
         if expected and digest.hexdigest() != expected:
-            sys.exit(f"Node.js 체크섬 불일치\n  기대: {expected}\n  실제: {digest.hexdigest()}")
+            sys.exit(
+                f"Node.js 체크섬 불일치\n  기대: {expected}\n  실제: {digest.hexdigest()}"
+            )
         print(f"  체크섬 확인: {digest.hexdigest()[:16]}…")
 
         destination = node_root()
@@ -427,7 +451,10 @@ def ensure_nuclei(auto: bool) -> None:
     installer = ROOT / "tools" / "install_nuclei.py"
     check = subprocess.run(
         [sys.executable, str(installer), "--check"],
-        cwd=ROOT, capture_output=True, text=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if check.returncode == 0:
         print("  nuclei 확인")
@@ -482,14 +509,15 @@ def report_artifacts() -> None:
             *sorted((release / "bundle" / "dmg").glob("*.dmg")),
         ]
     else:
-        candidates = [release / "redar", *sorted(
-            (release / "bundle").glob("*/*.AppImage")
-        )]
+        candidates = [
+            release / "redar",
+            *sorted((release / "bundle").glob("*/*.AppImage")),
+        ]
 
     found = [p for p in candidates if p.exists()]
     if not found:
         return
-    print("")
+    print()
     print("  산출물")
     for path in found:
         print(f"    {path}")
@@ -501,12 +529,15 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="REDAR 빌드")
     parser.add_argument(
-        "--backend-only", action="store_true", help="백엔드 번들까지만",
+        "--backend-only",
+        action="store_true",
+        help="백엔드 번들까지만",
     )
     parser.add_argument("--no-clean", action="store_true", help="이전 산출물 유지")
     parser.add_argument("--no-launch", action="store_true", help="빌드 후 실행 안 함")
     parser.add_argument(
-        "--no-auto-install", action="store_true",
+        "--no-auto-install",
+        action="store_true",
         help="누락된 툴체인을 설치하지 않고 안내만 (외부 통신 없음)",
     )
     args = parser.parse_args()

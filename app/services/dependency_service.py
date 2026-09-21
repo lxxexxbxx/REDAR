@@ -10,6 +10,7 @@
 오프라인 모드에서 차단되고, 요청마다 명시적 동의가 필요
 반입·경로 지정은 통신이 없으므로 오프라인에서도 동작함
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -49,7 +50,7 @@ NUCLEI_PKG = "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 
 _NET_TIMEOUT = 60
 _BUILD_TIMEOUT = 900
-_MAX_IMPORT_BYTES = 512 * 1024 * 1024      # nuclei 는 180MB 대
+_MAX_IMPORT_BYTES = 512 * 1024 * 1024  # nuclei 는 180MB 대
 
 
 def bin_dir() -> Path:
@@ -90,13 +91,15 @@ def get(key: str) -> Dependency:
     found = next((d for d in REGISTRY if d.key == key), None)
     if found is None:
         raise ScanError(
-            "INVALID_REQUEST", f"알 수 없는 의존성: {key}",
+            "INVALID_REQUEST",
+            f"알 수 없는 의존성: {key}",
             details=[{"field": "key", "reason": key}],
         )
     return found
 
 
 # ────────────────────────────────────────────── 탐지
+
 
 def sync_configured_paths(conn: sqlite3.Connection) -> None:
     """DB 의 지정 경로를 settings 모듈에 밀어넣음. 기동 시·변경 시 호출.
@@ -126,9 +129,7 @@ def resolve(conn: sqlite3.Connection, dependency: Dependency) -> dict[str, Any]:
     return {"path": found, "source": _source_of(conn, dependency, found)}
 
 
-def _source_of(
-    conn: sqlite3.Connection, dependency: Dependency, path: str
-) -> str:
+def _source_of(conn: sqlite3.Connection, dependency: Dependency, path: str) -> str:
     configured = settings_repo.get_all(conn).get(f"dep_{dependency.key}_path")
     if configured and Path(configured) == Path(path):
         return "configured"
@@ -146,8 +147,12 @@ def _version_of(dependency: Dependency, path: str | None) -> str | None:
         return version_check.version()
     try:
         out = subprocess.run(
-            [path, *dependency.version_args], capture_output=True, text=True,
-            timeout=30, stdin=subprocess.DEVNULL, check=False,
+            [path, *dependency.version_args],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            stdin=subprocess.DEVNULL,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -163,21 +168,23 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
     items = []
     for dependency in REGISTRY:
         found = resolve(conn, dependency)
-        items.append({
-            "key": dependency.key,
-            "label": dependency.label,
-            "required_for": dependency.required_for,
-            "installable": dependency.installable,
-            "manual_url": dependency.manual_url,
-            "available": found["source"] is not None,
-            "path": found["path"],
-            "source": found["source"],
-            # 실행 불가한 경로에 버전을 붙이면 available=False 와 모순됨
-            "version": (
-                _version_of(dependency, found["path"]) if found["source"] else None
-            ),
-            "import_dir": str(bin_dir()),
-        })
+        items.append(
+            {
+                "key": dependency.key,
+                "label": dependency.label,
+                "required_for": dependency.required_for,
+                "installable": dependency.installable,
+                "manual_url": dependency.manual_url,
+                "available": found["source"] is not None,
+                "path": found["path"],
+                "source": found["source"],
+                # 실행 불가한 경로에 버전을 붙이면 available=False 와 모순됨
+                "version": (
+                    _version_of(dependency, found["path"]) if found["source"] else None
+                ),
+                "import_dir": str(bin_dir()),
+            }
+        )
     return {
         "items": items,
         # 자동 설치 가능 조건. 화면이 버튼 활성 여부를 판단함
@@ -198,6 +205,7 @@ def _blocked_reason(offline: bool, enabled: bool) -> str | None:
 
 # ────────────────────────────────────────────── 경로 지정 · 반입
 
+
 def _is_executable(target: Path) -> bool:
     """실행 가능 여부. 플랫폼별 판정 기준이 다름"""
     if WINDOWS:
@@ -212,12 +220,14 @@ def set_path(conn: sqlite3.Connection, key: str, path: str | None) -> dict[str, 
         target = Path(path).expanduser()
         if not target.is_file():
             raise ScanError(
-                "INVALID_REQUEST", f"파일 없음: {target}",
+                "INVALID_REQUEST",
+                f"파일 없음: {target}",
                 details=[{"field": "path", "reason": str(target)}],
             )
         if not _is_executable(target):
             raise ScanError(
-                "INVALID_REQUEST", f"실행 권한 없음: {target}",
+                "INVALID_REQUEST",
+                f"실행 권한 없음: {target}",
                 details=[{"field": "path", "reason": "not executable"}],
             )
         settings_repo.put_many(conn, {f"dep_{dependency.key}_path": str(target)})
@@ -227,9 +237,7 @@ def set_path(conn: sqlite3.Connection, key: str, path: str | None) -> dict[str, 
     return status(conn)
 
 
-def import_binary(
-    conn: sqlite3.Connection, key: str, payload: bytes
-) -> dict[str, Any]:
+def import_binary(conn: sqlite3.Connection, key: str, payload: bytes) -> dict[str, Any]:
     """폐쇄망 반입 경로. 사용자가 가져온 바이너리를 등록. 통신 없음"""
     dependency = get(key)
     if not payload:
@@ -266,11 +274,14 @@ def import_binary(
 
 # ────────────────────────────────────────────── 자동 설치 (외부 통신)
 
+
 def install(conn: sqlite3.Connection, key: str, *, confirmed: bool) -> dict[str, Any]:
     """Go 툴체인 확보 후 go install. 외부 통신 지점 4번 (docs/01 §7.1)"""
     dependency = get(key)
     if not dependency.installable:
-        raise ScanError("INVALID_REQUEST", f"{dependency.label} 은 자동 설치를 지원하지 않습니다.")
+        raise ScanError(
+            "INVALID_REQUEST", f"{dependency.label} 은 자동 설치를 지원하지 않습니다."
+        )
     if not confirmed:
         # 사용자가 매번 명시적으로 동의해야 한다. 설정만으로 자동 실행되지 않음
         raise ScanError(
@@ -319,8 +330,10 @@ def go_asset() -> tuple[str, str]:
     """(파일명, sha256). 현재 OS·아키텍처에 맞는 안정판 최신"""
     machine = platform.machine().lower()
     arch = {
-        "x86_64": "amd64", "amd64": "amd64",
-        "arm64": "arm64", "aarch64": "arm64",
+        "x86_64": "amd64",
+        "amd64": "amd64",
+        "arm64": "arm64",
+        "aarch64": "arm64",
     }.get(machine)
     if arch is None:
         raise ScanError("INTERNAL_ERROR", f"지원하지 않는 아키텍처입니다: {machine}")
@@ -333,9 +346,12 @@ def go_asset() -> tuple[str, str]:
         if not release.get("stable"):
             continue
         for entry in release.get("files", []):
-            if (entry.get("os") == goos and entry.get("arch") == arch
-                    and entry.get("kind") == "archive"
-                    and entry.get("filename", "").endswith(kind)):
+            if (
+                entry.get("os") == goos
+                and entry.get("arch") == arch
+                and entry.get("kind") == "archive"
+                and entry.get("filename", "").endswith(kind)
+            ):
                 return entry["filename"], entry.get("sha256", "")
     raise ScanError("INTERNAL_ERROR", f"Go 배포본이 없습니다: {goos}/{arch}")
 
@@ -348,9 +364,14 @@ def _install_go() -> Path:
     with tempfile.TemporaryDirectory(prefix="redar-go-") as tmp:
         archive = Path(tmp) / filename
         digest = hashlib.sha256()
-        with urllib.request.urlopen(
-            GO_DOWNLOAD_BASE + filename, timeout=_NET_TIMEOUT
-        ) as response, archive.open("wb") as out:
+        # 절대규칙 5 가 허용한 의존성 설치. 베이스 URL 은 상수이고,
+        # 내려받은 아카이브는 아래에서 SHA256 을 대조한 뒤에만 풀어낸다
+        with (
+            urllib.request.urlopen(  # noqa: S310
+                GO_DOWNLOAD_BASE + filename, timeout=_NET_TIMEOUT
+            ) as response,
+            archive.open("wb") as out,
+        ):
             while chunk := response.read(1 << 20):
                 digest.update(chunk)
                 out.write(chunk)
@@ -370,13 +391,27 @@ def _install_go() -> Path:
     return binary
 
 
+def _reject_unsafe_members(names: list[str], root: Path) -> None:
+    """경로 이탈 멤버 차단. 하나라도 걸리면 통째로 거부
+
+    go_asset() 이 sha256 을 비워 주면 체크섬 대조가 건너뛰어진다. 그 경우
+    아카이브 내용이 검증되지 않은 채 여기까지 오므로 마지막 방어선이 필요
+    """
+    base = root.resolve()
+    for name in names:
+        if not (base / name).resolve().is_relative_to(base):
+            raise ScanError("INTERNAL_ERROR", f"아카이브에 경로 이탈 항목: {name}")
+
+
 def _extract(archive: Path, destination: Path) -> None:
     """아카이브 최상위가 go/ 이므로 상위 디렉터리에 풀어냄"""
     shutil.rmtree(destination, ignore_errors=True)
     destination.parent.mkdir(parents=True, exist_ok=True)
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive) as zf:
-            zf.extractall(destination.parent)
+            # zip 에는 tarfile 의 filter='data' 같은 안전장치가 없어 직접 막음
+            _reject_unsafe_members(zf.namelist(), destination.parent)
+            zf.extractall(destination.parent)  # noqa: S202
     else:
         with tarfile.open(archive) as tf:
             # filter='data' 로 경로 이탈·특수 파일 차단
@@ -399,8 +434,12 @@ def _go_install(go_binary: Path, dependency: Dependency) -> Path:
     logger.info("go install %s", NUCLEI_PKG)
     result = subprocess.run(
         [str(go_binary), "install", "-v", NUCLEI_PKG],
-        env=env, timeout=_BUILD_TIMEOUT, capture_output=True, text=True,
-        stdin=subprocess.DEVNULL, check=False,
+        env=env,
+        timeout=_BUILD_TIMEOUT,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        check=False,
     )
     if result.returncode != 0:
         tail = (result.stderr or "").strip().splitlines()[-3:]

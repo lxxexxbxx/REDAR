@@ -6,6 +6,7 @@ DB settings 테이블. 여기에는 DB 접속 전 필요한 값만.
 패키징(M10) 대응: 읽기 전용 번들 리소스와 쓰기 가능 사용자 경로를 분리함
 PyInstaller 는 번들을 임시 디렉터리에 풀기 때문에 그 안에 쓰면 재시작 시 소실됨
 """
+
 from __future__ import annotations
 
 import os

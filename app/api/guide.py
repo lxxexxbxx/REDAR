@@ -2,6 +2,7 @@
 
 본문 미탑재가 정상 상태. 매핑 테이블은 번들이라 항상 존재 (절대규칙 3)
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -15,7 +16,7 @@ from app.services.scan_service import ScanError
 
 router = APIRouter()
 
-_MAX_UPLOAD_BYTES = 32 * 1024 * 1024      # 본문 CSV 1MB 대. 여유를 크게 둠
+_MAX_UPLOAD_BYTES = 32 * 1024 * 1024  # 본문 CSV 1MB 대. 여유를 크게 둠
 
 
 @router.get("/guide/status")
@@ -38,7 +39,8 @@ async def guide_import(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
             )
     except guide_importer.ImportError_ as exc:
         raise ScanError(
-            "INVALID_REQUEST", exc.message,
+            "INVALID_REQUEST",
+            exc.message,
             details=[{"field": "file", "reason": e} for e in exc.errors] or None,
         ) from exc
 

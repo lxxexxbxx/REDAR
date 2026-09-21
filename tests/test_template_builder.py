@@ -3,6 +3,7 @@
 nuclei 는 실행하지 않음. 문법 검증은 미설치 시 건너뜀으로 보고되어야 하고,
 드라이런은 JSONL 을 돌려주는 러너를 주입함
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -11,7 +12,6 @@ import pytest
 import yaml
 
 from app.repository import templates as template_repo
-from app.repository.db import session
 from app.services import template_builder as builder
 from app.services import template_service as service
 from app.services import template_validator as validator
@@ -19,12 +19,21 @@ from app.services.scan_service import ScanError
 
 VALID_FORM = {
     # author 는 nuclei 필수 필드다. 없으면 템플릿 로드 자체가 실패함
-    "info": {"id": "demo-rce", "name": "Demo RCE", "severity": "critical",
-             "author": "redred", "tags": ["wordpress", "rce"]},
-    "classification": {"cve_id": "CVE-2026-63030", "cwe_id": "CWE-94",
-                       "cvss_score": 9.8},
-    "http": [{"method": "POST", "path": "{{BaseURL}}/wp-json/xyz/v1/run",
-              "body": "cmd=id"}],
+    "info": {
+        "id": "demo-rce",
+        "name": "Demo RCE",
+        "severity": "critical",
+        "author": "redred",
+        "tags": ["wordpress", "rce"],
+    },
+    "classification": {
+        "cve_id": "CVE-2026-63030",
+        "cwe_id": "CWE-94",
+        "cvss_score": 9.8,
+    },
+    "http": [
+        {"method": "POST", "path": "{{BaseURL}}/wp-json/xyz/v1/run", "body": "cmd=id"}
+    ],
     "matchers": [
         {"type": "status", "values": ["200"]},
         {"type": "word", "part": "body", "values": ["uid="]},
@@ -82,8 +91,9 @@ def custom_dir(tmp_path, monkeypatch):
     target = tmp_path / "custom"
     target.mkdir()
     monkeypatch.setattr("app.config.settings.CUSTOM_DIR", target, raising=False)
-    monkeypatch.setattr("app.config.settings.OFFICIAL_DIR", tmp_path / "official",
-                        raising=False)
+    monkeypatch.setattr(
+        "app.config.settings.OFFICIAL_DIR", tmp_path / "official", raising=False
+    )
     return target
 
 
@@ -95,6 +105,7 @@ def clean_templates(conn):
 
 
 # ─────────────────────────────────────────── 폼 -> YAML (완료 조건 1)
+
 
 def test_form_builds_valid_yaml_and_passes_policy():
     text = builder.build(VALID_FORM)
@@ -133,9 +144,19 @@ def test_matchers_get_names_for_finding_attribution():
 
 # ─────────────────────────────────────────── YAML 인젝션 · 경로 조작 (보안)
 
-@pytest.mark.parametrize("bad_id", [
-    "../../etc/passwd", "../evil", "a/b", "UPPER", "with space", "sym;colon", "",
-])
+
+@pytest.mark.parametrize(
+    "bad_id",
+    [
+        "../../etc/passwd",
+        "../evil",
+        "a/b",
+        "UPPER",
+        "with space",
+        "sym;colon",
+        "",
+    ],
+)
 def test_bad_template_id_rejected(bad_id):
     form = {**VALID_FORM, "info": {**VALID_FORM["info"], "id": bad_id}}
     with pytest.raises(builder.BuildError) as exc:
@@ -157,30 +178,40 @@ def test_yaml_injection_is_quoted_not_interpolated():
         "info": {**VALID_FORM["info"], "name": "x\ninfo:\n  severity: info\nid: pwned"},
     }
     document = yaml.safe_load(builder.build(form))
-    assert document["id"] == "demo-rce"                  # 주입된 id 가 이기지 못함
+    assert document["id"] == "demo-rce"  # 주입된 id 가 이기지 못함
     assert document["info"]["severity"] == "critical"
-    assert "pwned" in document["info"]["name"]           # 값으로만 남는다
+    assert "pwned" in document["info"]["name"]  # 값으로만 남는다
 
 
-@pytest.mark.parametrize("field,value", [
-    ("cve_id", "CVE-63030"),
-    ("cve_id", "2026-63030"),
-    ("cwe_id", "94"),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("cve_id", "CVE-63030"),
+        ("cve_id", "2026-63030"),
+        ("cwe_id", "94"),
+    ],
+)
 def test_classification_format_enforced(field, value):
     form = {**VALID_FORM, "classification": {field: value}}
     with pytest.raises(builder.BuildError):
         builder.build(form)
 
 
-@pytest.mark.parametrize("form,field", [
-    ({"info": {"id": "x", "name": "n", "severity": "urgent", "author": "a"}},
-     "info.severity"),
-    ({"info": {"id": "x", "name": "", "severity": "high", "author": "a"}},
-     "info.name"),
-    # nuclei 가 요구하는 필드. 빠지면 'no template author field provided'
-    ({"info": {"id": "x", "name": "n", "severity": "high"}}, "info.author"),
-])
+@pytest.mark.parametrize(
+    "form,field",
+    [
+        (
+            {"info": {"id": "x", "name": "n", "severity": "urgent", "author": "a"}},
+            "info.severity",
+        ),
+        (
+            {"info": {"id": "x", "name": "", "severity": "high", "author": "a"}},
+            "info.name",
+        ),
+        # nuclei 가 요구하는 필드. 빠지면 'no template author field provided'
+        ({"info": {"id": "x", "name": "n", "severity": "high"}}, "info.author"),
+    ],
+)
 def test_required_fields_enforced(form, field):
     with pytest.raises(builder.BuildError) as exc:
         builder.build(form)
@@ -195,6 +226,7 @@ def test_missing_matchers_rejected():
 
 
 # ─────────────────────────────────────────── 공식 템플릿 파싱 (완료 조건 2)
+
 
 def test_official_template_parses_with_unsupported_fields():
     """미지원 문법은 예외가 아니라 unsupported_fields 로 반환됨"""
@@ -226,11 +258,12 @@ def test_broken_yaml_reports_field_not_crash():
 
 # ─────────────────────────────────────────── LOOSE_MATCHER (완료 조건 3)
 
+
 def test_status_only_matcher_warns():
     form = {**VALID_FORM, "matchers": [{"type": "status", "values": ["200"]}]}
     policy = validator.check_policy(builder.build(form))
 
-    assert policy["valid"] is True                       # 오류가 아니라 경고
+    assert policy["valid"] is True  # 오류가 아니라 경고
     codes = [w["code"] for w in policy["warnings"]]
     assert codes == ["LOOSE_MATCHER"]
     assert policy["warnings"][0]["suggestion"]
@@ -249,6 +282,7 @@ def test_create_returns_warnings(conn, custom_dir, clean_templates):
 
 # ─────────────────────────────────────────── 저장 · official 보호
 
+
 def test_create_writes_file_and_indexes(conn, custom_dir, clean_templates):
     result = service.create(conn, VALID_FORM)
     assert result["template_id"] == "demo-rce"
@@ -258,7 +292,7 @@ def test_create_writes_file_and_indexes(conn, custom_dir, clean_templates):
     assert row["source"] == "custom"
     assert row["severity"] == "critical"
     assert row["cve_ids"] == ["CVE-2026-63030"]
-    assert row["vuln_type"] == "rce"                     # CWE-94 -> rce
+    assert row["vuln_type"] == "rce"  # CWE-94 -> rce
     assert row["tags"] == ["wordpress", "rce"]
 
 
@@ -270,10 +304,16 @@ def test_duplicate_id_conflicts(conn, custom_dir, clean_templates):
 
 
 def test_official_template_cannot_be_modified(conn, custom_dir, clean_templates):
-    template_repo.upsert(conn, {
-        "template_id": "cve-2026-33017", "source": "official",
-        "file_path": "official/x.yaml", "name": "Official", "severity": "high",
-    })
+    template_repo.upsert(
+        conn,
+        {
+            "template_id": "cve-2026-33017",
+            "source": "official",
+            "file_path": "official/x.yaml",
+            "name": "Official",
+            "severity": "high",
+        },
+    )
     for action in (
         lambda: service.update(conn, "cve-2026-33017", VALID_FORM),
         lambda: service.delete(conn, "cve-2026-33017"),
@@ -288,10 +328,16 @@ def test_fork_creates_editable_copy(conn, custom_dir, clean_templates, tmp_path)
     official.mkdir(exist_ok=True)
     path = official / "src.yaml"
     path.write_text(builder.build(VALID_FORM), encoding="utf-8")
-    template_repo.upsert(conn, {
-        "template_id": "demo-rce", "source": "official",
-        "file_path": str(path), "name": "Demo", "severity": "critical",
-    })
+    template_repo.upsert(
+        conn,
+        {
+            "template_id": "demo-rce",
+            "source": "official",
+            "file_path": str(path),
+            "name": "Demo",
+            "severity": "critical",
+        },
+    )
 
     result = service.fork(conn, "demo-rce", "demo-rce-mine")
     assert result["source"] == "custom"
@@ -322,8 +368,7 @@ def test_index_accepts_out_of_range_severity(conn, custom_dir, clean_templates):
     """공식 템플릿에는 'unknown' 등 5종 밖 값이 섞여 있음.
     그대로 넣으면 CHECK 위반으로 색인 전체가 실패 (서버 내부 오류)"""
     (custom_dir / "odd.yaml").write_text(
-        "id: odd-severity\n"
-        "info:\n  name: Odd\n  author: t\n  severity: unknown\n",
+        "id: odd-severity\ninfo:\n  name: Odd\n  author: t\n  severity: unknown\n",
         encoding="utf-8",
     )
     counts = service.index_all(conn)
@@ -335,16 +380,16 @@ def test_index_accepts_out_of_range_severity(conn, custom_dir, clean_templates):
 
 def test_index_normalizes_severity_case(conn, custom_dir, clean_templates):
     (custom_dir / "up.yaml").write_text(
-        "id: upper-severity\n"
-        "info:\n  name: Up\n  author: t\n  severity: HIGH\n",
+        "id: upper-severity\ninfo:\n  name: Up\n  author: t\n  severity: HIGH\n",
         encoding="utf-8",
     )
     service.index_all(conn)
     assert template_repo.get(conn, "upper-severity")["severity"] == "high"
 
 
-def test_index_skips_bad_row_instead_of_failing_all(conn, custom_dir,
-                                                    clean_templates, monkeypatch):
+def test_index_skips_bad_row_instead_of_failing_all(
+    conn, custom_dir, clean_templates, monkeypatch
+):
     """한 행 때문에 수천 개 색인이 통째로 날아가면 사용자는 원인을 알 수 없음"""
     for name in ("a", "b"):
         (custom_dir / f"{name}.yaml").write_text(
@@ -364,7 +409,7 @@ def test_index_skips_bad_row_instead_of_failing_all(conn, custom_dir,
 
     counts = service.index_all(conn)
     assert counts["skipped"] == 1
-    assert template_repo.get(conn, "tpl-a") is not None      # 나머지는 살아남음
+    assert template_repo.get(conn, "tpl-a") is not None  # 나머지는 살아남음
 
 
 def _raise_integrity(conn, rows):
@@ -372,13 +417,20 @@ def _raise_integrity(conn, rows):
 
 
 def test_detection_template_flagged(conn, custom_dir, clean_templates):
-    form = {**VALID_FORM, "info": {**VALID_FORM["info"], "id": "wp-detect",
-                                   "tags": ["tech", "wordpress"]}}
+    form = {
+        **VALID_FORM,
+        "info": {
+            **VALID_FORM["info"],
+            "id": "wp-detect",
+            "tags": ["tech", "wordpress"],
+        },
+    }
     service.create(conn, form)
     assert template_repo.get(conn, "wp-detect")["is_detection"] is True
 
 
 # ─────────────────────────────────────────── 드라이런 (v0.5 제거)
+
 
 def test_dryrun_endpoint_removed():
     """드라이런은 제거된 기능. 경로가 남으면 대상에 요청을 보내는 입구가 남음"""
@@ -392,6 +444,7 @@ def test_dryrun_endpoint_removed():
 
 
 # ─────────────────────────────────────────── sync (완료 조건 5)
+
 
 def test_sync_blocked_in_offline_mode(conn):
     conn.execute("UPDATE settings SET value = 'true' WHERE key = 'offline_mode'")
@@ -416,8 +469,9 @@ def test_sync_blocked_when_endpoint_disabled(conn):
 
 def test_sync_reports_nuclei_exit_reason(monkeypatch, tmp_path):
     """nuclei 가 남긴 사유를 올려야 함. 종료 코드만 보이면 어디서 막혔는지 모름"""
-    monkeypatch.setattr("app.config.settings.OFFICIAL_DIR", tmp_path / "official",
-                        raising=False)
+    monkeypatch.setattr(
+        "app.config.settings.OFFICIAL_DIR", tmp_path / "official", raising=False
+    )
     monkeypatch.setattr(service.settings, "nuclei_bin", lambda: "/tmp/nuclei")
 
     class _Done:
@@ -433,8 +487,9 @@ def test_sync_reports_nuclei_exit_reason(monkeypatch, tmp_path):
 
 
 def test_sync_succeeds_on_zero_exit(monkeypatch, tmp_path):
-    monkeypatch.setattr("app.config.settings.OFFICIAL_DIR", tmp_path / "official",
-                        raising=False)
+    monkeypatch.setattr(
+        "app.config.settings.OFFICIAL_DIR", tmp_path / "official", raising=False
+    )
     monkeypatch.setattr(service.settings, "nuclei_bin", lambda: "/tmp/nuclei")
 
     class _Done:
@@ -443,7 +498,7 @@ def test_sync_succeeds_on_zero_exit(monkeypatch, tmp_path):
         stderr = ""
 
     monkeypatch.setattr(service.subprocess, "run", lambda *a, **kw: _Done())
-    service._run_update()      # 예외 없이 끝나야 함
+    service._run_update()  # 예외 없이 끝나야 함
 
 
 def test_sync_runs_when_explicitly_enabled(conn, custom_dir, clean_templates):

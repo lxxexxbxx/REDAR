@@ -2,11 +2,11 @@
 
 메모리 버퍼만 읽는다. 파일로 남기지 않으므로 조회 시점에 없는 줄은 사라진 것
 """
+
 from __future__ import annotations
 
-from typing import Annotated, Any
-
 from datetime import datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response
 

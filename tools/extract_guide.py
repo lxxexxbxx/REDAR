@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 KISA 상세가이드 PDF -> guide_items 임포트 CSV
 
@@ -24,56 +23,69 @@ docs/03_GUIDE_DATA.md §1.2 B안 구현.
   - 원문 오타 (히)->하, (증)->중 정규화.
   - M-01~M-04(이동통신)는 대상/판단기준/조치방법이 없고 상세 설명만 있다. 원문 구조
 """
-import os, re, io, json, sqlite3, argparse
+
+import argparse
+import json
+import os
+import re
+import sqlite3
 from collections import defaultdict
 
-import pymupdf
 import pdfplumber
+import pymupdf
 
-CODE_RE = re.compile(r'^([A-Z]{1,3})-(\d{1,3})$')
-RISK_RE = re.compile(r'^\(([가-힣])\)$')
-RISK_FIX = {'히': '하', '증': '중', '중': '중', '상': '상', '하': '하'}
-HDR_RE  = re.compile(r'\b[A-Z]{1,3}-\d{1,3}\b')
+CODE_RE = re.compile(r"^([A-Z]{1,3})-(\d{1,3})$")
+RISK_RE = re.compile(r"^\(([가-힣])\)$")
+RISK_FIX = {"히": "하", "증": "중", "중": "중", "상": "상", "하": "하"}
+HDR_RE = re.compile(r"\b[A-Z]{1,3}-\d{1,3}\b")
 
 # 페이지 머리말/꼬리말 제거 패턴
 NOISE_RE = [
-    re.compile(r'^\|\s*한국인터넷진흥원\s*\|$'),
-    re.compile(r'^\d{4}\s*주요정보통신기반시설.*상세가이드$'),
-    re.compile(r'^\d{1,2}\.\s?[가-힣A-Za-z()\s]{2,28}$'),  # "01. Unix 서버" 러닝헤더
-    re.compile(r'^\d{1,3}$'),                          # 페이지 번호
+    re.compile(r"^\|\s*한국인터넷진흥원\s*\|$"),
+    re.compile(r"^\d{4}\s*주요정보통신기반시설.*상세가이드$"),
+    re.compile(r"^\d{1,2}\.\s?[가-힣A-Za-z()\s]{2,28}$"),  # "01. Unix 서버" 러닝헤더
+    re.compile(r"^\d{1,3}$"),  # 페이지 번호
 ]
 
 # 표 라벨 -> DB 필드
 FIELD_MAP = {
-    '점검 내용': 'check_content',
-    '점검내용': 'check_content',
-    '점검 목적': 'check_purpose',
-    '점검목적': 'check_purpose',
-    '보안 위협': 'security_threat',
-    '보안위협': 'security_threat',
-    '참고': 'reference_note',
-    '대상': 'target',
-    '판단 기준': 'criteria',
-    '판단기준': 'criteria',
-    '조치 방법': 'remediation',
-    '조치방법': 'remediation',
-    '조치 시 영향': 'impact',
-    '조치시 영향': 'impact',
-    '상세 설명': 'detail',
-    '상세설명': 'detail',
+    "점검 내용": "check_content",
+    "점검내용": "check_content",
+    "점검 목적": "check_purpose",
+    "점검목적": "check_purpose",
+    "보안 위협": "security_threat",
+    "보안위협": "security_threat",
+    "참고": "reference_note",
+    "대상": "target",
+    "판단 기준": "criteria",
+    "판단기준": "criteria",
+    "조치 방법": "remediation",
+    "조치방법": "remediation",
+    "조치 시 영향": "impact",
+    "조치시 영향": "impact",
+    "상세 설명": "detail",
+    "상세설명": "detail",
 }
-SECTION_HEADS = {'개요', '점검 대상 및 판단 기준', '점검 및 조치 사례', '상세 설명'}
-CASE_HEAD = '점검 및 조치 사례'
-BODY_HEADS = ['점검 및 조치 사례', '상세 설명']   # 표 종료 지점 (둘 중 먼저 나오는 것)
-HDRCELL_RE = re.compile(r'^[A-Z]{1,4}(-\d{1,3})?\s*(\([가-힣]\))?$')
+SECTION_HEADS = {"개요", "점검 대상 및 판단 기준", "점검 및 조치 사례", "상세 설명"}
+CASE_HEAD = "점검 및 조치 사례"
+BODY_HEADS = ["점검 및 조치 사례", "상세 설명"]  # 표 종료 지점 (둘 중 먼저 나오는 것)
+HDRCELL_RE = re.compile(r"^[A-Z]{1,4}(-\d{1,3})?\s*(\([가-힣]\))?$")
 
 CATEGORY_NAME = {
-    'U': 'UNIX 서버', 'W': 'Windows 서버', 'WEB': '웹 서비스', 'S': '보안 장비',
-    'N': '네트워크 장비', 'C': '제어시스템', 'PC': 'PC', 'D': 'DBMS',
-    'M': '이동통신', 'HV': '가상화 장비', 'CA': '클라우드',
-    'WA': 'Web Application(웹)',
+    "U": "UNIX 서버",
+    "W": "Windows 서버",
+    "WEB": "웹 서비스",
+    "S": "보안 장비",
+    "N": "네트워크 장비",
+    "C": "제어시스템",
+    "PC": "PC",
+    "D": "DBMS",
+    "M": "이동통신",
+    "HV": "가상화 장비",
+    "CA": "클라우드",
+    "WA": "Web Application(웹)",
 }
-WA_RE = re.compile(r'^[A-Z]{2,4}$')
+WA_RE = re.compile(r"^[A-Z]{2,4}$")
 
 
 def is_noise(t):
@@ -86,18 +98,23 @@ def is_noise(t):
 def page_lines(page):
     """pymupdf 라인 추출 -> (x0, top, text, size)"""
     out = []
-    for b in page.get_text('dict')['blocks']:
-        if b['type'] != 0:
+    for b in page.get_text("dict")["blocks"]:
+        if b["type"] != 0:
             continue
-        for l in b['lines']:
-            t = ''.join(s['text'] for s in l['spans'])
+        for l in b["lines"]:
+            t = "".join(s["text"] for s in l["spans"])
             if not t.strip():
                 continue
-            out.append({
-                'x0': l['bbox'][0], 'top': l['bbox'][1], 'bottom': l['bbox'][3],
-                'text': t.rstrip(), 'size': l['spans'][0]['size'],
-            })
-    out.sort(key=lambda r: (r['top'], r['x0']))
+            out.append(
+                {
+                    "x0": l["bbox"][0],
+                    "top": l["bbox"][1],
+                    "bottom": l["bbox"][3],
+                    "text": t.rstrip(),
+                    "size": l["spans"][0]["size"],
+                }
+            )
+    out.sort(key=lambda r: (r["top"], r["x0"]))
     return out
 
 
@@ -106,9 +123,9 @@ def detect_items(doc):
     items = []
     for i, page in enumerate(doc):
         lines = page_lines(page)
-        head = [l for l in lines if 95 < l['top'] < 155]
-        lab = [l['text'].strip() for l in head if l['x0'] < 135]
-        val = [l['text'].strip() for l in head if l['x0'] >= 135]
+        head = [l for l in lines if 95 < l["top"] < 155]
+        lab = [l["text"].strip() for l in head if l["x0"] < 135]
+        val = [l["text"].strip() for l in head if l["x0"] >= 135]
         code = risk = raw = None
         for t in lab:
             if CODE_RE.match(t):
@@ -116,27 +133,38 @@ def detect_items(doc):
             elif RISK_RE.match(t):
                 risk = RISK_FIX.get(RISK_RE.match(t).group(1))
         # 10장 Web Application: 하이픈 없는 약어 코드 -> WA-nn 정규화
-        if not code and any('Web Application' in v for v in val):
+        if not code and any("Web Application" in v for v in val):
             abbr = next((t for t in lab if WA_RE.match(t)), None)
-            seq = next((re.match(r'^(\d{1,2})\.\s', v) for v in val
-                        if re.match(r'^(\d{1,2})\.\s', v)), None)
+            seq = next(
+                (
+                    re.match(r"^(\d{1,2})\.\s", v)
+                    for v in val
+                    if re.match(r"^(\d{1,2})\.\s", v)
+                ),
+                None,
+            )
             if abbr and seq:
-                raw, code = abbr, f'WA-{int(seq.group(1)):02d}'
+                raw, code = abbr, f"WA-{int(seq.group(1)):02d}"
         if code:
-            items.append({'code': code, 'code_raw': raw, 'risk': risk, 'page': i})
+            items.append({"code": code, "code_raw": raw, "risk": risk, "page": i})
     return items
 
 
 def row_bounds(pl_page):
     """가로 괘선 -> 행 경계 / 세로 괘선 -> 라벨·값 열 경계"""
-    vs = sorted({round(e['x0'], 1) for e in pl_page.vertical_edges})
+    vs = sorted({round(e["x0"], 1) for e in pl_page.vertical_edges})
     inner = [v for v in vs if 100 < v < 250]
     split_x = inner[0] if inner else 131.9
     left = min([v for v in vs if 0 < v < 100], default=58.0)
     # 라벨 열을 실제로 가로지르는 선만 행 경계로 인정
     # (값 열에만 걸친 선은 셀 내부 구분선이므로 제외)
-    hs = sorted({round(e['top'], 1) for e in pl_page.horizontal_edges
-                 if e['x0'] <= left + 4 and e['x1'] >= split_x - 4})
+    hs = sorted(
+        {
+            round(e["top"], 1)
+            for e in pl_page.horizontal_edges
+            if e["x0"] <= left + 4 and e["x1"] >= split_x - 4
+        }
+    )
     rows = [(hs[i], hs[i + 1]) for i in range(len(hs) - 1) if hs[i + 1] - hs[i] > 5]
     return rows, split_x
 
@@ -147,18 +175,18 @@ def parse_table_page(lines, rows, split_x):
     for top, bot in rows:
         lab, val = [], []
         for l in lines:
-            c = (l['top'] + l['bottom']) / 2
+            c = (l["top"] + l["bottom"]) / 2
             if not (top - 1 <= c <= bot + 1):
                 continue
-            (lab if l['x0'] < split_x else val).append(l['text'].strip())
-        cells.append((' '.join(lab).strip(), '\n'.join(val).strip()))
+            (lab if l["x0"] < split_x else val).append(l["text"].strip())
+        cells.append((" ".join(lab).strip(), "\n".join(val).strip()))
     return cells
 
 
 def clean_body_text(raw_page_text):
     """본문 블록에서 머리말·꼬리말 제거"""
     keep = []
-    for ln in raw_page_text.split('\n'):
+    for ln in raw_page_text.split("\n"):
         if is_noise(ln):
             continue
         keep.append(ln.rstrip())
@@ -166,26 +194,28 @@ def clean_body_text(raw_page_text):
         keep.pop(0)
     while keep and not keep[-1].strip():
         keep.pop()
-    return '\n'.join(keep)
+    return "\n".join(keep)
 
 
 def dedent_block(text):
     """공통 들여쓰기 제거 (명령어 상대 들여쓰기는 보존)"""
-    ls = [l for l in text.split('\n') if l.strip()]
+    ls = [l for l in text.split("\n") if l.strip()]
     if not ls:
         return text
     ind = min(len(l) - len(l.lstrip()) for l in ls)
-    return '\n'.join(l[ind:] if len(l) >= ind else l for l in text.split('\n'))
+    return "\n".join(l[ind:] if len(l) >= ind else l for l in text.split("\n"))
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--pdf', default='src.pdf')
-    ap.add_argument('--out', default='')
-    ap.add_argument('--json', default='')
-    ap.add_argument('--csv', default='data/guide_items_2026.csv')
-    ap.add_argument('--guide-version', default='2026')
-    ap.add_argument('--limit', type=int, default=0, help='앞에서 N개 항목만 처리(0=전체)')
+    ap.add_argument("--pdf", default="src.pdf")
+    ap.add_argument("--out", default="")
+    ap.add_argument("--json", default="")
+    ap.add_argument("--csv", default="data/guide_items_2026.csv")
+    ap.add_argument("--guide-version", default="2026")
+    ap.add_argument(
+        "--limit", type=int, default=0, help="앞에서 N개 항목만 처리(0=전체)"
+    )
     args = ap.parse_args()
 
     doc = pymupdf.open(args.pdf)
@@ -194,60 +224,77 @@ def main():
     # 레이아웃 텍스트(명령어 들여쓰기 보존) 페이지 배열
     layout_pages = []
     for i in range(npages):
-        layout_pages.append(doc[i].get_text('text', flags=pymupdf.TEXT_PRESERVE_WHITESPACE
-                                            | pymupdf.TEXT_PRESERVE_LIGATURES))
+        layout_pages.append(
+            doc[i].get_text(
+                "text",
+                flags=pymupdf.TEXT_PRESERVE_WHITESPACE
+                | pymupdf.TEXT_PRESERVE_LIGATURES,
+            )
+        )
     # pdftotext -layout 결과가 있으면 우선 사용
-    if os.path.exists('full.txt'):
-        lp = open('full.txt', encoding='utf-8').read().split('\f')
+    if os.path.exists("full.txt"):
+        lp = open("full.txt", encoding="utf-8").read().split("\f")
         if len(lp) >= npages:
             layout_pages = lp[:npages]
 
     items = detect_items(doc)
     if args.limit:
-        items = items[:args.limit]
-    print(f'[i] pages={npages} items={len(items)}')
+        items = items[: args.limit]
+    print(f"[i] pages={npages} items={len(items)}")
 
     # 항목별 페이지 범위
     all_items = detect_items(doc) if args.limit else items
-    starts = [it['page'] for it in all_items] + [npages]
+    starts = [it["page"] for it in all_items] + [npages]
 
     plumb = pdfplumber.open(args.pdf)
 
     records, unknown_labels = [], defaultdict(int)
 
     for idx, it in enumerate(items):
-        p0 = it['page']
+        p0 = it["page"]
         p1 = starts[idx + 1] - 1
         rec = {
-            'code': it['code'], 'code_raw': it.get('code_raw') or it['code'], 'risk': it['risk'],
-            'category': CATEGORY_NAME.get(it['code'].split('-')[0], ''),
-            'prefix': it['code'].split('-')[0],
-            'num': int(it['code'].split('-')[1]),
-            'page_start': p0 + 1, 'page_end': p1 + 1,
-            'title': '', 'section': '',
-            'check_content': '', 'check_purpose': '', 'security_threat': '',
-            'reference_note': '', 'target': '', 'criteria': '',
-            'remediation': '', 'impact': '', 'detail': '',
+            "code": it["code"],
+            "code_raw": it.get("code_raw") or it["code"],
+            "risk": it["risk"],
+            "category": CATEGORY_NAME.get(it["code"].split("-")[0], ""),
+            "prefix": it["code"].split("-")[0],
+            "num": int(it["code"].split("-")[1]),
+            "page_start": p0 + 1,
+            "page_end": p1 + 1,
+            "title": "",
+            "section": "",
+            "check_content": "",
+            "check_purpose": "",
+            "security_threat": "",
+            "reference_note": "",
+            "target": "",
+            "criteria": "",
+            "remediation": "",
+            "impact": "",
+            "detail": "",
         }
 
         # --- 표 영역 파싱 (사례 헤딩 전까지) ---
         case_start_page, case_start_y, body_head = None, None, CASE_HEAD
         for pi in range(p0, p1 + 1):
             lines = page_lines(doc[pi])
-            hit = next((l for l in lines
-                        if l['text'].strip() in BODY_HEADS and l['x0'] < 140), None)
+            hit = next(
+                (l for l in lines if l["text"].strip() in BODY_HEADS and l["x0"] < 140),
+                None,
+            )
             if hit:
-                case_start_page, case_start_y = pi, hit['bottom']
-                body_head = hit['text'].strip()
+                case_start_page, case_start_y = pi, hit["bottom"]
+                body_head = hit["text"].strip()
                 break
         if case_start_page is None:
             case_start_page, case_start_y = p1 + 1, 0
 
         for pi in range(p0, min(case_start_page, p1) + 1):
             lines = page_lines(doc[pi])
-            lines = [l for l in lines if 90 < l['top'] < 780]
+            lines = [l for l in lines if 90 < l["top"] < 780]
             if pi == case_start_page:
-                lines = [l for l in lines if l['bottom'] <= case_start_y]
+                lines = [l for l in lines if l["bottom"] <= case_start_y]
             try:
                 rows, sx = row_bounds(plumb.pages[pi])
             except Exception:
@@ -259,38 +306,40 @@ def main():
                     continue
                 # 헤더 행 (코드/위험도 + 분류/제목)
                 if HDRCELL_RE.match(lab) or RISK_RE.match(lab):
-                    if not rec['risk']:
-                        mr = re.search(r'\(([가-힣])\)', lab)
+                    if not rec["risk"]:
+                        mr = re.search(r"\(([가-힣])\)", lab)
                         if mr:
-                            rec['risk'] = RISK_FIX.get(mr.group(1))
-                    vs_ = [v.strip() for v in val.split('\n') if v.strip()]
+                            rec["risk"] = RISK_FIX.get(mr.group(1))
+                    vs_ = [v.strip() for v in val.split("\n") if v.strip()]
                     for j, v in enumerate(vs_):
                         if v in SECTION_HEADS:
                             continue
-                        if j == 0 and not rec['section']:
-                            rec['section'] = v
+                        if j == 0 and not rec["section"]:
+                            rec["section"] = v
                         elif not HDR_RE.search(v):
-                            rec['title'] = (rec['title'] + ' ' + v).strip()
+                            rec["title"] = (rec["title"] + " " + v).strip()
                     continue
                 if not lab and val:
                     # 제목/분류는 항목 시작 페이지 상단에서만 확정
                     # (후속 페이지의 그림 캡션이 섞이는 것을 방지)
                     if pi != p0:
                         continue
-                    for v in val.split('\n'):
+                    for v in val.split("\n"):
                         v = v.strip()
-                        if v in SECTION_HEADS or (v.startswith('[') and v.endswith(']')):
+                        if v in SECTION_HEADS or (
+                            v.startswith("[") and v.endswith("]")
+                        ):
                             continue
-                        if '>' in v and not rec['section']:
-                            rec['section'] = v
+                        if ">" in v and not rec["section"]:
+                            rec["section"] = v
                         elif v:
-                            rec['title'] = (rec['title'] + ' ' + v).strip()
+                            rec["title"] = (rec["title"] + " " + v).strip()
                     continue
                 if lab in SECTION_HEADS:
                     continue
                 key = FIELD_MAP.get(lab)
                 if key:
-                    rec[key] = (rec[key] + '\n' + val).strip() if rec[key] else val
+                    rec[key] = (rec[key] + "\n" + val).strip() if rec[key] else val
                 else:
                     unknown_labels[lab] += 1
 
@@ -303,54 +352,90 @@ def main():
             if pi == case_start_page:
                 pos = txt.find(body_head)
                 if pos >= 0:
-                    txt = txt[pos + len(body_head):]
+                    txt = txt[pos + len(body_head) :]
             parts.append(clean_body_text(txt))
-        body = dedent_block('\n'.join(p for p in parts if p.strip()))
+        body = dedent_block("\n".join(p for p in parts if p.strip()))
         # '점검 및 조치 사례'(case_text)와 캡처는 설계상 미채택.
         # 파싱은 유지함 - '상세 설명'(detail)이 같은 블록에서 나오므로 건너뛸 수 없음
-        if body_head == '상세 설명':
-            rec['detail'] = body
+        if body_head == "상세 설명":
+            rec["detail"] = body
 
-        rec['title'] = re.sub(r'^\d{1,2}\.\s*', '', rec['title'].strip())
+        rec["title"] = re.sub(r"^\d{1,2}\.\s*", "", rec["title"].strip())
         records.append(rec)
         if (idx + 1) % 50 == 0:
-            print(f'  ... {idx+1}/{len(items)}')
+            print(f"  ... {idx + 1}/{len(items)}")
 
     plumb.close()
 
     # ---------- 저장 ----------
     def split_criteria0(c):
-        s_ = v_ = ''
-        m = re.search(r'양호\s*[:：]\s*(.*?)(?=\n?\s*취약\s*[:：]|$)', c, re.S)
+        s_ = v_ = ""
+        m = re.search(r"양호\s*[:：]\s*(.*?)(?=\n?\s*취약\s*[:：]|$)", c, re.DOTALL)
         if m:
-            s_ = ' '.join(m.group(1).split())
-        m = re.search(r'취약\s*[:：]\s*(.*)$', c, re.S)
+            s_ = " ".join(m.group(1).split())
+        m = re.search(r"취약\s*[:：]\s*(.*)$", c, re.DOTALL)
         if m:
-            v_ = ' '.join(m.group(1).split())
+            v_ = " ".join(m.group(1).split())
         return s_, v_
 
     import csv as _csv
-    os.makedirs(os.path.dirname(os.path.abspath(args.csv)) or '.', exist_ok=True)
-    COLS = ['item_code', 'item_code_raw', 'item_name', 'category', 'section',
-            'severity_guide', 'check_content', 'check_purpose', 'security_threat',
-            'reference_note', 'target', 'criteria_safe', 'criteria_vuln',
-            'remediation', 'impact', 'detail', 'reference',
-            'page_start', 'page_end', 'guide_version']
-    with open(args.csv, 'w', newline='', encoding='utf-8-sig') as f:
-        cw = _csv.writer(f, lineterminator='\n')
+
+    os.makedirs(os.path.dirname(os.path.abspath(args.csv)) or ".", exist_ok=True)
+    COLS = [
+        "item_code",
+        "item_code_raw",
+        "item_name",
+        "category",
+        "section",
+        "severity_guide",
+        "check_content",
+        "check_purpose",
+        "security_threat",
+        "reference_note",
+        "target",
+        "criteria_safe",
+        "criteria_vuln",
+        "remediation",
+        "impact",
+        "detail",
+        "reference",
+        "page_start",
+        "page_end",
+        "guide_version",
+    ]
+    with open(args.csv, "w", newline="", encoding="utf-8-sig") as f:
+        cw = _csv.writer(f, lineterminator="\n")
         cw.writerow(COLS)
         for r in records:
-            cs, cv = split_criteria0(r['criteria'])
-            cw.writerow([r['code'], r['code_raw'], r['title'], r['category'],
-                         r['section'], r['risk'], r['check_content'], r['check_purpose'],
-                         r['security_threat'], r['reference_note'], r['target'],
-                         cs, cv, r['remediation'], r['impact'], r['detail'],
-                         '', r['page_start'], r['page_end'],
-                         args.guide_version])
-    print(f'[ok] {args.csv}  ({len(records)}행)')
+            cs, cv = split_criteria0(r["criteria"])
+            cw.writerow(
+                [
+                    r["code"],
+                    r["code_raw"],
+                    r["title"],
+                    r["category"],
+                    r["section"],
+                    r["risk"],
+                    r["check_content"],
+                    r["check_purpose"],
+                    r["security_threat"],
+                    r["reference_note"],
+                    r["target"],
+                    cs,
+                    cv,
+                    r["remediation"],
+                    r["impact"],
+                    r["detail"],
+                    "",
+                    r["page_start"],
+                    r["page_end"],
+                    args.guide_version,
+                ]
+            )
+    print(f"[ok] {args.csv}  ({len(records)}행)")
 
     if args.json:
-        with open(args.json, 'w', encoding='utf-8') as f:
+        with open(args.json, "w", encoding="utf-8") as f:
             json.dump(records, f, ensure_ascii=False, indent=2)
     if not args.out:
         _report(records, unknown_labels)
@@ -386,26 +471,53 @@ def main():
     """)
 
     def split_criteria(c):
-        safe = vuln = ''
-        m = re.search(r'양호\s*[:：]\s*(.*?)(?=\n?\s*취약\s*[:：]|$)', c, re.S)
+        safe = vuln = ""
+        m = re.search(r"양호\s*[:：]\s*(.*?)(?=\n?\s*취약\s*[:：]|$)", c, re.DOTALL)
         if m:
-            safe = ' '.join(m.group(1).split())
-        m = re.search(r'취약\s*[:：]\s*(.*)$', c, re.S)
+            safe = " ".join(m.group(1).split())
+        m = re.search(r"취약\s*[:：]\s*(.*)$", c, re.DOTALL)
         if m:
-            vuln = ' '.join(m.group(1).split())
+            vuln = " ".join(m.group(1).split())
         return safe, vuln
 
     for r in records:
-        s, v = split_criteria(r['criteria'])
-        con.execute("""INSERT INTO item VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
-            r['code'], r['code_raw'], r['prefix'], r['num'], r['category'], r['section'],
-            r['title'], r['risk'],
-            r['check_content'], r['check_purpose'], r['security_threat'], r['reference_note'],
-            r['target'], r['criteria'], s, v, r['remediation'], r['impact'], r['detail'],
-            r['page_start'], r['page_end']))
-        con.execute("INSERT INTO item_fts VALUES (?,?,?,?,?)", (
-            r['code'], r['title'], r['check_content'], r['security_threat'],
-            r['remediation']))
+        s, v = split_criteria(r["criteria"])
+        con.execute(
+            """INSERT INTO item VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                r["code"],
+                r["code_raw"],
+                r["prefix"],
+                r["num"],
+                r["category"],
+                r["section"],
+                r["title"],
+                r["risk"],
+                r["check_content"],
+                r["check_purpose"],
+                r["security_threat"],
+                r["reference_note"],
+                r["target"],
+                r["criteria"],
+                s,
+                v,
+                r["remediation"],
+                r["impact"],
+                r["detail"],
+                r["page_start"],
+                r["page_end"],
+            ),
+        )
+        con.execute(
+            "INSERT INTO item_fts VALUES (?,?,?,?,?)",
+            (
+                r["code"],
+                r["title"],
+                r["check_content"],
+                r["security_threat"],
+                r["remediation"],
+            ),
+        )
     con.commit()
 
     con.close()
@@ -414,17 +526,28 @@ def main():
 
 def _report(records, unknown_labels):
     # ---------- 검증 리포트 ----------
-    req = ['title', 'check_content', 'check_purpose', 'target', 'criteria', 'remediation']
-    print('\n=== 필드 결측률 ===')
-    for k in req + ['security_threat', 'impact', 'detail']:
-        miss = [r['code'] for r in records if not r[k].strip()]
-        print(f'{k:18} 결측 {len(miss):3}/{len(records)}  {miss[:8]}')
-    bad = [r['code'] for r in records if not r['criteria'].strip()
-           or ('양호' not in r['criteria'] and '취약' not in r['criteria'])]
-    print(f'\n판단기준 파싱 이상: {len(bad)} {bad[:10]}')
+    req = [
+        "title",
+        "check_content",
+        "check_purpose",
+        "target",
+        "criteria",
+        "remediation",
+    ]
+    print("\n=== 필드 결측률 ===")
+    for k in [*req, "security_threat", "impact", "detail"]:
+        miss = [r["code"] for r in records if not r[k].strip()]
+        print(f"{k:18} 결측 {len(miss):3}/{len(records)}  {miss[:8]}")
+    bad = [
+        r["code"]
+        for r in records
+        if not r["criteria"].strip()
+        or ("양호" not in r["criteria"] and "취약" not in r["criteria"])
+    ]
+    print(f"\n판단기준 파싱 이상: {len(bad)} {bad[:10]}")
     if unknown_labels:
-        print(f'\n미매핑 라벨: {dict(unknown_labels)}')
+        print(f"\n미매핑 라벨: {dict(unknown_labels)}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

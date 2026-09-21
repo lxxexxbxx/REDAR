@@ -1,4 +1,5 @@
 """조치 가이드 라우터. HTTP 전용, 비즈니스 판단 없음 (docs/01 §2.1)."""
+
 from __future__ import annotations
 
 from typing import Any, Literal

@@ -6,6 +6,7 @@ sort_key() 출력 형식은 component_advisories.fixed_version_key 와 일치 �
 해당 값은 tools/build_data_csv.py 의 vkey() 산출물이며 v_patch_plan 이 문자열 비교.
 형식 불일치 시 오류 없이 패치 목표만 소실. tests/test_domain.py 가 951행 전체 대조
 """
+
 from __future__ import annotations
 
 _SEGMENTS = 4  # tools/build_data_csv.py 와 동일. 5번째 이후 세그먼트 폐기

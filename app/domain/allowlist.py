@@ -3,6 +3,7 @@
 기본값은 비어 있음 = 전부 차단. 버그가 아니라 의도된 동작 (docs/01 §7.2).
 통제 없이 임의 URL 을 받으면 공용 스캔 대행 도구가 됨
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -34,12 +35,12 @@ def normalize_entry(entry: str) -> str:
     text = (entry or "").strip().lower()
     if not text:
         return ""
-    if _as_network(text) is not None:      # CIDR·단일 IP 는 그대로
+    if _as_network(text) is not None:  # CIDR·단일 IP 는 그대로
         return text
     try:
         return urlmod.parse(text).host
     except ValueError:
-        return text                        # 해석 불가는 원본 유지. 판정에서 걸러짐
+        return text  # 해석 불가는 원본 유지. 판정에서 걸러짐
 
 
 def host_allowed(host: str, allowlist: Sequence[str]) -> bool:
@@ -63,9 +64,12 @@ def host_allowed(host: str, allowlist: Sequence[str]) -> bool:
             return True
         if address is not None:
             network = _as_network(entry)
-            if network is not None and address.version == network.version:
-                if address in network:
-                    return True
+            if (
+                network is not None
+                and address.version == network.version
+                and address in network
+            ):
+                return True
     return False
 
 

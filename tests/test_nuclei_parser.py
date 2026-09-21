@@ -2,6 +2,7 @@
 
 픽스처는 실제 nuclei v3.11.1 출력 필드 기준. 실제 바이너리 미실행
 """
+
 from __future__ import annotations
 
 import json
@@ -60,8 +61,11 @@ def test_fixture_parses_all_lines(rules):
     findings = _findings(rules, "scn_x")
     assert len(findings) == 5
     assert [f.template_id for f in findings] == [
-        "CVE-2026-33017", "langflow-detect", "http-missing-security-headers",
-        "CVE-2026-33017", "swagger-api",
+        "CVE-2026-33017",
+        "langflow-detect",
+        "http-missing-security-headers",
+        "CVE-2026-33017",
+        "swagger-api",
     ]
 
 
@@ -71,7 +75,7 @@ def test_cve_line_normalized(rules):
     assert f.matcher_name == "dsl-1"
     assert f.severity is Severity.CRITICAL
     assert f.severity_guide is SeverityGuide.SANG
-    assert f.vuln_type is VulnType.RCE          # CWE-94
+    assert f.vuln_type is VulnType.RCE  # CWE-94
     assert f.cve_ids == ["CVE-2026-33017"]
     assert f.cwe_ids == ["CWE-94"]
     assert f.cvss_score == 9.8
@@ -82,7 +86,11 @@ def test_cve_line_normalized(rules):
 
 def test_target_split_into_host_and_port(rules):
     f = _findings(rules, "scn_x")[0]
-    assert (f.target.scheme, f.target.host, f.target.port) == ("http", "localhost", 7860)
+    assert (f.target.scheme, f.target.host, f.target.port) == (
+        "http",
+        "localhost",
+        7860,
+    )
     assert f.target.path == "/api/v1/version"
 
 
@@ -96,7 +104,7 @@ def test_extracted_results_and_tags(rules):
     detect = _findings(rules, "scn_x")[1]
     assert detect.evidence.extracted_values == ["1.8.1"]
     assert detect.severity is Severity.INFO
-    assert detect.vuln_type is VulnType.OTHER   # 자산 식별 템플릿
+    assert detect.vuln_type is VulnType.OTHER  # 자산 식별 템플릿
 
 
 def test_duplicate_lines_share_fingerprint(rules):
@@ -111,9 +119,9 @@ def test_duplicate_lines_share_fingerprint(rules):
         "",
         "   ",
         "not json at all",
-        '{"info": {"severity": "high"}}',                    # template-id 없음
-        '{"template-id": "t", "info": {}}',                  # 대상 없음
-        '{"template-id": "t", "matched-at": "/only/path"}',   # host 없음
+        '{"info": {"severity": "high"}}',  # template-id 없음
+        '{"template-id": "t", "info": {}}',  # 대상 없음
+        '{"template-id": "t", "matched-at": "/only/path"}',  # host 없음
         '["array", "not", "object"]',
     ],
 )
@@ -123,11 +131,13 @@ def test_malformed_lines_skipped(rules, line):
 
 
 def test_unknown_severity_falls_back_to_cvss(rules):
-    line = json.dumps({
-        "template-id": "t", "matched-at": "http://h/x",
-        "info": {"severity": "unknown",
-                 "classification": {"cvss-score": 9.8}},
-    })
+    line = json.dumps(
+        {
+            "template-id": "t",
+            "matched-at": "http://h/x",
+            "info": {"severity": "unknown", "classification": {"cvss-score": 9.8}},
+        }
+    )
     f = parse_line(line, scan_id="scn_x", rules=rules)
     assert f.severity is Severity.CRITICAL
 
@@ -156,11 +166,14 @@ def test_truncation_does_not_break_multibyte():
 
 
 def test_parse_line_truncates_oversized_response(rules):
-    line = json.dumps({
-        "template-id": "t", "matched-at": "http://h/x",
-        "info": {"severity": "info"},
-        "response": "B" * (EVIDENCE_MAX_BYTES + 100),
-    })
+    line = json.dumps(
+        {
+            "template-id": "t",
+            "matched-at": "http://h/x",
+            "info": {"severity": "info"},
+            "response": "B" * (EVIDENCE_MAX_BYTES + 100),
+        }
+    )
     f = parse_line(line, scan_id="scn_x", rules=rules)
     assert is_truncated(f.evidence.response)
 
@@ -172,7 +185,7 @@ def test_duplicate_fingerprint_stored_once(conn, rules, scan_id):
     findings = _findings(rules, scan_id)
     inserted = insert_findings(conn, findings)
     assert len(findings) == 5
-    assert inserted == 4                       # 중복 1건 제외
+    assert inserted == 4  # 중복 1건 제외
     assert count_by_scan(conn, scan_id) == 4
 
 
@@ -186,13 +199,15 @@ def test_batch_writer_counts_duplicates(conn, rules, scan_id):
 def test_interrupted_scan_preserves_saved_findings(db_path, rules, scan_id):
     """중단 시 이미 처리된 finding 보존. 배치 커밋이 안 되면 전량 소실."""
     findings = _findings(rules, scan_id)
-    with session(db_path) as write_conn:
-        with pytest.raises(RuntimeError):
-            # batch_size 를 크게 두어 자동 커밋 전에 중단
-            with FindingBatchWriter(write_conn, batch_size=100, interval_sec=99) as w:
-                w.add(findings[0])
-                w.add(findings[1])
-                raise RuntimeError("프로세스 강제 종료")
+    # batch_size 를 크게 두어 자동 커밋 전에 중단
+    with (
+        session(db_path) as write_conn,
+        pytest.raises(RuntimeError),
+        FindingBatchWriter(write_conn, batch_size=100, interval_sec=99) as w,
+    ):
+        w.add(findings[0])
+        w.add(findings[1])
+        raise RuntimeError("프로세스 강제 종료")
 
     with session(db_path) as read_conn:
         assert count_by_scan(read_conn, scan_id) == 2
@@ -202,8 +217,10 @@ def test_interrupted_scan_preserves_saved_findings(db_path, rules, scan_id):
 
 
 def test_stats_line_parsed():
-    line = ("[0:00:05] | Templates: 1234 | Hosts: 1 | RPS: 123 | Matched: 5 "
-            "| Errors: 2 | Requests: 615/1234 (49%)")
+    line = (
+        "[0:00:05] | Templates: 1234 | Hosts: 1 | RPS: 123 | Matched: 5 "
+        "| Errors: 2 | Requests: 615/1234 (49%)"
+    )
     p = progress.parse_stats_line(line)
     assert (p.requests_done, p.requests_total) == (615, 1234)
     assert p.percent == pytest.approx(49.8, abs=0.1)
@@ -220,8 +237,11 @@ def test_stderr_reader_survives_handler_error():
             raise RuntimeError("첫 줄 처리 실패")
 
     code = runner.run(
-        [sys.executable, "-c",
-         "import sys; [sys.stderr.write('line%d\\n' % i) for i in range(3)]"],
+        [
+            sys.executable,
+            "-c",
+            "import sys; [sys.stderr.write('line%d\\n' % i) for i in range(3)]",
+        ],
         on_stdout_line=lambda line: None,
         on_stderr_line=handler,
     )
@@ -234,10 +254,12 @@ def test_json_stats_line_parsed():
 
     파이프 형식만 읽으면 실제 스캔에서 진행률이 한 번도 갱신되지 않음
     """
-    line = ('{"duration":"0:00:05","errors":"2","hosts":"1","matched":"5",'
-            '"percent":"49","requests":"615","rps":"123",'
-            '"startedAt":"2026-09-12T17:01:34.0612078+09:00",'
-            '"templates":"1234","total":"1234"}')
+    line = (
+        '{"duration":"0:00:05","errors":"2","hosts":"1","matched":"5",'
+        '"percent":"49","requests":"615","rps":"123",'
+        '"startedAt":"2026-09-12T17:01:34.0612078+09:00",'
+        '"templates":"1234","total":"1234"}'
+    )
     p = progress.parse_stats_line(line)
     assert (p.requests_done, p.requests_total) == (615, 1234)
     assert p.percent == pytest.approx(49.8, abs=0.1)
@@ -246,16 +268,25 @@ def test_json_stats_line_parsed():
 
 def test_rps_parsed_both_formats():
     """남은 시간 계산의 입력. 두 stats 형식 모두에서 읽혀야 함"""
-    assert progress.parse_stats_line('{"requests":"10","total":"100","rps":"25"}').rps == 25.0
+    assert (
+        progress.parse_stats_line('{"requests":"10","total":"100","rps":"25"}').rps
+        == 25.0
+    )
     assert progress.parse_stats_line("| RPS: 12 | Requests: 1/2 (50%)").rps == 12.0
 
 
-@pytest.mark.parametrize("line, expected", [
-    ('{"requests":"100","total":"1000","rps":"150"}', 6),      # 900 / 150
-    ('{"requests":"100","total":"1000","rps":"0"}', None),     # 속도 미확인 = 계산 불가
-    ('{"requests":"1000","total":"1000","rps":"150"}', 0),     # 완료
-    ('{"requests":"10","total":"0","rps":"5"}', None),         # 총량 미확인
-])
+@pytest.mark.parametrize(
+    "line, expected",
+    [
+        ('{"requests":"100","total":"1000","rps":"150"}', 6),  # 900 / 150
+        (
+            '{"requests":"100","total":"1000","rps":"0"}',
+            None,
+        ),  # 속도 미확인 = 계산 불가
+        ('{"requests":"1000","total":"1000","rps":"150"}', 0),  # 완료
+        ('{"requests":"10","total":"0","rps":"5"}', None),  # 총량 미확인
+    ],
+)
 def test_eta_seconds(line, expected):
     assert progress.eta_seconds(progress.parse_stats_line(line)) == expected
 
@@ -268,8 +299,14 @@ def test_percent_capped_when_done_exceeds_total():
 
 
 @pytest.mark.parametrize(
-    "line", ["", "[INF] Templates loaded for current scan: 123", "a | b | c",
-             '{"template-id":"x","matched-at":"http://a"}', "{not json"]
+    "line",
+    [
+        "",
+        "[INF] Templates loaded for current scan: 123",
+        "a | b | c",
+        '{"template-id":"x","matched-at":"http://a"}',
+        "{not json",
+    ],
 )
 def test_non_stats_lines_return_none(line):
     assert progress.parse_stats_line(line) is None
@@ -280,8 +317,12 @@ def test_non_stats_lines_return_none(line):
 
 def test_build_command_contains_required_flags():
     cmd = runner.build_command(
-        runner.RunOptions(targets=["http://localhost:7860"], tags=["cve"],
-                          severities=["critical", "high"], rate_limit=50),
+        runner.RunOptions(
+            targets=["http://localhost:7860"],
+            tags=["cve"],
+            severities=["critical", "high"],
+            rate_limit=50,
+        ),
         exe="nuclei",
     )
     assert cmd[0] == "nuclei"
@@ -305,7 +346,7 @@ def test_build_command_requires_binary_and_targets(monkeypatch):
 _FAKE_NUCLEI = (
     "import sys, time\n"
     "for i in range(3):\n"
-    "    sys.stdout.write('{\"template-id\": \"t%d\"}\\n' % i)\n"
+    '    sys.stdout.write(\'{"template-id": "t%d"}\\n\' % i)\n'
     "    sys.stdout.flush()\n"
     "sys.stderr.write('| Requests: 1/2 (50%)\\n')\n"
     "sys.stderr.flush()\n"
@@ -332,7 +373,7 @@ def test_run_streams_lines_then_cancels():
     )
     assert len(out) == 3
     assert json.loads(out[0])["template-id"] == "t0"
-    assert code is not None                    # 종료됨
+    assert code is not None  # 종료됨
 
 
 # 픽스처를 stdout 으로 흘리고 stats 를 stderr 로 내는 가짜 nuclei
@@ -347,24 +388,23 @@ def test_end_to_end_stream_to_db(db_path, rules, scan_id):
     """실행 -> JSONL 스트림 파싱 -> 배치 저장 -> 진행률 수신. nuclei 미실행."""
     received: list[progress.Progress] = []
 
-    with session(db_path) as conn:
-        with FindingBatchWriter(conn, batch_size=2) as writer:
+    with session(db_path) as conn, FindingBatchWriter(conn, batch_size=2) as writer:
 
-            def on_stdout(line: str) -> None:
-                finding = parse_line(line, scan_id=scan_id, rules=rules)
-                if finding is not None:
-                    writer.add(finding)
+        def on_stdout(line: str) -> None:
+            finding = parse_line(line, scan_id=scan_id, rules=rules)
+            if finding is not None:
+                writer.add(finding)
 
-            def on_stderr(line: str) -> None:
-                stats = progress.parse_stats_line(line)
-                if stats is not None:
-                    received.append(stats)
+        def on_stderr(line: str) -> None:
+            stats = progress.parse_stats_line(line)
+            if stats is not None:
+                received.append(stats)
 
-            code = runner.run(
-                [sys.executable, "-c", _FAKE_SCAN, str(FIXTURE)],
-                on_stdout_line=on_stdout,
-                on_stderr_line=on_stderr,
-            )
+        code = runner.run(
+            [sys.executable, "-c", _FAKE_SCAN, str(FIXTURE)],
+            on_stdout_line=on_stdout,
+            on_stderr_line=on_stderr,
+        )
 
     assert code == 0
     assert (writer.inserted, writer.skipped) == (4, 1)

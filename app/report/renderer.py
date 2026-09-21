@@ -5,6 +5,7 @@ WeasyPrint 를 쓰지 않음. PDF 는 WebView 인쇄로 파생 (절대규칙 4-1
 
 폰트 base64 는 캐시. 보고서마다 재인코딩하면 1.1MB 를 매번 인코딩하게 됨
 """
+
 from __future__ import annotations
 
 import base64
@@ -32,14 +33,15 @@ _FONTS = (
 # 자체 완결형 검사. src/href/url() 에 외부 스킴이 있으면 위반
 _EXTERNAL_REF = re.compile(
     r"""(?:src|href)\s*=\s*["'](https?://|//)|url\(\s*["']?(https?://|//)""",
-    re.I,
+    re.IGNORECASE,
 )
 
 # 실행 요소. 보고서 골격에는 하나도 없으므로 발견되면 외부에서 흘러든 것.
 # 이벤트 핸들러는 '태그 안에 있을 때' 만 잡는다. 이스케이프된 근거 본문에도
 # ' onerror=' 같은 글자는 그대로 남는데, 꺾쇠가 없으면 실행되지 않는 평문이다
 _ACTIVE_CONTENT = re.compile(
-    r"<\s*(?:script|iframe|object|embed|form)\b|<[a-z][^>]*\son[a-z]+\s*=", re.I
+    r"<\s*(?:script|iframe|object|embed|form)\b|<[a-z][^>]*\son[a-z]+\s*=",
+    re.IGNORECASE,
 )
 
 
@@ -74,7 +76,7 @@ def _env() -> Environment:
         # 대상 서버의 응답 본문이 그대로 살아 있는 HTML 로 보고서에 삽입됨
         # 이 디렉터리는 전부 HTML 템플릿이므로 조건 없이 켠다
         autoescape=True,
-        undefined=StrictUndefined,      # 오타 필드를 조용히 빈칸으로 만들지 않는다
+        undefined=StrictUndefined,  # 오타 필드를 조용히 빈칸으로 만들지 않는다
         trim_blocks=True,
         lstrip_blocks=True,
     )

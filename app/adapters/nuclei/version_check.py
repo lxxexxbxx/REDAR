@@ -1,4 +1,5 @@
 """nuclei 가용성 확인. 실행·파싱은 runner.py / parser.py."""
+
 from __future__ import annotations
 
 import re
@@ -18,7 +19,11 @@ def version() -> str | None:
         return None
     try:
         proc = subprocess.run(
-            [exe, "-version"], capture_output=True, text=True, timeout=10,
+            [exe, "-version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,  # 반환코드로 미설치·실행 실패를 구분하므로 예외로 올리지 않음
             # 대상 없이 실행하면 stdin 대기에 걸릴 수 있음
             stdin=subprocess.DEVNULL,
         )

@@ -3,6 +3,7 @@
 templates 테이블은 로컬에 있는 템플릿의 색인. YAML 본문은 파일에 있고
 DB 에는 메타데이터만 둠 - 본문을 DB 에 넣으면 nuclei 가 읽을 파일이 따로 필요해짐
 """
+
 from __future__ import annotations
 
 import json
@@ -10,17 +11,31 @@ import sqlite3
 from typing import Any
 
 _COLUMNS = (
-    "template_id", "source", "file_path", "name", "description", "severity",
-    "vuln_type", "cve_ids", "cwe_ids", "tags", "cvss_score", "cvss_vector",
-    "fixed_version", "is_detection", "component_slugs", "form_json", "yaml_hash",
+    "template_id",
+    "source",
+    "file_path",
+    "name",
+    "description",
+    "severity",
+    "vuln_type",
+    "cve_ids",
+    "cwe_ids",
+    "tags",
+    "cvss_score",
+    "cvss_vector",
+    "fixed_version",
+    "is_detection",
+    "component_slugs",
+    "form_json",
+    "yaml_hash",
     "platform",
 )
 
 _UPSERT = f"""
-INSERT INTO templates ({', '.join(_COLUMNS)})
-VALUES ({', '.join('?' * len(_COLUMNS))})
+INSERT INTO templates ({", ".join(_COLUMNS)})
+VALUES ({", ".join("?" * len(_COLUMNS))})
 ON CONFLICT (template_id) DO UPDATE SET
-    {', '.join(f'{c} = excluded.{c}' for c in _COLUMNS if c != 'template_id')},
+    {", ".join(f"{c} = excluded.{c}" for c in _COLUMNS if c != "template_id")},
     updated_at = datetime('now','localtime')
 """
 
@@ -31,8 +46,9 @@ _DEFAULTS = {"is_detection": 0}
 
 def _values(row: dict[str, Any]) -> list[Any]:
     return [
-        _encode(row.get(column) if row.get(column) is not None
-                else _DEFAULTS.get(column))
+        _encode(
+            row.get(column) if row.get(column) is not None else _DEFAULTS.get(column)
+        )
         for column in _COLUMNS
     ]
 
@@ -96,9 +112,9 @@ def search(
         params += [f"%{query}%", f"%{query}%"]
 
     clause = f" WHERE {' AND '.join(where)}" if where else ""
-    total = conn.execute(
-        f"SELECT COUNT(*) FROM templates{clause}", params
-    ).fetchone()[0]
+    total = conn.execute(f"SELECT COUNT(*) FROM templates{clause}", params).fetchone()[
+        0
+    ]
     rows = conn.execute(
         f"SELECT * FROM templates{clause}"
         # 심각도 문자열 정렬은 뒤죽박죽이 된다. CASE 로 고정 (docs/05 자주 하는 실수)
@@ -144,8 +160,10 @@ def all_meta(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """제외 계산 입력. 전 행을 한 번에 읽음 (1.3만 행 수준)"""
     return [
         {
-            "template_id": r["template_id"], "source": r["source"],
-            "file_path": r["file_path"], "tags": json.loads(r["tags"] or "[]"),
+            "template_id": r["template_id"],
+            "source": r["source"],
+            "file_path": r["file_path"],
+            "tags": json.loads(r["tags"] or "[]"),
             "platform": r["platform"],
         }
         for r in conn.execute(

@@ -1,0 +1,77 @@
+# ruff 설정. lint 와 format 을 한 곳에서 고정
+#
+# select 를 명시하는 이유: 기본 규칙 집합은 ruff 판올림마다 넓어진다.
+# 기본값에 기대면 코드를 건드리지 않아도 어느 날 main 이 깨짐.
+# CI 는 requirements-dev.txt 에서 버전까지 고정해 같은 판정을 보장한다
+
+target-version = "py311"   # CLAUDE.md 기술 스택 (Python 3.11+)
+line-length = 88
+
+extend-exclude = [".venv", "src-tauri", "_workspace"]
+
+[lint]
+select = [
+    "E",      # pycodestyle
+    "W",      # pycodestyle warning
+    "F",      # pyflakes
+    "I",      # import 정렬
+    "UP",     # pyupgrade. 3.11+ 고정이라 구형 문법을 남길 이유 없음
+    "B",      # bugbear
+    "C4",     # comprehension
+    "SIM",    # 단순화
+    "ISC",    # 암시적 문자열 연결
+    "PIE",
+    "FLY",
+    "FURB",
+    "PLE",    # pylint error
+    "PLW",    # pylint warning
+    "RUF",
+    "S",      # bandit. 취약점 진단 도구가 자기 코드에 보안 규칙을 안 거는 건 앞뒤가 안 맞음
+]
+
+# PLC·PLR 을 뺀 이유: PLC0415(지역 import) 89건, PLR0913(인자 수)·PLR2004(매직값)
+# 은 이 저장소의 관용구다. 지역 import 는 순환 의존을 끊는 수단으로 의도적으로 쓴다.
+# 취향 규칙으로 89곳을 흔들면 리뷰에서 진짜 지적이 묻힌다
+
+ignore = [
+    # 시간대. 전 구간 로컬 시각이 의도다. 로컬 데스크톱 전용 도구라
+    # UTC 환산이 보고서·로그 시각을 사용자 기준에서 어긋나게 만든다
+    "DTZ",
+    # 코드 길이는 formatter 가 잡는다. 린터의 길이 검사는 중복이고,
+    # 88자를 넘는 한글 주석은 끊으면 문장이 깨짐
+    "E501",
+    # 주석·독스트링이 한글이다. 한글 문장부호를 라틴 문자와 혼동된다고 보는 규칙
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # assert 는 테스트의 기본 수단. 런타임 코드에는 쓰지 않는다
+    "S101",
+    # subprocess 로 nuclei 를 실행하는 것이 이 제품의 핵심 동작이다
+    "S603",
+    "S607",
+]
+
+[lint.per-file-ignores]
+# SQL 은 repository/ 에만 둔다 (CLAUDE.md 코딩 규약). f-string 으로 끼우는 값은
+# 모듈 상수인 컬럼명뿐이고 데이터는 전부 ? 바인딩이다. S608 은 여기서 오탐
+"app/repository/*" = ["S608"]
+"app/cli.py" = ["S608"]
+# Jinja 에 넘기는 마크업은 보고서 골격의 CSS 다. 이스케이프되면 렌더링이 깨지고,
+# 대상 응답 본문이 HTML 로 렌더링되지 않는 것은 테스트가 지킨다
+# (test_report.py::test_target_response_is_not_rendered_as_html)
+"app/report/*" = ["S704"]
+# tools/ 는 런타임 코드가 아니다 (CLAUDE.md). 손으로 한 번 돌리는 stdlib 전용
+# 스크립트라 컨텍스트 매니저·예외 세분화·변수명 규칙이 주는 이득이 없다
+"tools/*" = ["SIM115", "BLE001", "S112", "E741", "S310", "S202", "S608", "PLW2901"]
+# 절대규칙 5 가 허용한 외부 통신 지점이다. nuclei·Go·Node 확보가 여기서 일어난다
+"packaging/build.py" = ["S310", "S202"]
+# 테스트는 예외 범위 확인·임시 경로·픽스처 문자열에서 규칙과 어긋나는 자리가 생긴다.
+# S608 은 테스트가 직접 만든 임시 테이블을 조회하는 자리라 주입 경로가 없다
+"tests/*" = ["S108", "B017", "S608", "S105"]
+# 모듈 단위 싱글턴·시퀀스다. _lock 으로 감싸 갱신하며 프로세스당 하나만 존재해야 한다.
+# 인스턴스로 바꾸면 로그 순번이 호출부마다 갈라져 SSE 순서가 깨짐
+"app/adapters/logbuffer.py" = ["PLW0603"]
+"app/services/scan_service.py" = ["PLW0603"]
+
+[format]
+# 기본값 유지. 스타일 논쟁을 설정으로 옮기지 않는다

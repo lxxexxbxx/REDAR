@@ -3,6 +3,7 @@
 보고서는 LLM 을 쓰지 않고(결정론), LLM 은 완성된 보고서를 입력으로 받는
 별도 기능으로만 존재한다. 통제 4겹이 실제로 동작해야 함 (docs/01 §7.1)
 """
+
 from __future__ import annotations
 
 import pytest
@@ -27,23 +28,29 @@ def client(db_path):
 @pytest.fixture
 def enabled(conn):
     """기능 토글 + 통신 허용 + 키까지 전부 갖춘 상태"""
-    settings_repo.put_many(conn, {
-        "llm_remediation_guide_enabled": True,
-        "offline_mode": False,
-        "ext_llm_api_enabled": True,
-        "llm_api_key": "test-key",
-        # llm_provider 는 일부러 비워둠. 키만 넣어도 동작해야 함
-        "llm_endpoint": "https://example.invalid/v1",
-        "llm_model": "gpt-5.5",
-    })
+    settings_repo.put_many(
+        conn,
+        {
+            "llm_remediation_guide_enabled": True,
+            "offline_mode": False,
+            "ext_llm_api_enabled": True,
+            "llm_api_key": "test-key",
+            # llm_provider 는 일부러 비워둠. 키만 넣어도 동작해야 함
+            "llm_endpoint": "https://example.invalid/v1",
+            "llm_model": "gpt-5.5",
+        },
+    )
     yield
-    settings_repo.put_many(conn, {
-        "llm_remediation_guide_enabled": False,
-        "offline_mode": True,
-        "ext_llm_api_enabled": False,
-        "llm_api_key": "",
-        "llm_provider": "",
-    })
+    settings_repo.put_many(
+        conn,
+        {
+            "llm_remediation_guide_enabled": False,
+            "offline_mode": True,
+            "ext_llm_api_enabled": False,
+            "llm_api_key": "",
+            "llm_provider": "",
+        },
+    )
 
 
 REPORT = {
@@ -54,11 +61,18 @@ REPORT = {
     },
     "environment_profile": {
         "web_server": {"product": "uvicorn", "version": None, "confidence": "low"},
-        "application": {"product": "Langflow", "version": "1.8.0",
-                        "confidence": "high"},
+        "application": {
+            "product": "Langflow",
+            "version": "1.8.0",
+            "confidence": "high",
+        },
         "components": [
-            {"type": "wp_plugin", "slug": "contact-form-7", "version": "5.9",
-             "active": True},
+            {
+                "type": "wp_plugin",
+                "slug": "contact-form-7",
+                "version": "5.9",
+                "active": True,
+            },
         ],
         "exposures": [
             {"key": "directory_listing", "value": True, "path": "/uploads/"},
@@ -69,15 +83,19 @@ REPORT = {
     },
     "findings_detail": [
         {
-            "name": "Langflow RCE", "severity": "critical", "vuln_type": "rce",
-            "cve_ids": ["CVE-2026-33017"], "cwe_ids": ["CWE-94"],
+            "name": "Langflow RCE",
+            "severity": "critical",
+            "vuln_type": "rce",
+            "cve_ids": ["CVE-2026-33017"],
+            "cwe_ids": ["CWE-94"],
             "template_id": "CVE-2026-33017",
             "evidence": {"response": "<script>secret</script>", "included": True},
         },
     ],
     "remediation": [
         {
-            "item_code": "WA-01", "item_name": "패치 적용",
+            "item_code": "WA-01",
+            "item_name": "패치 적용",
             "fixed_version": "1.9.0",
             "guide_remediation_original": "최신 버전으로 업데이트한다.",
         },
@@ -86,6 +104,7 @@ REPORT = {
 
 
 # ─────────────────────────────── 전송값 통제
+
 
 def test_context_excludes_evidence():
     """응답 본문은 전송 금지 항목. 보고서를 통째로 보내면 함께 나감 (docs/01 §7.4)"""
@@ -104,13 +123,12 @@ def test_context_carries_environment_survey():
     assert context["stack"]["application"]["version"] == "1.8.0"
     assert context["components"][0]["slug"] == "contact-form-7"
     # 확인된 노출만. 조치 대상 경로가 함께 있어야 함
-    assert context["exposures"] == [
-        {"key": "directory_listing", "path": "/uploads/"}
-    ]
+    assert context["exposures"] == [{"key": "directory_listing", "path": "/uploads/"}]
     assert context["collectors_failed"] == ["wordpress"]
 
 
 # ─────────────────────────────── 프롬프트 (로컬 · 통신 없음)
+
 
 def test_prompt_is_deterministic():
     """같은 보고서면 같은 프롬프트. LLM 이 만들면 매번 달라짐"""
@@ -120,7 +138,12 @@ def test_prompt_is_deterministic():
 
 def test_prompt_demands_runnable_output():
     text = svc.render_prompt(svc.report_context(REPORT))
-    for requirement in ("자리표시자", "설치를 요구하지 말", "확인 명령", "되돌리는 방법"):
+    for requirement in (
+        "자리표시자",
+        "설치를 요구하지 말",
+        "확인 명령",
+        "되돌리는 방법",
+    ):
         assert requirement in text, requirement
 
 
@@ -149,6 +172,7 @@ def test_prompt_survives_empty_environment():
 
 
 # ─────────────────────────────── 통제
+
 
 def test_prompt_blocked_when_feature_off(conn):
     with pytest.raises(ScanError) as exc:
@@ -223,6 +247,7 @@ def test_confirmation_checked_before_network(conn, enabled, monkeypatch):
 
 # ─────────────────────────────── 마스킹
 
+
 def test_outgoing_content_masked_and_answer_restored(conn, enabled, monkeypatch):
     sent: list[list[dict]] = []
 
@@ -238,13 +263,14 @@ def test_outgoing_content_masked_and_answer_restored(conn, enabled, monkeypatch)
         confirmed=True,
     )
     outbound = sent[0][-1]["content"]
-    assert "internal.local" not in outbound          # 나갈 때는 치환
+    assert "internal.local" not in outbound  # 나갈 때는 치환
     assert "TARGET_1" in outbound
-    assert "internal.local" in reply["content"]      # 돌아온 답은 복원
+    assert "internal.local" in reply["content"]  # 돌아온 답은 복원
 
 
 def test_message_roles_and_length_bounded(conn, enabled, monkeypatch):
     """사용자가 보내는 값이라 경계에서 잘라냄"""
+
     class _Provider:
         def complete(self, messages, *, max_tokens=0):
             _Provider.seen = messages
@@ -260,11 +286,12 @@ def test_message_roles_and_length_bounded(conn, enabled, monkeypatch):
         confirmed=True,
     )
     roles = [m["role"] for m in _Provider.seen]
-    assert roles.count("system") == 1                # 우리가 넣은 것만
+    assert roles.count("system") == 1  # 우리가 넣은 것만
     assert len(_Provider.seen[-1]["content"]) == svc.MAX_MESSAGE_CHARS
 
 
 # ─────────────────────────────── 보고서에서 LLM 제거
+
 
 def test_report_options_reject_use_llm(client):
     """보고서에 LLM 옵션이 남아 있으면 신뢰도 결정이 무의미해짐"""
@@ -298,7 +325,7 @@ def test_report_prose_comes_from_fallback():
     text = fallback.executive_summary(3, {"critical": 1, "high": 2})
     assert text and "3" in text
     assert fallback.temporary_fix()
-    assert fallback.executive_summary(0, {})       # 0건에서도 문장이 나옴
+    assert fallback.executive_summary(0, {})  # 0건에서도 문장이 나옴
 
 
 def test_request_sends_product_user_agent(monkeypatch):
@@ -315,8 +342,7 @@ def test_request_sends_product_user_agent(monkeypatch):
         """SSE 스트림. 어댑터가 줄 단위로 순회함"""
 
         def __iter__(self):
-            frame = {"choices": [{"delta": {"content": "ok"},
-                                  "finish_reason": "stop"}]}
+            frame = {"choices": [{"delta": {"content": "ok"}, "finish_reason": "stop"}]}
             yield b"data: " + json.dumps(frame).encode() + b"\n"
             yield b"data: [DONE]\n"
 
@@ -326,7 +352,7 @@ def test_request_sends_product_user_agent(monkeypatch):
         def __exit__(self, *_exc):
             return False
 
-    def _fake_urlopen(request, timeout=None):   # noqa: ARG001
+    def _fake_urlopen(request, timeout=None):
         captured.update(request.headers)
         return _Response()
 
@@ -347,12 +373,20 @@ def test_error_prefers_server_korean_message():
 
     from app.adapters.llm import monogpt
 
-    body = json.dumps({"error": {
-        "message": "MonoRouter: API key is required.",
-        "user_message": "API Key가 필요합니다.",
-    }}).encode()
+    body = json.dumps(
+        {
+            "error": {
+                "message": "MonoRouter: API key is required.",
+                "user_message": "API Key가 필요합니다.",
+            }
+        }
+    ).encode()
     exc = urllib.error.HTTPError(
-        "u", 401, "Unauthorized", {}, io.BytesIO(body)  # type: ignore[arg-type]
+        "u",
+        401,
+        "Unauthorized",
+        {},
+        io.BytesIO(body),  # type: ignore[arg-type]
     )
     assert monogpt._reason(exc) == "API Key가 필요합니다."
 
@@ -391,8 +425,10 @@ def test_request_is_streamed(monkeypatch):
         sent.update(json.loads(request.data))
         return original(request, *args, **kwargs)
 
-    _sse([{"choices": [{"delta": {"content": "ok"}, "finish_reason": "stop"}]}],
-         monkeypatch)
+    _sse(
+        [{"choices": [{"delta": {"content": "ok"}, "finish_reason": "stop"}]}],
+        monkeypatch,
+    )
     original = urllib.request.urlopen
     monkeypatch.setattr(urllib.request, "urlopen", _capture)
 
@@ -423,8 +459,10 @@ def test_masking_leaves_filenames_alone():
 
     masker = Masker()
     # 맨 파일명은 식별자가 아니므로 그대로 둠
-    assert masker.mask("readme.html 과 wp-login.php 를 점검") == \
-        "readme.html 과 wp-login.php 를 점검"
+    assert (
+        masker.mask("readme.html 과 wp-login.php 를 점검")
+        == "readme.html 과 wp-login.php 를 점검"
+    )
     # 경로와 호스트는 계속 가림 (역치환으로 복원됨)
     assert "wp-login.php" not in masker.mask("/wp-login.php")
     assert "wp.local" not in masker.mask("wp.local 확인")
@@ -435,8 +473,9 @@ def test_masking_round_trip_has_no_nested_tokens():
     응답에 TARGET_1 이 그대로 남아 사용자가 조치 대상을 알 수 없음 (실제 발생)"""
     from app.adapters.llm.masking import Masker
 
-    text = ("http://localhost:8080/readme.html 과 /wp-login.php,"
-            " 192.168.1.5, wp.local 확인")
+    text = (
+        "http://localhost:8080/readme.html 과 /wp-login.php, 192.168.1.5, wp.local 확인"
+    )
     masker = Masker()
     masked = masker.mask(text)
     assert not [o for o in masker.mapping if "TARGET_" in o or "PATH_" in o]

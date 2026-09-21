@@ -4,9 +4,9 @@
 요청마다 명시 동의라는 세 겹의 통제가 실제로 동작해야 한다 (docs/01 §7.1).
 반입·경로 지정은 통신이 없으므로 폐쇄망에서도 동작해야 함
 """
+
 from __future__ import annotations
 
-import os
 import stat
 from functools import lru_cache
 from pathlib import Path
@@ -79,19 +79,28 @@ def probe_version(monkeypatch):
 @pytest.fixture
 def clean_settings(conn):
     yield
-    settings_repo.put_many(conn, {
-        "offline_mode": True, "ext_dependency_install_enabled": False,
-        "dep_nuclei_path": "",
-    })
+    settings_repo.put_many(
+        conn,
+        {
+            "offline_mode": True,
+            "ext_dependency_install_enabled": False,
+            "dep_nuclei_path": "",
+        },
+    )
     settings.set_configured_nuclei(None)
 
 
 # ─────────────────────────────── 자동 설치 통제 (외부 통신 4번)
 
+
 def test_install_blocked_in_offline_mode(conn, clean_settings):
-    settings_repo.put_many(conn, {
-        "offline_mode": True, "ext_dependency_install_enabled": True,
-    })
+    settings_repo.put_many(
+        conn,
+        {
+            "offline_mode": True,
+            "ext_dependency_install_enabled": True,
+        },
+    )
     with pytest.raises(ScanError) as exc:
         dependency_service.install(conn, "nuclei", confirmed=True)
     assert exc.value.status_code == 403
@@ -99,9 +108,13 @@ def test_install_blocked_in_offline_mode(conn, clean_settings):
 
 
 def test_install_blocked_when_endpoint_disabled(conn, clean_settings):
-    settings_repo.put_many(conn, {
-        "offline_mode": False, "ext_dependency_install_enabled": False,
-    })
+    settings_repo.put_many(
+        conn,
+        {
+            "offline_mode": False,
+            "ext_dependency_install_enabled": False,
+        },
+    )
     with pytest.raises(ScanError) as exc:
         dependency_service.install(conn, "nuclei", confirmed=True)
     assert exc.value.status_code == 403
@@ -109,9 +122,13 @@ def test_install_blocked_when_endpoint_disabled(conn, clean_settings):
 
 def test_install_requires_explicit_confirmation(conn, clean_settings):
     """설정만으로 자동 실행되지 않음. 요청마다 사용자가 동의"""
-    settings_repo.put_many(conn, {
-        "offline_mode": False, "ext_dependency_install_enabled": True,
-    })
+    settings_repo.put_many(
+        conn,
+        {
+            "offline_mode": False,
+            "ext_dependency_install_enabled": True,
+        },
+    )
     with pytest.raises(ScanError) as exc:
         dependency_service.install(conn, "nuclei", confirmed=False)
     assert "동의" in exc.value.message
@@ -123,9 +140,13 @@ def test_confirmation_checked_before_network(conn, clean_settings, monkeypatch):
     monkeypatch.setattr(
         dependency_service, "go_asset", lambda: called.append("net") or ("x", "")
     )
-    settings_repo.put_many(conn, {
-        "offline_mode": False, "ext_dependency_install_enabled": True,
-    })
+    settings_repo.put_many(
+        conn,
+        {
+            "offline_mode": False,
+            "ext_dependency_install_enabled": True,
+        },
+    )
     with pytest.raises(ScanError):
         dependency_service.install(conn, "nuclei", confirmed=False)
     assert called == []
@@ -154,13 +175,11 @@ def test_unknown_dependency_rejected(conn):
 
 # ─────────────────────────────── 반입 (통신 없음. 폐쇄망 경로)
 
-def test_import_works_offline(conn, home, fake_binary, probe_version,
-                              clean_settings):
+
+def test_import_works_offline(conn, home, fake_binary, probe_version, clean_settings):
     """오프라인에서도 반입은 동작해야 한다. 폐쇄망의 유일한 경로"""
     settings_repo.put_many(conn, {"offline_mode": True})
-    result = dependency_service.import_binary(
-        conn, "nuclei", fake_binary.read_bytes()
-    )
+    result = dependency_service.import_binary(conn, "nuclei", fake_binary.read_bytes())
     entry = next(i for i in result["items"] if i["key"] == "nuclei")
     assert entry["available"] is True
     assert entry["source"] == "configured"
@@ -168,8 +187,9 @@ def test_import_works_offline(conn, home, fake_binary, probe_version,
     assert len(result["sha256"]) == 64
 
 
-def test_imported_binary_is_executable(conn, home, fake_binary, probe_version,
-                                       clean_settings):
+def test_imported_binary_is_executable(
+    conn, home, fake_binary, probe_version, clean_settings
+):
     dependency_service.import_binary(conn, "nuclei", fake_binary.read_bytes())
     target = home / "bin" / NUCLEI_FILE
     # 판정 기준이 플랫폼마다 달라 서비스와 같은 술어를 씀 (Windows 는 확장자)
@@ -190,6 +210,7 @@ def test_empty_import_rejected(conn, home, clean_settings):
 
 
 # ─────────────────────────────── 경로 지정 (특정 버전 고정)
+
 
 def test_set_path_pins_specific_binary(conn, home, fake_binary, clean_settings):
     result = dependency_service.set_path(conn, "nuclei", str(fake_binary))
@@ -213,14 +234,14 @@ def test_set_path_rejects_non_executable(conn, home, tmp_path, clean_settings):
         dependency_service.set_path(conn, "nuclei", str(plain))
 
 
-def test_clearing_path_restores_auto_detection(conn, home, fake_binary,
-                                               clean_settings):
+def test_clearing_path_restores_auto_detection(conn, home, fake_binary, clean_settings):
     dependency_service.set_path(conn, "nuclei", str(fake_binary))
     dependency_service.set_path(conn, "nuclei", None)
     assert not settings_repo.get_all(conn).get("dep_nuclei_path")
 
 
 # ─────────────────────────────── 상태 조회
+
 
 def test_status_reports_blocked_reason_when_offline(conn, home, clean_settings):
     settings_repo.put_many(conn, {"offline_mode": True})
@@ -231,9 +252,13 @@ def test_status_reports_blocked_reason_when_offline(conn, home, clean_settings):
 
 
 def test_status_allows_install_when_enabled(conn, home, clean_settings):
-    settings_repo.put_many(conn, {
-        "offline_mode": False, "ext_dependency_install_enabled": True,
-    })
+    settings_repo.put_many(
+        conn,
+        {
+            "offline_mode": False,
+            "ext_dependency_install_enabled": True,
+        },
+    )
     result = dependency_service.status(conn)
     assert result["install_allowed"] is True
     assert result["blocked_reason"] is None
@@ -251,8 +276,8 @@ def test_status_includes_manual_guidance(conn, home, clean_settings):
 
 # ─────────────────────────────── API
 
-def test_dependency_endpoints(db_path, monkeypatch, home, fake_binary,
-                              probe_version):
+
+def test_dependency_endpoints(db_path, monkeypatch, home, fake_binary, probe_version):
     from fastapi.testclient import TestClient
 
     from app.main import app
@@ -281,8 +306,7 @@ def test_dependency_endpoints(db_path, monkeypatch, home, fake_binary,
         client.put(f"{API}/dependencies/nuclei/path", json={"path": None})
 
 
-def test_reported_path_matches_execution_path(conn, home, fake_binary,
-                                              clean_settings):
+def test_reported_path_matches_execution_path(conn, home, fake_binary, clean_settings):
     """화면에 보이는 경로와 실제 스캔이 쓰는 경로가 갈라지면 안 된다"""
     dependency_service.set_path(conn, "nuclei", str(fake_binary))
     entry = next(
@@ -291,8 +315,9 @@ def test_reported_path_matches_execution_path(conn, home, fake_binary,
     assert entry["path"] == settings.nuclei_bin()
 
 
-def test_missing_override_is_not_reported_available(conn, home, monkeypatch,
-                                                    clean_settings):
+def test_missing_override_is_not_reported_available(
+    conn, home, monkeypatch, clean_settings
+):
     """지정만 되어 있고 실제로 없는 경로를 '사용 가능' 으로 보고하지 않음"""
     monkeypatch.setenv("REDAR_NUCLEI", "/nonexistent/nuclei")
     entry = next(
@@ -301,3 +326,33 @@ def test_missing_override_is_not_reported_available(conn, home, monkeypatch,
     assert entry["available"] is False
     assert entry["version"] is None
     assert entry["source"] is None
+
+
+def test_zip_extract_rejects_path_traversal(tmp_path):
+    """zip 에는 tarfile 의 filter='data' 같은 안전장치가 없다.
+
+    go_asset() 이 sha256 을 비워 주면 체크섬 대조가 건너뛰어지므로,
+    경로 이탈 차단이 마지막 방어선이 된다
+    """
+    import zipfile
+
+    archive = tmp_path / "evil.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("../escaped.txt", "x")
+
+    with pytest.raises(ScanError, match="경로 이탈"):
+        dependency_service._extract(archive, tmp_path / "go")
+
+    assert not (tmp_path.parent / "escaped.txt").exists()
+
+
+def test_zip_extract_accepts_normal_members(tmp_path):
+    """정상 아카이브는 그대로 풀려야 한다. 차단이 과하면 설치가 막힘"""
+    import zipfile
+
+    archive = tmp_path / "go.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("go/bin/go", "x")
+
+    dependency_service._extract(archive, tmp_path / "out" / "go")
+    assert (tmp_path / "out" / "go" / "bin" / "go").is_file()

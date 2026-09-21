@@ -1,4 +1,5 @@
 """M0 완료 조건 검증 (IMPLEMENTATION_BRIEF.md M0)."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -23,9 +24,12 @@ WHERE type='table'
 def test_schema_object_counts(conn):
     # 18 = 19 - guide_item_images (설계상 미채택)
     assert conn.execute(COUNT_TABLES).fetchone()[0] == 18
-    assert conn.execute(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='view'"
-    ).fetchone()[0] == 5
+    assert (
+        conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='view'").fetchone()[
+            0
+        ]
+        == 5
+    )
 
 
 def test_every_migration_is_reflected_in_schema(conn):
@@ -68,7 +72,7 @@ def test_migrations_applied(conn):
     "table,expected",
     [
         ("vuln_type_rules", 129),
-        ("guide_mappings", 454),          # guide_mappings.csv 135 + templates 319
+        ("guide_mappings", 454),  # guide_mappings.csv 135 + templates 319
         ("component_advisories", 951),
     ],
 )

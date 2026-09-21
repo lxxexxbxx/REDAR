@@ -3,6 +3,7 @@
 파이프라인: 조회 -> 집계 -> 환경 -> 매핑 -> 판정 -> 조치 수집 -> JSON 완성 -> 렌더
 [1]~[7] 은 결정론적이며 LLM(M9)은 [8] 에서 산문 필드만 덮음
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -52,13 +53,18 @@ def create(
     opts = {**DEFAULT_OPTIONS, **(options or {})}
     report_id = new_id("rpt")
     report_repo.insert(
-        conn, report_id=report_id, scan_id=scan_id, options=opts,
+        conn,
+        report_id=report_id,
+        scan_id=scan_id,
+        options=opts,
         guide_status=guide_repo.status(conn),
     )
 
     try:
         report = builder.build(
-            conn, scan_id, report_id=report_id,
+            conn,
+            scan_id,
+            report_id=report_id,
             include_evidence=opts["include_evidence"],
             exclude_false_positives=opts["exclude_false_positives"],
         )
@@ -66,7 +72,9 @@ def create(
 
         llm_meta = report["meta"]["llm"]
         report_repo.finish(
-            conn, report_id, report_json=builder.dumps(report),
+            conn,
+            report_id,
+            report_json=builder.dumps(report),
             llm_used=bool(llm_meta.get("used")),
             llm_provider=llm_meta.get("provider"),
             llm_model=llm_meta.get("model"),
@@ -74,7 +82,7 @@ def create(
             llm_fallback_count=int(llm_meta.get("fallback_count") or 0),
         )
         _write_files(conn, report)
-    except Exception as exc:  # noqa: BLE001 - 실패 사유를 행에 남겨야 한다
+    except Exception as exc:
         logger.exception("보고서 생성 실패 %s", report_id)
         report_repo.fail(conn, report_id, str(exc))
         raise ScanError("INTERNAL_ERROR", f"보고서 생성 실패: {exc}") from exc
@@ -93,8 +101,12 @@ def _write_files(conn: sqlite3.Connection, report: dict[str, Any]) -> None:
         path.write_text(text, encoding="utf-8")
         data = path.read_bytes()
         report_repo.add_file(
-            conn, report["report_id"], fmt=fmt, file_path=str(path),
-            size_bytes=len(data), sha256=hashlib.sha256(data).hexdigest(),
+            conn,
+            report["report_id"],
+            fmt=fmt,
+            file_path=str(path),
+            size_bytes=len(data),
+            sha256=hashlib.sha256(data).hexdigest(),
         )
 
 
@@ -142,8 +154,11 @@ def attach_guide(
     }
 
     report_repo.set_llm_guide(
-        conn, report_id, report_json=builder.dumps(report),
-        llm_provider=provider, llm_model=model,
+        conn,
+        report_id,
+        report_json=builder.dumps(report),
+        llm_provider=provider,
+        llm_model=model,
     )
     _write_files(conn, report)
     return report_repo.get(conn, report_id) or {}
@@ -174,7 +189,11 @@ def download(
 
     report = view["report"]
     if fmt == "json":
-        return builder.dumps(report), "application/json", renderer.filename(report, "json")
+        return (
+            builder.dumps(report),
+            "application/json",
+            renderer.filename(report, "json"),
+        )
     return (
         renderer.render_html(report),
         "text/html; charset=utf-8",

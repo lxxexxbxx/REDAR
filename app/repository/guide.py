@@ -4,6 +4,7 @@
 본문은 저작권 대상이라 저장소에 없고 사용자가 임포트 (절대규칙 8)
 '점검 및 조치 사례'와 캡처 이미지는 스키마 미포함. 설계상 미채택
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -23,9 +24,9 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         "version": row["guide_version"] if item_count else None,
         "item_count": item_count,
         "imported_at": row["imported_at"] if item_count else None,
-        "mapping_count": conn.execute(
-            "SELECT COUNT(*) FROM guide_mappings"
-        ).fetchone()[0],
+        "mapping_count": conn.execute("SELECT COUNT(*) FROM guide_mappings").fetchone()[
+            0
+        ],
         # 자동 점검 가능 항목 수. 커버리지 고지의 근거값 (절대규칙 10)
         "items_covered": coverage["items_covered"],
         # 고지 문장을 서버가 내려줌. GUI 와 보고서가 같은 문장을 쓰도록 단일화
@@ -38,7 +39,10 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
 # FTS 는 본문과 동기화하는 트리거가 없다. 임포트마다 이 함수로 다시 채움
 # 누락 시 에러 없이 유사항목 검색만 0건이 되어 발견이 늦음
 _FTS_COLUMNS = (
-    "item_code", "item_name", "check_content", "security_threat",
+    "item_code",
+    "item_name",
+    "check_content",
+    "security_threat",
     "remediation",
 )
 
@@ -64,6 +68,7 @@ def versions(conn: sqlite3.Connection) -> list[str]:
 
 # ────────────────────────────────────────────── 매핑 (M6)
 
+
 def load_mappings(conn: sqlite3.Connection) -> dict:
     """match_type -> match_value -> 규칙 목록. 스캔마다 한 번만 읽음"""
     out: dict = {}
@@ -72,13 +77,15 @@ def load_mappings(conn: sqlite3.Connection) -> dict:
         " reviewed FROM guide_mappings ORDER BY match_type, match_value, item_code"
     ):
         table = out.setdefault(row["match_type"], {})
-        table.setdefault(row["match_value"], []).append({
-            "item_code": row["item_code"],
-            "confidence": row["confidence"],
-            "mapping_basis": row["mapping_basis"],
-            # confidence=low 이고 미검수면 보고서에 '검토 필요' 표기 (docs/03 §3.5)
-            "needs_review": row["confidence"] == "low" and not row["reviewed"],
-        })
+        table.setdefault(row["match_value"], []).append(
+            {
+                "item_code": row["item_code"],
+                "confidence": row["confidence"],
+                "mapping_basis": row["mapping_basis"],
+                # confidence=low 이고 미검수면 보고서에 '검토 필요' 표기 (docs/03 §3.5)
+                "needs_review": row["confidence"] == "low" and not row["reviewed"],
+            }
+        )
     return out
 
 
@@ -119,9 +126,7 @@ def detection_finding_count(conn: sqlite3.Connection, scan_id: str) -> int:
     ).fetchone()[0]
 
 
-def replace_refs(
-    conn: sqlite3.Connection, scan_id: str, rows: list[tuple]
-) -> None:
+def replace_refs(conn: sqlite3.Connection, scan_id: str, rows: list[tuple]) -> None:
     """스캔 범위의 매핑을 교체. 재매핑이 중복 행을 만들지 않게 한다"""
     conn.execute(
         "DELETE FROM finding_guide_refs WHERE finding_id IN"
@@ -199,8 +204,11 @@ def replace_items(conn: sqlite3.Connection, rows: list[dict]) -> int:
     """
     if not rows:
         return 0
-    columns = [c["name"] for c in conn.execute("PRAGMA table_info(guide_items)")
-               if c["name"] != "imported_at"]
+    columns = [
+        c["name"]
+        for c in conn.execute("PRAGMA table_info(guide_items)")
+        if c["name"] != "imported_at"
+    ]
     usable = [c for c in columns if c in rows[0]]
     conn.execute("DELETE FROM guide_items")
     conn.executemany(

@@ -3,6 +3,7 @@
 `-stats -si 5` 가 stderr 로 내는 한 줄을 해석.
 형식이 릴리스마다 바뀔 수 있어 해석 실패 시 None 반환, 예외 없음
 """
+
 from __future__ import annotations
 
 import json
