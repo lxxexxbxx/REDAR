@@ -524,8 +524,14 @@ def report_artifacts() -> None:
 
 
 def main() -> None:
-    # 로그 리다이렉션 시 부모 출력이 버퍼에 묶여 자식 로그 뒤로 밀림
-    sys.stdout.reconfigure(line_buffering=True)
+    # 로그 리다이렉션 시 부모 출력이 버퍼에 묶여 자식 로그 뒤로 밀림.
+    #
+    # encoding 을 박는 이유: 진행 로그가 한글이다. Windows 는 stdout 인코딩을
+    # 콘솔 코드페이지에서 가져오므로 cp949 가 아닌 환경(영문 Windows 의 cp1252,
+    # CI 러너)에서 첫 print 부터 UnicodeEncodeError 로 죽는다.
+    # errors 는 표시가 깨지더라도 빌드가 멈추지 않게 하는 안전망
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
 
     parser = argparse.ArgumentParser(description="REDAR 빌드")
     parser.add_argument(
