@@ -126,7 +126,7 @@ def build(
 
 def _count(rows: list[dict[str, Any]], column: str, keys: list[str]) -> dict[str, int]:
     """축을 고정한 집계. 0건 키가 사라지면 보고서 목차가 대상마다 달라짐"""
-    counts = {key: 0 for key in keys}
+    counts = dict.fromkeys(keys, 0)
     for row in rows:
         value = row.get(column)
         if value in counts:

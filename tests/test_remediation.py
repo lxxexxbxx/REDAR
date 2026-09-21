@@ -326,7 +326,7 @@ def test_request_sends_product_user_agent(monkeypatch):
         def __exit__(self, *_exc):
             return False
 
-    def _fake_urlopen(request, timeout=None):   # noqa: ARG001
+    def _fake_urlopen(request, timeout=None):
         captured.update(request.headers)
         return _Response()
 

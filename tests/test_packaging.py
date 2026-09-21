@@ -499,7 +499,7 @@ def test_installer_install_path_matches_app_lookup():
     """설치 경로와 앱 탐색 경로가 어긋나면 설치해도 찾지 못"""
     installer = _load_installer()
     expected = settings.platform_home() / "bin"
-    assert installer.BIN_DIR == expected
+    assert expected == installer.BIN_DIR
 
 
 def test_version_of_skips_warning_lines():
@@ -596,7 +596,7 @@ def test_build_installs_deps_even_inside_venv(monkeypatch):
     build = _load_build()
     installed: list[str] = []
     monkeypatch.setattr(build, "ensure_deps",
-                        lambda python: installed.append(python))
+                        installed.append)
     build.ensure_venv()
     assert installed == [sys.executable]
 

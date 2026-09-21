@@ -28,7 +28,7 @@ _RANGE_RE = re.compile(
     r"^(?P<prefix>(?:[a-z][a-z0-9+.\-]*://)?[^/:]+):"
     r"(?P<start>\d{1,5})-(?P<end>\d{1,5})"
     r"(?P<suffix>[/?].*)?$",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -59,7 +59,7 @@ def describe(text: str) -> str | None:
 def _ports(start: int, end: int) -> range:
     if start > end:
         raise RangeError(f"시작 포트가 끝 포트보다 큼: {start}-{end}")
-    if not (_PORT_MIN <= start and end <= _PORT_MAX):
+    if not (start >= _PORT_MIN and end <= _PORT_MAX):
         raise RangeError(f"포트는 {_PORT_MIN}~{_PORT_MAX} 범위: {start}-{end}")
     return range(start, end + 1)
 

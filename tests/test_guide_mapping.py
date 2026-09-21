@@ -5,14 +5,12 @@
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
 from app.domain.enums import GuideVerdict
 from app.repository import guide as guide_repo
-from app.repository.db import session
 from app.services import guide_importer, guide_service
 
 MOCK_CSV = Path(__file__).parent / "fixtures" / "guide_items_mock.csv"
@@ -313,7 +311,8 @@ def test_import_loads_all_21_columns(conn):
         "SELECT * FROM guide_items WHERE item_code = 'WA-02'"
     ).fetchone()
     # case_text 는 스키마에 없음. CSV 열이 남아도 적재되면 안 됨
-    assert "case_text" not in row.keys()
+    # sqlite3.Row 는 순회하면 값이 나온다. 키를 보려면 keys() 가 필요
+    assert "case_text" not in row.keys()  # noqa: SIM118
     # page_start 가 비면 보고서 A-6 의 근거 페이지 표기가 사라짐
     assert row["page_start"] == 684
     assert row["page_end"] == 686
@@ -322,7 +321,7 @@ def test_import_loads_all_21_columns(conn):
     assert row["guide_version"] == "2026"
     assert row["category"] == "Web Application(웹)"
 
-    filled = [k for k in row.keys() if row[k] not in (None, "")]
+    filled = [k for k in row.keys() if row[k] not in (None, "")]  # noqa: SIM118
     assert len(filled) >= 18            # imported_at 포함, reference_note·detail 은 빈 값
     conn.execute("DELETE FROM guide_items")
     conn.commit()

@@ -4,9 +4,8 @@
 """
 from __future__ import annotations
 
-from typing import Annotated, Any
-
 from datetime import datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response
 

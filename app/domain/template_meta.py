@@ -10,7 +10,7 @@ from typing import Any
 # WordPress 전용임을 뜻하는 태그. framework 필드가 없는 플러그인 템플릿이 다수
 WP_TAGS = frozenset({"wordpress", "wp-plugin", "wp-theme", "woocommerce"})
 
-_WP_ASSET_RE = re.compile(r"/wp-content/(?:plugins|themes)/([a-z0-9][a-z0-9._-]*)/", re.I)
+_WP_ASSET_RE = re.compile(r"/wp-content/(?:plugins|themes)/([a-z0-9][a-z0-9._-]*)/", re.IGNORECASE)
 
 
 def platform_of(metadata: dict[str, Any], tags: list[str]) -> str | None:

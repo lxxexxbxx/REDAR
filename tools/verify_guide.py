@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 추출 CSV 가 PDF 원문에 실제로 존재하는지 대조 검증
 
@@ -8,7 +7,12 @@
 가이드 판형이 바뀌면 이 검증이 먼저 실패함
 검증을 통과하지 못한 CSV 는 임포트하지 않음
 """
-import argparse, csv, re, sys, collections
+import argparse
+import collections
+import csv
+import re
+import sys
+
 import pymupdf
 
 ap = argparse.ArgumentParser()
@@ -16,14 +20,16 @@ ap.add_argument('--pdf', default='src.pdf')
 ap.add_argument('--csv', default='data/guide_items_2026.csv')
 a = ap.parse_args()
 
-norm = lambda s: re.sub(r'\s+', '', s or '')
+def norm(s):
+    return re.sub(r'\s+', '', s or '')
 
 doc = pymupdf.open(a.pdf)
 pages = [doc[i].get_text('text') for i in range(len(doc))]
 csv.field_size_limit(10 ** 7)
 items = []
 for r in csv.DictReader(open(a.csv, encoding='utf-8-sig')):
-    r['page_start'] = int(r['page_start']); r['page_end'] = int(r['page_end'])
+    r['page_start'] = int(r['page_start'])
+    r['page_end'] = int(r['page_end'])
     r['title'] = r['item_name']
     # criteria_safe / criteria_vuln 은 원문에서 '양호 :' '취약 :' 로 분리되어 있음
     # 이어붙이면 연속 문자열이 아니므로 각각 따로 대조함

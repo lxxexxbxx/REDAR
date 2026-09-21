@@ -13,10 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from app.domain import models
-
 from app.cli import _CSV_LOADS, init_db, load_data
 from app.config import settings
+from app.domain import models
 from app.repository import settings_repo
 from app.repository.db import session
 
@@ -54,7 +53,7 @@ def _fresh_db(tmp_path, load_guide=False):
 def test_schema_sql_has_no_seed_data():
     """스키마 파일에 초기 데이터를 두면 CSV 와 값이 갈라짐"""
     sql = settings.SCHEMA_PATH.read_text(encoding="utf-8")
-    tables = set(re.findall(r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+(\w+)", sql, re.I))
+    tables = set(re.findall(r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+(\w+)", sql, re.IGNORECASE))
     assert tables <= _ALLOWED_SEED_TABLES, f"SQL 하드코딩 초기 데이터: {tables}"
 
 
@@ -110,17 +109,18 @@ def test_unknown_column_is_rejected(tmp_path):
     lines[0] = lines[0].replace("vuln_type", "vuln_typo")
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    with session(_fresh_db(tmp_path)) as conn:
-        with pytest.raises(ValueError, match="vuln_typo"):
-            load_data(conn, data_dir)
+    with (
+        session(_fresh_db(tmp_path)) as conn,
+        pytest.raises(ValueError, match="vuln_typo"),
+    ):
+        load_data(conn, data_dir)
 
 
 def test_missing_csv_is_not_silent(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
-    with session(_fresh_db(tmp_path)) as conn:
-        with pytest.raises(FileNotFoundError):
-            load_data(conn, empty)
+    with session(_fresh_db(tmp_path)) as conn, pytest.raises(FileNotFoundError):
+        load_data(conn, empty)
 
 
 def test_note_column_is_allowed():
@@ -354,7 +354,8 @@ def test_guide_body_is_bundled():
     import subprocess
 
     tracked = subprocess.run(
-        ["git", "ls-files", "data/"], capture_output=True, text=True, cwd=ROOT
+        ["git", "ls-files", "data/"], capture_output=True, text=True, cwd=ROOT,
+        check=False,
     ).stdout.split()
     assert [f for f in tracked if "guide_items" in f]
     # 캡처는 미채택. 21 MB 를 저장소에 넣을 이유가 없음

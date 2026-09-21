@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """data/*.csv 검증 · 파생 CSV 생성 (오프라인 도구. 런타임 아님)
 
     python3 tools/build_data_csv.py
@@ -31,9 +30,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 # 런타임 코드를 재사용. 적재 규칙·Enum 사본을 만들면 검증이 실제 적재와 갈라짐
-from app.cli import load_data                      # noqa: E402
-from app.config import settings as app_settings    # noqa: E402
-from app.domain.enums import VulnType              # noqa: E402
+from app.cli import load_data  # noqa: E402
+from app.config import settings as app_settings  # noqa: E402
+from app.domain.enums import VulnType  # noqa: E402
 
 AUTHORED = ("settings_defaults.csv", "vuln_type_rules.csv", "guide_mappings.csv")
 DERIVED = ("guide_mappings.templates.csv", "component_advisories.csv")
@@ -105,8 +104,8 @@ def authored_cwe_codes(data_dir: Path) -> set[str]:
 # 구분은 템플릿이 요청하는 URL 에 있다:  /wp-content/themes/<slug>
 # 파일 경로로 판별하면 테마 59종(twentytwenty*, astra, divi, oceanwp …)이
 # 전부 wp_plugin 으로 떨어져 v_patch_plan 조인에서 빠짐. (CHANGELOG §12.3)
-_TH_RE = re.compile(r"/wp-content/themes/([a-z0-9][a-z0-9._-]*)", re.I)
-_PL_RE = re.compile(r"/wp-content/plugins/([a-z0-9][a-z0-9._-]*)", re.I)
+_TH_RE = re.compile(r"/wp-content/themes/([a-z0-9][a-z0-9._-]*)", re.IGNORECASE)
+_PL_RE = re.compile(r"/wp-content/plugins/([a-z0-9][a-z0-9._-]*)", re.IGNORECASE)
 
 
 def load_theme_slugs(root: str | None) -> set[str]:
@@ -147,7 +146,7 @@ def write_csv(path: Path, header: list[str], rows: list[list]) -> None:
         writer = csv.writer(fh, lineterminator="\n")
         writer.writerow(header)
         writer.writerows(rows)
-    print(f"  {str(path):44} {len(rows)}행")
+    print(f"  {path!s:44} {len(rows)}행")
 
 
 def generate_advisories(con: sqlite3.Connection, out: Path, templates: str | None) -> None:

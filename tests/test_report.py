@@ -11,10 +11,8 @@ from pathlib import Path
 import pytest
 
 from app.domain import models
-
 from app.domain.enums import Severity, VulnType
 from app.report import builder, fallback, renderer
-from app.repository.db import session
 from app.services import guide_importer, report_service
 from app.services.scan_service import ScanError
 
@@ -42,7 +40,7 @@ EXPECTED_SECTIONS = [
     "4. 조치 상세 가이드 (참고)",
 ]
 
-_HEADINGS = re.compile(r"<h[12][^>]*>(.*?)</h[12]>", re.S)
+_HEADINGS = re.compile(r"<h[12][^>]*>(.*?)</h[12]>", re.DOTALL)
 
 
 def _notice_tail() -> str:
@@ -569,7 +567,7 @@ def test_pdf_download_is_rejected_with_guidance(conn, scan_with_findings):
 
 def test_download_formats(conn, scan_with_findings):
     view = report_service.create(conn, scan_with_findings, {})
-    html, media, name = report_service.download(conn, view["report_id"], "html")
+    _html, media, name = report_service.download(conn, view["report_id"], "html")
     assert media.startswith("text/html")
     assert name.endswith(".html")
 

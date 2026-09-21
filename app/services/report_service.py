@@ -74,7 +74,7 @@ def create(
             llm_fallback_count=int(llm_meta.get("fallback_count") or 0),
         )
         _write_files(conn, report)
-    except Exception as exc:  # noqa: BLE001 - 실패 사유를 행에 남겨야 한다
+    except Exception as exc:
         logger.exception("보고서 생성 실패 %s", report_id)
         report_repo.fail(conn, report_id, str(exc))
         raise ScanError("INTERNAL_ERROR", f"보고서 생성 실패: {exc}") from exc

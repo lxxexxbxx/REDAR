@@ -32,14 +32,14 @@ _FONTS = (
 # 자체 완결형 검사. src/href/url() 에 외부 스킴이 있으면 위반
 _EXTERNAL_REF = re.compile(
     r"""(?:src|href)\s*=\s*["'](https?://|//)|url\(\s*["']?(https?://|//)""",
-    re.I,
+    re.IGNORECASE,
 )
 
 # 실행 요소. 보고서 골격에는 하나도 없으므로 발견되면 외부에서 흘러든 것.
 # 이벤트 핸들러는 '태그 안에 있을 때' 만 잡는다. 이스케이프된 근거 본문에도
 # ' onerror=' 같은 글자는 그대로 남는데, 꺾쇠가 없으면 실행되지 않는 평문이다
 _ACTIVE_CONTENT = re.compile(
-    r"<\s*(?:script|iframe|object|embed|form)\b|<[a-z][^>]*\son[a-z]+\s*=", re.I
+    r"<\s*(?:script|iframe|object|embed|form)\b|<[a-z][^>]*\son[a-z]+\s*=", re.IGNORECASE
 )
 
 

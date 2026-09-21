@@ -223,11 +223,11 @@ class TopRisk(Strict):
 
 
 def _zero_by_severity() -> dict[Severity, int]:
-    return {s: 0 for s in Severity}
+    return dict.fromkeys(Severity, 0)
 
 
 def _zero_by_vuln_type() -> dict[VulnType, int]:
-    return {v: 0 for v in VulnType}
+    return dict.fromkeys(VulnType, 0)
 
 
 class ExecutiveSummary(Strict):

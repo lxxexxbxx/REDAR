@@ -14,8 +14,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.domain.allowlist import host_allowed, normalize_entry, target_allowed
-from app.repository import settings_repo
 from app.main import app
+from app.repository import settings_repo
 from app.repository.db import session
 from app.services import scan_service
 from app.services.scan_service import ScanService
@@ -30,7 +30,7 @@ def _service(db_path, prober=None, **kwargs) -> ScanService:
         db_path,
         command_builder=lambda opts: ["fake-nuclei"],
         command_runner=_fixture_runner(**kwargs),
-        prober=prober or (lambda targets: list(targets)),
+        prober=prober or (list),
     )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nuclei_sample.jsonl"

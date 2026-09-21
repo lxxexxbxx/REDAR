@@ -186,13 +186,15 @@ def test_batch_writer_counts_duplicates(conn, rules, scan_id):
 def test_interrupted_scan_preserves_saved_findings(db_path, rules, scan_id):
     """중단 시 이미 처리된 finding 보존. 배치 커밋이 안 되면 전량 소실."""
     findings = _findings(rules, scan_id)
-    with session(db_path) as write_conn:
-        with pytest.raises(RuntimeError):
-            # batch_size 를 크게 두어 자동 커밋 전에 중단
-            with FindingBatchWriter(write_conn, batch_size=100, interval_sec=99) as w:
-                w.add(findings[0])
-                w.add(findings[1])
-                raise RuntimeError("프로세스 강제 종료")
+    # batch_size 를 크게 두어 자동 커밋 전에 중단
+    with (
+        session(db_path) as write_conn,
+        pytest.raises(RuntimeError),
+        FindingBatchWriter(write_conn, batch_size=100, interval_sec=99) as w,
+    ):
+        w.add(findings[0])
+        w.add(findings[1])
+        raise RuntimeError("프로세스 강제 종료")
 
     with session(db_path) as read_conn:
         assert count_by_scan(read_conn, scan_id) == 2
@@ -347,24 +349,23 @@ def test_end_to_end_stream_to_db(db_path, rules, scan_id):
     """실행 -> JSONL 스트림 파싱 -> 배치 저장 -> 진행률 수신. nuclei 미실행."""
     received: list[progress.Progress] = []
 
-    with session(db_path) as conn:
-        with FindingBatchWriter(conn, batch_size=2) as writer:
+    with session(db_path) as conn, FindingBatchWriter(conn, batch_size=2) as writer:
 
-            def on_stdout(line: str) -> None:
-                finding = parse_line(line, scan_id=scan_id, rules=rules)
-                if finding is not None:
-                    writer.add(finding)
+        def on_stdout(line: str) -> None:
+            finding = parse_line(line, scan_id=scan_id, rules=rules)
+            if finding is not None:
+                writer.add(finding)
 
-            def on_stderr(line: str) -> None:
-                stats = progress.parse_stats_line(line)
-                if stats is not None:
-                    received.append(stats)
+        def on_stderr(line: str) -> None:
+            stats = progress.parse_stats_line(line)
+            if stats is not None:
+                received.append(stats)
 
-            code = runner.run(
-                [sys.executable, "-c", _FAKE_SCAN, str(FIXTURE)],
-                on_stdout_line=on_stdout,
-                on_stderr_line=on_stderr,
-            )
+        code = runner.run(
+            [sys.executable, "-c", _FAKE_SCAN, str(FIXTURE)],
+            on_stdout_line=on_stdout,
+            on_stderr_line=on_stderr,
+        )
 
     assert code == 0
     assert (writer.inserted, writer.skipped) == (4, 1)

@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
@@ -85,10 +86,8 @@ class RingHandler(logging.Handler):
     """logging -> 버퍼. 파일·표준출력으로는 보내지 않음"""
 
     def emit(self, record: logging.LogRecord) -> None:
-        try:
+        with contextlib.suppress(Exception):
             append(record.name, self.format(record), record.levelname)
-        except Exception:  # noqa: BLE001 - 로깅이 앱을 죽이면 안 됨
-            pass
 
 
 def install(level: int = logging.INFO) -> None:

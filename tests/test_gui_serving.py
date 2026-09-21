@@ -5,10 +5,9 @@ import re
 from pathlib import Path
 
 import pytest
-
-from app.domain import models
 from fastapi.testclient import TestClient
 
+from app.domain import models
 from app.main import app
 
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
@@ -69,7 +68,7 @@ def test_report_options_match_backend_schema():
     allowed = set(ReportOptions.model_fields)
     source = (FRONTEND / "js" / "reports.js").read_text(encoding="utf-8")
     body = source.split("api.createReport(")[1].split("})")[0]
-    sent = set(re.findall(r"^\s*([a-z_]+):", body, re.M))
+    sent = set(re.findall(r"^\s*([a-z_]+):", body, re.MULTILINE))
     assert sent <= allowed, f"스키마에 없는 옵션: {sent - allowed}"
     assert sent, "옵션을 하나도 보내지 않으면 검사가 무의미"
 
@@ -148,13 +147,16 @@ def test_coverage_notice_has_single_source(client):
 def test_gui_labels_match_backend_enums():
     """GUI 표시 문자열과 백엔드 Enum 라벨 불일치 시 화면·보고서 괴리 발생"""
     from app.domain.enums import (
-        SEVERITY_LABELS, VULN_TYPE_LABELS, Severity, VulnType,
+        SEVERITY_LABELS,
+        VULN_TYPE_LABELS,
+        Severity,
+        VulnType,
     )
 
     text = (FRONTEND / "js" / "ui.js").read_text(encoding="utf-8")
 
     def labels_of(block_name: str) -> dict[str, str]:
-        block = re.search(rf"{block_name} = \{{(.*?)\n\}};", text, re.S).group(1)
+        block = re.search(rf"{block_name} = \{{(.*?)\n\}};", text, re.DOTALL).group(1)
         return dict(re.findall(r'(\w+):\s*"([^"]+)"', block))
 
     severity = labels_of("SEVERITY_LABEL")

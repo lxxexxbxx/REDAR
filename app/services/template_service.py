@@ -315,7 +315,7 @@ def sync(conn: sqlite3.Connection, *, runner=None) -> dict[str, Any]:
     execute()
     try:
         counts = index_all(conn)
-    except Exception as exc:  # noqa: BLE001 - 원인을 '서버 내부 오류' 로 삼키지 않음
+    except Exception as exc:
         logger.exception("템플릿 색인 실패")
         raise ScanError(
             "INDEX_FAILED",

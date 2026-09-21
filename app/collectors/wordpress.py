@@ -20,11 +20,11 @@ from app.domain.enums import Confidence
 
 _GENERATOR_RE = re.compile(
     r"""<meta[^>]+name=["']generator["'][^>]+content=["']WordPress\s+([\d.]+)""",
-    re.I,
+    re.IGNORECASE,
 )
 _README_VERSION_RE = re.compile(r"[Vv]ersion\s+([\d.]+)")
 _ASSET_RE = re.compile(
-    r"/wp-content/(plugins|themes)/([a-z0-9][a-z0-9._-]*)/[^\"'\s>]*", re.I
+    r"/wp-content/(plugins|themes)/([a-z0-9][a-z0-9._-]*)/[^\"'\s>]*", re.IGNORECASE
 )
 _VER_PARAM_RE = re.compile(r"[?&]ver=([\w.\-]+)")
 

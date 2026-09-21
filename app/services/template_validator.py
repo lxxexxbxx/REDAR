@@ -61,6 +61,7 @@ def check_syntax(yaml_text: str) -> dict[str, Any]:
             proc = subprocess.run(
                 [binary, "-validate", "-t", str(path), "-duc", "-silent"],
                 capture_output=True, text=True, timeout=_SYNTAX_TIMEOUT_SEC,
+                check=False,    # 검증 실패도 결과다. 예외가 아니라 stderr 로 읽음
                 encoding="utf-8", errors="replace",
                 # 대상 인자가 없으면 nuclei 가 stdin 을 읽으려 대기함
                 # 파이프로 실행되면 무한 대기가 됨

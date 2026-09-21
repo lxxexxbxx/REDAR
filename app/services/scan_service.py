@@ -17,9 +17,8 @@ from app.adapters import logbuffer, portprobe
 from app.adapters.nuclei import parser, progress, runner
 from app.adapters.nuclei import version as nuclei_version
 from app.config import settings
+from app.domain import target_range, template_exclusion
 from app.domain import url as urlmod
-from app.domain import target_range
-from app.domain import template_exclusion
 from app.domain.allowlist import rejected_targets
 from app.domain.enums import ScanStatus
 from app.domain.ids import new_id
@@ -349,7 +348,7 @@ class ScanService:
                 # 가이드 매핑. 본문 미탑재여도 매핑은 저장됨 (절대규칙 3)
                 try:
                     guide_service.map_scan(conn, run.scan_id)
-                except Exception:  # noqa: BLE001 - 매핑 실패가 스캔 실패는 아니다
+                except Exception:
                     logger.warning("가이드 매핑 실패 %s", run.scan_id, exc_info=True)
         except ScanError as exc:                       # 대상 전부 무응답 등
             status, error = ScanStatus.FAILED, (exc.code, exc.message)
@@ -357,7 +356,7 @@ class ScanService:
         except RuntimeError as exc:                    # nuclei 미설치 등
             status, error = ScanStatus.FAILED, ("NUCLEI_UNAVAILABLE", str(exc))
             logger.warning("스캔 실패 %s: %s", run.scan_id, exc)
-        except Exception as exc:                       # noqa: BLE001
+        except Exception as exc:
             status, error = ScanStatus.FAILED, ("INTERNAL_ERROR", str(exc))
             logger.exception("스캔 실패 %s", run.scan_id)
 
@@ -393,7 +392,7 @@ class ScanService:
         logger.info("대상 응답 확인 시작: %d건", len(req.targets))
         try:
             alive = self._prober(req.targets)
-        except Exception:  # noqa: BLE001 - 사전 확인 실패가 스캔을 막지 않음
+        except Exception:
             logger.warning("대상 응답 확인 실패. 전부 스캔", exc_info=True)
             return list(req.targets)
 
@@ -413,13 +412,13 @@ class ScanService:
     def _options(
         self, req: ScanRequest, excluded_ids: list[str], **extra: Any
     ) -> runner.RunOptions:
-        base: dict[str, Any] = dict(
-            targets=list(req.targets), template_ids=list(req.template_ids),
-            template_paths=template_paths(), tags=list(req.tags),
-            severities=list(req.severities), threads=req.threads,
-            timeout_sec=req.timeout_sec, retries=req.retries, rate_limit=req.rate_limit,
-            exclude_ids=excluded_ids,
-        )
+        base: dict[str, Any] = {
+            "targets": list(req.targets), "template_ids": list(req.template_ids),
+            "template_paths": template_paths(), "tags": list(req.tags),
+            "severities": list(req.severities), "threads": req.threads,
+            "timeout_sec": req.timeout_sec, "retries": req.retries, "rate_limit": req.rate_limit,
+            "exclude_ids": excluded_ids,
+        }
         base.update(extra)
         return runner.RunOptions(**base)
 
@@ -493,7 +492,7 @@ class ScanService:
         self._emit_phase(run, "collecting_environment")
         try:
             profiles = environment_service.tech_profiles(conn, run.scan_id)
-        except Exception:  # noqa: BLE001 - 프로필 해석 실패가 스캔 실패는 아니다
+        except Exception:
             logger.warning("환경 프로필 해석 실패", exc_info=True)
             profiles = {}
         for target in req.targets:
@@ -502,7 +501,7 @@ class ScanService:
                     conn, run.scan_id, target, timeout_sec=req.timeout_sec,
                     tech=profiles.get(environment_service.host_key(target)),
                 )
-            except Exception:  # noqa: BLE001 - 조사 실패가 스캔 실패는 아니다
+            except Exception:
                 logger.warning("환경 조사 실패: %s", target, exc_info=True)
 
     def _stream(self, run: _Run, command, rules, writer, conn,
@@ -583,7 +582,7 @@ class ScanService:
                     on_stderr_line=lambda line: lines.put((on_stderr, line)),
                     cancel=run.cancel,
                 )
-            except BaseException as exc:  # noqa: BLE001 - 스캔 스레드에서 다시 올림
+            except BaseException as exc:
                 lines.put((None, exc))
             finally:
                 lines.put((finished, None))
@@ -605,7 +604,7 @@ class ScanService:
                 # (adapters/nuclei/parser 모듈 계약)
                 try:
                     handler(payload)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.warning(
                         "%s 처리 실패", "stderr" if handler is on_stderr else "stdout",
                         exc_info=True,

@@ -9,7 +9,6 @@ import pytest
 
 from app.domain import target_range as tr
 
-
 # ─────────────────────────────── 전개
 
 @pytest.mark.parametrize(

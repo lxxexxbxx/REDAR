@@ -45,7 +45,7 @@ def normalize(
         elif rule.match_type == MATCH_TAG:
             if rule.match_value.lower() in tag_set:
                 return rule.vuln_type
-        elif rule.match_type == MATCH_TEMPLATE_PREFIX:
+        elif rule.match_type == MATCH_TEMPLATE_PREFIX:  # noqa: SIM102
             if template_id and template_id.startswith(rule.match_value):
                 return rule.vuln_type
     return VulnType.OTHER

@@ -63,9 +63,12 @@ def host_allowed(host: str, allowlist: Sequence[str]) -> bool:
             return True
         if address is not None:
             network = _as_network(entry)
-            if network is not None and address.version == network.version:
-                if address in network:
-                    return True
+            if (
+                network is not None
+                and address.version == network.version
+                and address in network
+            ):
+                return True
     return False
 
 

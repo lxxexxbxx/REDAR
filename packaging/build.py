@@ -144,7 +144,7 @@ def msvc_linker() -> str | None:
     if found:
         return found
 
-    base = os.environ.get("ProgramFiles(x86)") or os.environ.get("ProgramFiles")
+    base = os.environ.get("PROGRAMFILES(X86)") or os.environ.get("PROGRAMFILES")
     if not base:
         return None
     vswhere = Path(base) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
@@ -155,7 +155,7 @@ def msvc_linker() -> str | None:
         [str(vswhere), "-products", "*", "-latest",
          "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
          "-property", "installationPath"],
-        capture_output=True, text=True, stdin=subprocess.DEVNULL,
+        capture_output=True, text=True, stdin=subprocess.DEVNULL, check=False,
     )
     path = completed.stdout.strip()
     return path or None
@@ -314,7 +314,7 @@ def ensure_venv() -> None:
 
     print("  가상환경 파이썬으로 재실행")
     # 재귀 방지. 자식은 in_target_venv() 가 참이라 생성·재실행 분기를 건너뜀
-    completed = subprocess.run([python, __file__, *sys.argv[1:]], cwd=ROOT)
+    completed = subprocess.run([python, __file__, *sys.argv[1:]], cwd=ROOT, check=False)
     sys.exit(completed.returncode)
 
 
@@ -427,7 +427,7 @@ def ensure_nuclei(auto: bool) -> None:
     installer = ROOT / "tools" / "install_nuclei.py"
     check = subprocess.run(
         [sys.executable, str(installer), "--check"],
-        cwd=ROOT, capture_output=True, text=True,
+        cwd=ROOT, capture_output=True, text=True, check=False,
     )
     if check.returncode == 0:
         print("  nuclei 확인")
@@ -489,7 +489,7 @@ def report_artifacts() -> None:
     found = [p for p in candidates if p.exists()]
     if not found:
         return
-    print("")
+    print()
     print("  산출물")
     for path in found:
         print(f"    {path}")

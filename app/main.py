@@ -8,11 +8,18 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.adapters.nuclei import version as nuclei_version
 from app.adapters import logbuffer
+from app.adapters.nuclei import version as nuclei_version
 from app.api import (
-    dependencies, errors, guide, logs, remediation, reports, scans,
-    settings_api, templates,
+    dependencies,
+    errors,
+    guide,
+    logs,
+    remediation,
+    reports,
+    scans,
+    settings_api,
+    templates,
 )
 from app.config import settings
 from app.repository.db import session

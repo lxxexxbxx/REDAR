@@ -12,10 +12,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-_URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.I)
+_URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _HOSTNAME_RE = re.compile(
-    r"\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\b", re.I
+    r"\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\b", re.IGNORECASE
 )
 _PATH_RE = re.compile(r"(?<![\w:])/[A-Za-z0-9._\-/]{2,}")
 
@@ -24,7 +24,7 @@ _PATH_RE = re.compile(r"(?<![\w:])/[A-Za-z0-9._\-/]{2,}")
 _FILE_SUFFIX = re.compile(
     r"\.(?:html?|php\d?|txt|xml|json|ya?ml|js|css|md|ini|conf|cfg|log|sql|"
     r"png|jpe?g|gif|svg|ico|zip|gz|tar|bak|old|sh|py|rb|pl|asp|aspx|jsp)$",
-    re.I,
+    re.IGNORECASE,
 )
 # 토큰이 다시 토큰 안에 들어가는 것을 막음. PATH_1 -> '/TARGET_1' 같은 중첩이 생기면
 # 역치환 한 번으로 원문이 돌아오지 않아 응답에 TARGET_1 이 그대로 남음 (실측)

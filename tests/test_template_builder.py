@@ -11,7 +11,6 @@ import pytest
 import yaml
 
 from app.repository import templates as template_repo
-from app.repository.db import session
 from app.services import template_builder as builder
 from app.services import template_service as service
 from app.services import template_validator as validator

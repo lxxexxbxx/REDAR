@@ -142,9 +142,11 @@ def _handshake_ok(host: str, port: int, version, timeout: int) -> bool:
     except ValueError:
         return False                       # 런타임 OpenSSL 이 해당 버전을 막아둔 경우
     try:
-        with socket.create_connection((host, port), timeout=timeout) as raw:
-            with context.wrap_socket(raw, server_hostname=host):
-                return True
+        with (
+            socket.create_connection((host, port), timeout=timeout) as raw,
+            context.wrap_socket(raw, server_hostname=host),
+        ):
+            return True
     except (ssl.SSLError, OSError):
         return False
 

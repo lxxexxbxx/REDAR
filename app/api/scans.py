@@ -119,7 +119,7 @@ def list_scans(
 def get_scan(scan_id: str) -> Any:
     with session() as conn:
         view = scan_repo.get_scan(conn, scan_id)
-    return view if view else not_found("스캔")
+    return view or not_found("스캔")
 
 
 @router.post("/scans/{scan_id}/cancel")
@@ -186,7 +186,7 @@ def list_findings(
 def get_finding(finding_id: str) -> Any:
     with session() as conn:
         view = scan_repo.get_finding(conn, finding_id)
-    return view if view else not_found("탐지 결과")
+    return view or not_found("탐지 결과")
 
 
 @router.patch("/findings/{finding_id}")

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 KISA 상세가이드 PDF -> guide_items 임포트 CSV
 
@@ -24,11 +23,15 @@ docs/03_GUIDE_DATA.md §1.2 B안 구현.
   - 원문 오타 (히)->하, (증)->중 정규화.
   - M-01~M-04(이동통신)는 대상/판단기준/조치방법이 없고 상세 설명만 있다. 원문 구조
 """
-import os, re, io, json, sqlite3, argparse
+import argparse
+import json
+import os
+import re
+import sqlite3
 from collections import defaultdict
 
-import pymupdf
 import pdfplumber
+import pymupdf
 
 CODE_RE = re.compile(r'^([A-Z]{1,3})-(\d{1,3})$')
 RISK_RE = re.compile(r'^\(([가-힣])\)$')
@@ -321,10 +324,10 @@ def main():
     # ---------- 저장 ----------
     def split_criteria0(c):
         s_ = v_ = ''
-        m = re.search(r'양호\s*[:：]\s*(.*?)(?=\n?\s*취약\s*[:：]|$)', c, re.S)
+        m = re.search(r'양호\s*[:：]\s*(.*?)(?=\n?\s*취약\s*[:：]|$)', c, re.DOTALL)
         if m:
             s_ = ' '.join(m.group(1).split())
-        m = re.search(r'취약\s*[:：]\s*(.*)$', c, re.S)
+        m = re.search(r'취약\s*[:：]\s*(.*)$', c, re.DOTALL)
         if m:
             v_ = ' '.join(m.group(1).split())
         return s_, v_
@@ -387,10 +390,10 @@ def main():
 
     def split_criteria(c):
         safe = vuln = ''
-        m = re.search(r'양호\s*[:：]\s*(.*?)(?=\n?\s*취약\s*[:：]|$)', c, re.S)
+        m = re.search(r'양호\s*[:：]\s*(.*?)(?=\n?\s*취약\s*[:：]|$)', c, re.DOTALL)
         if m:
             safe = ' '.join(m.group(1).split())
-        m = re.search(r'취약\s*[:：]\s*(.*)$', c, re.S)
+        m = re.search(r'취약\s*[:：]\s*(.*)$', c, re.DOTALL)
         if m:
             vuln = ' '.join(m.group(1).split())
         return safe, vuln
@@ -416,7 +419,7 @@ def _report(records, unknown_labels):
     # ---------- 검증 리포트 ----------
     req = ['title', 'check_content', 'check_purpose', 'target', 'criteria', 'remediation']
     print('\n=== 필드 결측률 ===')
-    for k in req + ['security_threat', 'impact', 'detail']:
+    for k in [*req, 'security_threat', 'impact', 'detail']:
         miss = [r['code'] for r in records if not r[k].strip()]
         print(f'{k:18} 결측 {len(miss):3}/{len(records)}  {miss[:8]}')
     bad = [r['code'] for r in records if not r['criteria'].strip()

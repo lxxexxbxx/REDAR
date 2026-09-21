@@ -60,7 +60,7 @@ class _ThreadedStats(_Recorder):
         def reader() -> None:
             try:
                 on_stderr_line(self.LINE)
-            except BaseException as exc:  # noqa: BLE001 - 호출 스레드로 전달해 실패시킴
+            except BaseException as exc:
                 errors.append(exc)
 
         worker = threading.Thread(target=reader)
@@ -75,7 +75,7 @@ def _run_scan(db_path, mode, rec=None, options=None):
     rec = rec or _Recorder()
     scan_service.set_service(ScanService(
         db_path, command_builder=rec.build, command_runner=rec.run,
-        prober=lambda t: list(t),
+        prober=list,
     ))
     try:
         with TestClient(app) as client:
@@ -126,7 +126,7 @@ def test_full_scan_runs_once_and_excludes_enumerators(db_path, seeded):
 def test_progress_from_reader_thread_is_recorded(db_path, seeded):
     """stderr 는 리더 스레드에서 옴. 스캔 스레드의 DB 연결을 쓰면 ProgrammingError 로
     리더가 죽고, 비워지지 않은 stderr 파이프에 nuclei 가 막혀 스캔이 멈춤 (실측)"""
-    rec, view = _run_scan(db_path, "full_scan", _ThreadedStats())
+    _rec, view = _run_scan(db_path, "full_scan", _ThreadedStats())
     assert view["status"] == "completed", view.get("error")
     assert (view["templates_done"], view["templates_total"]) == (615, 1234)
 

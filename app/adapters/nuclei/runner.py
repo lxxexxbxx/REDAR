@@ -93,9 +93,9 @@ def _drain(stream, handler: Callable[[str], None], label: str) -> None:
         for line in stream:
             try:
                 handler(line.rstrip("\n"))
-            except Exception:  # noqa: BLE001 - 한 줄 처리 실패로 읽기를 멈추지 않음
+            except Exception:
                 logger.warning("%s 처리 실패. 읽기는 계속", label, exc_info=True)
-    except Exception:  # noqa: BLE001 - 스트림 자체 오류. 리더 스레드가 스캔을 죽이면 안 됨
+    except Exception:
         logger.warning("%s 리더 중단", label, exc_info=True)
 
 

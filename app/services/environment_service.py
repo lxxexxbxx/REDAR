@@ -100,7 +100,7 @@ def collect_target(
             if not collector.applicable(ctx):
                 continue
             collected = collector.collect(ctx)
-        except Exception:  # noqa: BLE001 - 수집기 하나가 스캔을 죽이면 안 됨
+        except Exception:
             logger.warning("수집기 실패: %s", collector.key, exc_info=True)
             result.collectors_failed.append(collector.key)
             continue

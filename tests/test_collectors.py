@@ -12,7 +12,6 @@ from app.collectors import base as collectors
 from app.collectors.base import Response, TargetContext
 from app.domain.enums import Confidence
 from app.repository import environment as env_repo
-from app.repository.db import session
 from app.services import environment_service as svc
 
 WP_HTML = """<html><head>

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """nuclei 설치 도우미 (Windows / macOS / Linux).
 
     python3 tools/install_nuclei.py             # 확인 후 없으면 설치
@@ -261,7 +260,7 @@ def main() -> None:
     report(nuclei, go_binary)
     log("")
     log("REDAR 은 이 경로를 자동으로 찾는다. 환경변수 설정은 필요 없다.")
-    log(f"다른 경로의 nuclei 를 쓰려면 REDAR_NUCLEI 를 지정한다.")
+    log("다른 경로의 nuclei 를 쓰려면 REDAR_NUCLEI 를 지정한다.")
 
 
 if __name__ == "__main__":

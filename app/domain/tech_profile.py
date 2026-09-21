@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-_VERSION_RE = re.compile(r"(\d+(?:\.\d+){1,3}[a-z0-9]*)", re.I)
+_VERSION_RE = re.compile(r"(\d+(?:\.\d+){1,3}[a-z0-9]*)", re.IGNORECASE)
 _SUFFIXES = ("-detect", "-detection", "-version", "-panel", "-login")
 _WEB_SERVERS = ("http_server", "apache", "nginx", "iis", "litespeed", "openresty",
                 "lighttpd", "caddy", "tomcat", "jetty", "tengine")
